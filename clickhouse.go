@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
+	"strings"
 )
 
 type ClickHouseClient struct {
@@ -30,14 +30,14 @@ func (c *ClickHouseClient) ExecuteQuery(query string) ([]byte, error) {
 }
 
 func (c *ClickHouseClient) ExecuteQueryStreaming(query string) (io.ReadCloser, error) {
-	encodedQuery := url.QueryEscape(query)
-	url := fmt.Sprintf("http://%s:%d/?query=%s", c.config.Host, c.config.Port, encodedQuery)
-	req, err := http.NewRequest("GET", url, nil)
+	url := fmt.Sprintf("http://%s:%d/", c.config.Host, c.config.Port)
+	req, err := http.NewRequest("POST", url, strings.NewReader(query))
 	if err != nil {
 		return nil, err
 	}
 
 	req.SetBasicAuth(c.config.User, c.config.Password)
+	req.Header.Set("Content-Type", "text/plain")
 	resp, err := c.client.Do(req)
 	if err != nil {
 		return nil, err
