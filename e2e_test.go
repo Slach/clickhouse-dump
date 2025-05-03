@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"os"
 	"os/exec"
 	"testing"
 
@@ -31,6 +32,7 @@ func TestE2E(t *testing.T) {
 	t.Run("AzureBlob", func(t *testing.T) { testAzureBlobStorage(ctx, t, clickhouseContainer) })
 	t.Run("FTP", func(t *testing.T) { testFTPStorage(ctx, t, clickhouseContainer) })
 	t.Run("SFTP", func(t *testing.T) { testSFTPStorage(ctx, t, clickhouseContainer) })
+	t.Run("File", func(t *testing.T) { testFileStorage(ctx, t, clickhouseContainer) })
 }
 
 func startClickHouseContainer(ctx context.Context) (testcontainers.Container, error) {
@@ -124,6 +126,43 @@ func testSFTPStorage(ctx context.Context, t *testing.T, clickhouseContainer test
 	}()
 
 	// TODO: Implement SFTP storage test
+}
+
+func testFileStorage(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container) {
+	// Create temp directory for test
+	tempDir := t.TempDir()
+
+	// Create a test table and insert some data
+	require.NoError(t, createTestTable(ctx, t, clickhouseContainer))
+
+	// Run clickhouse-dump to back up the data
+	err := runClickHouseDump(ctx, t, clickhouseContainer,
+		"dump",
+		"--storage-type", "file",
+		"--storage-path", tempDir,
+		"--compress-format", "gzip",
+		"--compress-level", "6",
+	)
+	require.NoError(t, err, "Failed to dump data")
+
+	// Verify files were created
+	files, err := os.ReadDir(tempDir)
+	require.NoError(t, err)
+	require.Greater(t, len(files), 0, "No files were created in temp dir")
+
+	// Clear the test table
+	require.NoError(t, clearTestTable(ctx, t, clickhouseContainer))
+
+	// Run clickhouse-dump to restore the data
+	err = runClickHouseDump(ctx, t, clickhouseContainer,
+		"restore",
+		"--storage-type", "file",
+		"--storage-path", tempDir,
+	)
+	require.NoError(t, err, "Failed to restore data")
+
+	// Verify the restored data
+	require.NoError(t, verifyTestData(ctx, t, clickhouseContainer))
 }
 
 func startMinioContainer(ctx context.Context) (testcontainers.Container, error) {
