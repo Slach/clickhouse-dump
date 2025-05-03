@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"strings"
 
 	"cloud.google.com/go/storage"
 	"google.golang.org/api/iterator"
@@ -12,7 +11,7 @@ import (
 
 type GCSStorage struct {
 	bucket     *storage.BucketHandle
-	bucketName string // Store bucket name for logging
+	bucketName string          // Store bucket name for logging
 	client     *storage.Client // Store client to close it later
 }
 

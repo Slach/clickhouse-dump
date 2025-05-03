@@ -70,9 +70,9 @@ func (f *FTPStorage) Download(filename string) (io.ReadCloser, error) {
 	var lastErr error
 	for _, ext := range extensionsToTry {
 		remoteFilename := filename + ext
-		resp, err := f.client.Retr(remoteFilename)
+		resp, retrErr := f.client.Retr(remoteFilename)
 
-		if err == nil {
+		if retrErr == nil {
 			// Success! Wrap the response reader with decompression.
 			// The caller must close the returned reader, which will close the underlying FTP data connection.
 			decompressedStream := decompressStream(resp, remoteFilename) // Handles decompression based on remoteFilename extension
@@ -82,17 +82,9 @@ func (f *FTPStorage) Download(filename string) (io.ReadCloser, error) {
 		}
 
 		// Handle error
-		lastErr = fmt.Errorf("failed attempt to download %s from ftp host %s: %w", remoteFilename, f.host, err)
+		lastErr = fmt.Errorf("failed attempt to download %s from ftp host %s: %w", remoteFilename, f.host, retrErr)
 
-		// Check if the error indicates file not found (FTP errors can be inconsistent)
-		// Common codes: 550 File unavailable (e.g., file not found, no access).
-		if ftpErr, ok := err.(*ftp.Error); ok {
-			if ftpErr.Code == ftp.StatusFileUnavailable {
-				// File not found, continue to try the next extension
-				continue
-			}
-		} else if strings.Contains(err.Error(), "550") || strings.Contains(strings.ToLower(err.Error()), "no such file") {
-			// Fallback check for common error messages
+		if strings.Contains(retrErr.Error(), "550") || strings.Contains(strings.ToLower(retrErr.Error()), ftp.StatusText(ftp.StatusFileUnavailable)) {
 			continue
 		}
 
