@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"fmt"
 	"io"
 	"path/filepath"
 	"strings"
@@ -141,4 +142,3 @@ func (e *errorReaderCloser) Read(p []byte) (n int, err error) {
 func (e *errorReaderCloser) Close() error {
 	return e.err // Or return nil? Let's return the error.
 }
-
