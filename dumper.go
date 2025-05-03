@@ -18,6 +18,8 @@ func NewDumper(config *Config) (*Dumper, error) {
 	var err error
 
 	switch config.StorageType {
+	case "file":
+		s, err = storage.NewFileStorage(config.StorageConfig["path"])
 	case "s3":
 		s, err = storage.NewS3Storage(config.StorageConfig["bucket"], config.StorageConfig["region"])
 	case "gcs":

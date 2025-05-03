@@ -75,7 +75,7 @@ func main() {
 			// Storage Common Flags
 			&cli.StringFlag{
 				Name:     "storage-type",
-				Usage:    "Storage backend type: s3, gcs, azblob, sftp, ftp",
+				Usage:    "Storage backend type: file, s3, gcs, azblob, sftp, ftp",
 				EnvVars:  []string{"STORAGE_TYPE"},
 				Required: true, // Required for both dump and restore
 			},
@@ -208,6 +208,11 @@ func getConfig(c *cli.Context) (*Config, error) {
 
 	// Populate StorageConfig based on StorageType
 	switch config.StorageType {
+	case "file":
+		// For file storage, path is required and treated as local directory
+		if config.StorageConfig["path"] == "" {
+			return nil, fmt.Errorf("storage-path is required for file storage type")
+		}
 	case "s3":
 		config.StorageConfig["bucket"] = c.String("storage-bucket")
 		config.StorageConfig["region"] = c.String("storage-region")
