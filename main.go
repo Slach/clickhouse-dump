@@ -201,8 +201,9 @@ func getConfig(c *cli.Context) (*Config, error) {
 		CompressFormat: c.String("compress-format"), // Used by dumper
 		CompressLevel:  c.Int("compress-level"),     // Used by dumper
 		StorageType:    strings.ToLower(c.String("storage-type")),
-		StorageConfig:  make(map[string]string),
-		StoragePath:    c.String("storage-path"),
+		StorageConfig: map[string]string{
+			"path": c.String("storage-path"),
+		},
 	}
 
 	// Populate StorageConfig based on StorageType
