@@ -6,7 +6,6 @@ import (
 	"io"
 	"log"
 	"strings"
-	"unicode"
 
 	"github.com/Slach/clickhouse-dump/storage"
 )
@@ -104,15 +103,15 @@ func (r *Restorer) Restore() error {
 	log.Printf("Found %d schema files to restore.", len(schemaFiles))
 	for _, schemaFileBase := range schemaFiles {
 		log.Printf("Restoring schema from %s...", schemaFileBase)
-		reader, err := r.storage.Download(schemaFileBase) // Download will handle finding .gz, .zstd etc.
-		if err != nil {
-			return fmt.Errorf("failed to download schema file %s: %w", schemaFileBase, err)
+		reader, downloadEr := r.storage.Download(schemaFileBase) // Download will handle finding .gz, .zstd etc.
+		if downloadEr != nil {
+			return fmt.Errorf("failed to download schema file %s: %w", schemaFileBase, downloadEr)
 		}
 		// Ensure the downloaded stream is closed
 		func() {
 			defer func() {
-				if cerr := reader.Close(); cerr != nil {
-					log.Printf("Warning: failed to close reader for %s: %v", schemaFileBase, cerr)
+				if closeErr := reader.Close(); closeErr != nil {
+					log.Printf("Warning: failed to close reader for %s: %v", schemaFileBase, closeErr)
 				}
 			}()
 			if err := r.restoreSchema(reader); err != nil {
@@ -120,9 +119,6 @@ func (r *Restorer) Restore() error {
 				err = fmt.Errorf("failed to restore schema from %s: %w", schemaFileBase, err)
 			}
 		}() // Execute the closure immediately
-		if err != nil {
-			return err // Return the wrapped error
-		}
 		log.Printf("Successfully restored schema from %s.", schemaFileBase)
 	}
 
@@ -130,7 +126,7 @@ func (r *Restorer) Restore() error {
 	dataSuffix := ".data.sql"
 	log.Printf("Listing data files with prefix: %s*%s", schemaPrefix, dataSuffix)
 	// Re-list or filter `allFiles` if List is expensive and returned everything needed
-	// Assuming List is efficient enough or we need to re-list for data files specifically
+	// Assuming List is efficient enough, or we need to re-list for data files specifically
 	allFiles, err = r.storage.List(schemaPrefix) // Re-list or reuse previous list if appropriate
 	if err != nil {
 		return fmt.Errorf("failed to list files in storage with prefix %s: %w", schemaPrefix, err)
@@ -291,4 +287,3 @@ func firstNChars(s string, n int) string {
 	}
 	return s // Should not happen if n < len(s)
 }
-
