@@ -120,6 +120,12 @@ func main() {
 				Usage:   "SFTP/FTP password",
 				EnvVars: []string{"STORAGE_PASSWORD"},
 			},
+			&cli.StringFlag{
+				Name:    "storage-path",
+				Usage:   "Base path in storage for dump/restore files",
+				Value:   "",
+				EnvVars: []string{"STORAGE_PATH"},
+			},
 			// TODO: Add flags for endpoint overrides (S3, GCS, AzBlob) if needed for testing/non-standard setups
 		},
 		Commands: []*cli.Command{
@@ -196,6 +202,7 @@ func getConfig(c *cli.Context) (*Config, error) {
 		CompressLevel:  c.Int("compress-level"),     // Used by dumper
 		StorageType:    strings.ToLower(c.String("storage-type")),
 		StorageConfig:  make(map[string]string),
+		StoragePath:    c.String("storage-path"),
 	}
 
 	// Populate StorageConfig based on StorageType

@@ -9,6 +9,7 @@ type Config struct {
 	BatchSize      int
 	StorageType    string
 	StorageConfig  map[string]string
+	StoragePath    string
 	CompressFormat string
 	CompressLevel  int
 }
