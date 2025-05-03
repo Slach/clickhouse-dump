@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/url"
-	"strings"
 
 	"github.com/Azure/azure-storage-blob-go/azblob"
 )
@@ -83,7 +82,7 @@ func (a *AzBlobStorage) Download(filename string) (io.ReadCloser, error) {
 			// Success! Return the response body wrapped in our decompressor
 			// The response body needs to be closed by the caller.
 			bodyStream := response.Body(azblob.RetryReaderOptions{MaxRetryRequests: 3}) // Use retry reader
-			decompressedStream := decompressStream(bodyStream, blobName) // Handles decompression based on blobName extension
+			decompressedStream := decompressStream(bodyStream, blobName)                // Handles decompression based on blobName extension
 			return decompressedStream, nil
 		}
 
