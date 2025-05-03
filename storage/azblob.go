@@ -140,3 +140,9 @@ func (a *AzBlobStorage) List(prefix string) ([]string, error) {
 
 	return blobNames, nil
 }
+
+// Close closes the Azure Blob Storage connection.
+func (a *AzBlobStorage) Close() error {
+	// Azure SDK doesn't require explicit closing of connections
+	return nil
+}

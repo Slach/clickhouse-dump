@@ -59,3 +59,31 @@ func (s *S3Storage) Download(filename string) (io.ReadCloser, error) {
 	}
 	return io.NopCloser(decompressStream(writer, filename)), nil
 }
+
+func (s *S3Storage) List(prefix string) ([]string, error) {
+	ctx := context.Background()
+	var objectNames []string
+
+	paginator := s3.NewListObjectsV2Paginator(s.client, &s3.ListObjectsV2Input{
+		Bucket: aws.String(s.bucket),
+		Prefix: aws.String(prefix),
+	})
+
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, obj := range page.Contents {
+			objectNames = append(objectNames, *obj.Key)
+		}
+	}
+
+	return objectNames, nil
+}
+
+func (s *S3Storage) Close() error {
+	// AWS SDK v2 clients don't need explicit closing
+	return nil
+}
