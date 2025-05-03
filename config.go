@@ -11,5 +11,4 @@ type Config struct {
 	StorageConfig  map[string]string
 	CompressFormat string
 	CompressLevel  int
-	StoragePath    string // Add this new field
 }
