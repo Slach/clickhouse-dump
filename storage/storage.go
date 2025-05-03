@@ -89,6 +89,20 @@ func compressStream(reader io.Reader, format string, level int) (io.Reader, stri
 	return compressedReader, ext
 }
 
+// zstdReaderCloser wraps a zstd.Decoder and the underlying reader to satisfy io.ReadCloser.
+type zstdReaderCloser struct {
+	*zstd.Decoder
+	underlyingReader io.ReadCloser
+}
+
+// Close closes the zstd decoder and the underlying reader.
+func (zrc *zstdReaderCloser) Close() error {
+	// Close the zstd decoder first (releases resources)
+	zrc.Decoder.Close()
+	// Then close the underlying reader and return its error status.
+	return zrc.underlyingReader.Close()
+}
+
 // decompressStream wraps the reader with a decompression reader if the filename suggests compression.
 // It now returns an io.ReadCloser to ensure the underlying reader can be closed.
 func decompressStream(reader io.ReadCloser, filename string) io.ReadCloser {
@@ -110,8 +124,8 @@ func decompressStream(reader io.ReadCloser, filename string) io.ReadCloser {
 			_ = reader.Close()
 			return &errorReaderCloser{err: fmt.Errorf("failed to create zstd reader for %s: %w", filename, err)}
 		}
-		// Zstd reader needs to be closed to release resources and close underlying reader.
-		return zr // zr implements io.ReadCloser
+		// Wrap the zstd.Decoder and the original reader in our custom closer.
+		return &zstdReaderCloser{Decoder: zr, underlyingReader: reader}
 	default:
 		// No decompression needed, return original reader
 		return reader
