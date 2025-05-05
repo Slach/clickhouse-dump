@@ -87,7 +87,12 @@ func testS3Storage(ctx context.Context, t *testing.T, clickhouseContainer testco
 	require.NoError(t, err, "Failed to restore data")
 
 	// Verify only test_db1 tables were restored
-	// (Would need to implement specific verification for S3)
+	require.NoError(t, verifyTestData(ctx, t, clickhouseContainer, "test_db1.users", "1\tAlice\n2\tBob\n"))
+	require.NoError(t, verifyTestData(ctx, t, clickhouseContainer, "test_db1.logs", "1\tlog entry 1\n2\tlog entry 2\n"))
+	
+	// Verify test_db2 tables were NOT restored
+	_, err = executeQueryWithResult(ctx, t, clickhouseContainer, "SELECT * FROM test_db2.products")
+	require.Error(t, err, "test_db2.products should not exist after filtered restore")
 }
 
 func testGCSStorage(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container) {
@@ -384,6 +389,20 @@ func clearTestTables(ctx context.Context, t *testing.T, container testcontainers
 			return err
 		}
 	}
+	return nil
+}
+
+func verifyTestData(ctx context.Context, t *testing.T, container testcontainers.Container, table string, expected string) error {
+	query := fmt.Sprintf("SELECT * FROM %s ORDER BY id;", table)
+	result, err := executeQueryWithResult(ctx, t, container, query)
+	if err != nil {
+		return err
+	}
+
+	if result != expected {
+		return fmt.Errorf("unexpected result for table %s: got %q, want %q", table, result, expected)
+	}
+
 	return nil
 }
 
