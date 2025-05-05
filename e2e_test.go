@@ -256,23 +256,63 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 		t.Fatalf("unknown test case: %s", testCase)
 	}
 
-	// Create test config
-	config := &Config{
-		BackupName:       backupName,
-		Host:             host,
-		Port:             port.Int(),
-		User:             "default",
-		Password:         "",
-		Databases:        tc.databases,
-		ExcludeDatabases: tc.excludeDatabases,
-		Tables:           tc.tables,
-		ExcludeTables:    tc.excludeTables,
-		BatchSize:        100000,
-		CompressFormat:   "gzip",
-		CompressLevel:    6,
-		StorageType:      storageConfig["type"],
-		StorageConfig:    storageConfig,
+	// Create test app context with all flags
+	app := &cli.App{
+		Name: "clickhouse-dump",
+		Flags: []cli.Flag{
+			&cli.StringFlag{Name: "host"},
+			&cli.IntFlag{Name: "port"},
+			&cli.StringFlag{Name: "user"},
+			&cli.StringFlag{Name: "password"},
+			&cli.StringFlag{Name: "databases"},
+			&cli.StringFlag{Name: "exclude-databases"},
+			&cli.StringFlag{Name: "tables"},
+			&cli.StringFlag{Name: "exclude-tables"},
+			&cli.IntFlag{Name: "batch-size"},
+			&cli.StringFlag{Name: "compress-format"},
+			&cli.IntFlag{Name: "compress-level"},
+			&cli.StringFlag{Name: "storage-type"},
+			&cli.StringFlag{Name: "storage-bucket"},
+			&cli.StringFlag{Name: "storage-region"},
+			&cli.StringFlag{Name: "storage-account"},
+			&cli.StringFlag{Name: "storage-key"},
+			&cli.StringFlag{Name: "storage-container"},
+			&cli.StringFlag{Name: "storage-host"},
+			&cli.StringFlag{Name: "storage-user"},
+			&cli.StringFlag{Name: "storage-password"},
+			&cli.StringFlag{Name: "storage-path"},
+		},
 	}
+
+	// Build args from test case and storage flags
+	args := []string{
+		"clickhouse-dump",
+		"--host=" + host,
+		"--port=" + strconv.Itoa(port.Int()),
+		"--user=default",
+		"--databases=" + tc.databases,
+		"--exclude-databases=" + tc.excludeDatabases,
+		"--tables=" + tc.tables,
+		"--exclude-tables=" + tc.excludeTables,
+		"--batch-size=100000",
+		"--compress-format=gzip",
+		"--compress-level=6",
+	}
+	args = append(args, storageFlags...)
+
+	// Parse flags to get config
+	flagSet := flag.NewFlagSet("test", flag.ContinueOnError)
+	ctx := cli.NewContext(app, flagSet, nil)
+	err := app.Run(append(args, backupName))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse test flags: %w", err)
+	}
+
+	config, err := getConfig(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create test config: %w", err)
+	}
+	config.BackupName = backupName
 
 	// Test 1: Dump
 	app := &cli.App{
