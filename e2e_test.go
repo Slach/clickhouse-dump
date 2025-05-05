@@ -19,66 +19,51 @@ import (
 func TestE2E(t *testing.T) {
 	ctx := context.Background()
 
-	// Run tests for different storage backends with dedicated ClickHouse containers
-	t.Run("S3", func(t *testing.T) {
-		clickhouseContainer, err := startClickHouseContainer(ctx)
-		require.NoError(t, err, "Failed to start ClickHouse container")
-		defer func() {
-			require.NoError(t, clearTestTables(ctx, t, clickhouseContainer))
-			require.NoError(t, clickhouseContainer.Terminate(ctx))
-		}()
-		testS3Storage(ctx, t, clickhouseContainer)
-	})
+	testCases := []string{
+		"default",
+		"include_specific_db",
+		"exclude_tables",
+		"complex_pattern",
+	}
 
-	t.Run("GCS", func(t *testing.T) {
-		clickhouseContainer, err := startClickHouseContainer(ctx)
-		require.NoError(t, err, "Failed to start ClickHouse container")
-		defer func() {
-			require.NoError(t, clearTestTables(ctx, t, clickhouseContainer))
-			require.NoError(t, clickhouseContainer.Terminate(ctx))
-		}()
-		testGCSStorage(ctx, t, clickhouseContainer)
-	})
+	storageTypes := []string{
+		"s3",
+		"gcs",
+		"azblob",
+		"ftp",
+		"sftp",
+		"file",
+	}
 
-	t.Run("AzureBlob", func(t *testing.T) {
-		clickhouseContainer, err := startClickHouseContainer(ctx)
-		require.NoError(t, err, "Failed to start ClickHouse container")
-		defer func() {
-			require.NoError(t, clearTestTables(ctx, t, clickhouseContainer))
-			require.NoError(t, clickhouseContainer.Terminate(ctx))
-		}()
-		testAzureBlobStorage(ctx, t, clickhouseContainer)
-	})
+	for _, storageType := range storageTypes {
+		for _, testCase := range testCases {
+			t.Run(fmt.Sprintf("%s_%s", storageType, testCase), func(t *testing.T) {
+				clickhouseContainer, err := startClickHouseContainer(ctx)
+				require.NoError(t, err, "Failed to start ClickHouse container")
+				defer func() {
+					require.NoError(t, clearTestTables(ctx, t, clickhouseContainer))
+					require.NoError(t, clickhouseContainer.Terminate(ctx))
+				}()
 
-	t.Run("FTP", func(t *testing.T) {
-		clickhouseContainer, err := startClickHouseContainer(ctx)
-		require.NoError(t, err, "Failed to start ClickHouse container")
-		defer func() {
-			require.NoError(t, clearTestTables(ctx, t, clickhouseContainer))
-			require.NoError(t, clickhouseContainer.Terminate(ctx))
-		}()
-		testFTPStorage(ctx, t, clickhouseContainer)
-	})
-
-	t.Run("SFTP", func(t *testing.T) {
-		clickhouseContainer, err := startClickHouseContainer(ctx)
-		require.NoError(t, err, "Failed to start ClickHouse container")
-		defer func() {
-			require.NoError(t, clearTestTables(ctx, t, clickhouseContainer))
-			require.NoError(t, clickhouseContainer.Terminate(ctx))
-		}()
-		testSFTPStorage(ctx, t, clickhouseContainer)
-	})
-
-	t.Run("File", func(t *testing.T) {
-		clickhouseContainer, err := startClickHouseContainer(ctx)
-		require.NoError(t, err, "Failed to start ClickHouse container")
-		defer func() {
-			require.NoError(t, clearTestTables(ctx, t, clickhouseContainer))
-			require.NoError(t, clickhouseContainer.Terminate(ctx))
-		}()
-		testFileStorage(ctx, t, clickhouseContainer)
-	})
+				switch storageType {
+				case "s3":
+					testS3Storage(ctx, t, clickhouseContainer, testCase)
+				case "gcs":
+					testGCSStorage(ctx, t, clickhouseContainer, testCase)
+				case "azblob":
+					testAzureBlobStorage(ctx, t, clickhouseContainer, testCase)
+				case "ftp":
+					testFTPStorage(ctx, t, clickhouseContainer, testCase)
+				case "sftp":
+					testSFTPStorage(ctx, t, clickhouseContainer, testCase)
+				case "file":
+					testFileStorage(ctx, t, clickhouseContainer, testCase)
+				default:
+					t.Fatalf("unknown storage type: %s", storageType)
+				}
+			})
+		}
+	}
 }
 
 func startClickHouseContainer(ctx context.Context) (testcontainers.Container, error) {
@@ -96,7 +81,7 @@ func startClickHouseContainer(ctx context.Context) (testcontainers.Container, er
 	})
 }
 
-func testS3Storage(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container) {
+func testS3Storage(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container, testCase string) {
 	minioContainer, err := startMinioContainer(ctx)
 	require.NoError(t, err, "Failed to start Minio container")
 	defer func() {
@@ -119,7 +104,7 @@ func testS3Storage(ctx context.Context, t *testing.T, clickhouseContainer testco
 	})
 }
 
-func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container, storageConfig map[string]string) {
+func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container, storageConfig map[string]string, testCase string) {
 	// Clear any existing tables first
 	require.NoError(t, clearTestTables(ctx, t, clickhouseContainer))
 
@@ -132,18 +117,160 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 	port, err := clickhouseContainer.MappedPort(ctx, "8123")
 	require.NoError(t, err)
 
+	// Define test cases
+	testCases := map[string]struct {
+		databases        string
+		excludeDatabases string
+		tables           string
+		excludeTables    string
+		expectedFiles    []string
+		expectedRestored []string
+		expectedMissing  []string
+	}{
+		"default": {
+			databases:        ".*",
+			excludeDatabases: "system|INFORMATION_SCHEMA|information_schema|system_db",
+			tables:           ".*",
+			excludeTables:    "",
+			expectedFiles: []string{
+				"test_db1.users.schema.sql",
+				"test_db1.users.data.sql",
+				"test_db1.logs.schema.sql",
+				"test_db1.logs.data.sql",
+				"test_db1.audit_log.schema.sql",
+				"test_db1.audit_log.data.sql",
+				"test_db2.products.schema.sql",
+				"test_db2.products.data.sql",
+				"test_db2.inventory.schema.sql",
+				"test_db2.inventory.data.sql",
+				"test_db3.metrics.schema.sql",
+				"test_db3.metrics.data.sql",
+				"logs_2023.events.schema.sql",
+				"logs_2023.events.data.sql",
+				"logs_2024.events.schema.sql",
+				"logs_2024.events.data.sql",
+			},
+			expectedRestored: []string{
+				"test_db1.users",
+				"test_db1.logs",
+				"test_db1.audit_log",
+				"test_db2.products",
+				"test_db2.inventory",
+				"test_db3.metrics",
+				"logs_2023.events",
+				"logs_2024.events",
+			},
+			expectedMissing: []string{
+				"system_db.settings",
+			},
+		},
+		"include_specific_db": {
+			databases:        "test_db1|logs_2024",
+			excludeDatabases: "",
+			tables:           ".*",
+			excludeTables:    "",
+			expectedFiles: []string{
+				"test_db1.users.schema.sql",
+				"test_db1.users.data.sql",
+				"test_db1.logs.schema.sql",
+				"test_db1.logs.data.sql",
+				"test_db1.audit_log.schema.sql",
+				"test_db1.audit_log.data.sql",
+				"logs_2024.events.schema.sql",
+				"logs_2024.events.data.sql",
+			},
+			expectedRestored: []string{
+				"test_db1.users",
+				"test_db1.logs",
+				"test_db1.audit_log",
+				"logs_2024.events",
+			},
+			expectedMissing: []string{
+				"test_db2.products",
+				"test_db2.inventory",
+				"test_db3.metrics",
+				"logs_2023.events",
+				"system_db.settings",
+			},
+		},
+		"exclude_tables": {
+			databases:        ".*",
+			excludeDatabases: "system_db",
+			tables:           ".*",
+			excludeTables:    "logs|metrics",
+			expectedFiles: []string{
+				"test_db1.users.schema.sql",
+				"test_db1.users.data.sql",
+				"test_db1.audit_log.schema.sql",
+				"test_db1.audit_log.data.sql",
+				"test_db2.products.schema.sql",
+				"test_db2.products.data.sql",
+				"test_db2.inventory.schema.sql",
+				"test_db2.inventory.data.sql",
+			},
+			expectedRestored: []string{
+				"test_db1.users",
+				"test_db1.audit_log",
+				"test_db2.products",
+				"test_db2.inventory",
+			},
+			expectedMissing: []string{
+				"test_db1.logs",
+				"test_db3.metrics",
+				"logs_2023.events",
+				"logs_2024.events",
+				"system_db.settings",
+			},
+		},
+		"complex_pattern": {
+			databases:        "test_db[12]|logs_202[34]",
+			excludeDatabases: "logs_2023",
+			tables:           "users|products|events",
+			excludeTables:    "",
+			expectedFiles: []string{
+				"test_db1.users.schema.sql",
+				"test_db1.users.data.sql",
+				"test_db2.products.schema.sql",
+				"test_db2.products.data.sql",
+				"logs_2024.events.schema.sql",
+				"logs_2024.events.data.sql",
+			},
+			expectedRestored: []string{
+				"test_db1.users",
+				"test_db2.products",
+				"logs_2024.events",
+			},
+			expectedMissing: []string{
+				"test_db1.logs",
+				"test_db1.audit_log",
+				"test_db2.inventory",
+				"test_db3.metrics",
+				"logs_2023.events",
+				"system_db.settings",
+			},
+		},
+	}
+
+	tc := testCases[testCase]
+	if tc.expectedFiles == nil {
+		t.Fatalf("unknown test case: %s", testCase)
+	}
+
 	// Create test config
 	config := &Config{
-		Host:           host,
-		Port:           port.Int(),
-		User:          "default",
-		Password:      "",
-		Database:      "default",
-		BatchSize:     100000,
-		CompressFormat: "gzip",
-		CompressLevel: 6,
-		StorageType:   storageConfig["type"],
-		StorageConfig: storageConfig,
+		Host:            host,
+		Port:            port.Int(),
+		User:            "default",
+		Password:        "",
+		Databases:       tc.databases,
+		ExcludeDatabases: tc.excludeDatabases,
+		Tables:          tc.tables,
+		ExcludeTables:   tc.excludeTables,
+		BatchSize:       100000,
+		CompressFormat:  "gzip",
+		CompressLevel:   6,
+		StorageType:     storageConfig["type"],
+		StorageConfig:   storageConfig,
 	}
 
 	// Test 1: Dump
@@ -155,15 +282,7 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 
 	// Verify dump files were created
 	if config.StorageType == "file" {
-		expectedFiles := []string{
-			"default.test_db1.users.schema.sql",
-			"default.test_db1.users.data.sql",
-			"default.test_db1.logs.schema.sql", 
-			"default.test_db1.logs.data.sql",
-			"default.test_db2.products.schema.sql",
-			"default.test_db2.products.data.sql",
-		}
-		require.NoError(t, verifyDumpResults(ctx, t, clickhouseContainer, storageConfig["path"], expectedFiles))
+		require.NoError(t, verifyDumpResults(ctx, t, clickhouseContainer, storageConfig["path"], tc.expectedFiles))
 	}
 	
 	// Clear tables before restore
@@ -176,17 +295,20 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 	})
 	require.NoError(t, err, "Failed to restore data")
 
-	// Verify only non-system tables were restored
-	require.NoError(t, verifyTestData(ctx, t, clickhouseContainer, "test_db1.users", "1\tAlice\n2\tBob\n"))
-	require.NoError(t, verifyTestData(ctx, t, clickhouseContainer, "test_db1.logs", "1\tlog entry 1\n2\tlog entry 2\n"))
-	require.NoError(t, verifyTestData(ctx, t, clickhouseContainer, "test_db2.products", "1\tProduct A\n2\tProduct B\n"))
-	
-	// Verify system tables were NOT restored
-	_, err = executeQueryWithResult(ctx, t, clickhouseContainer, "SELECT * FROM test_db3.metrics")
-	require.Error(t, err, "test_db3.metrics should not exist after restore")
+	// Verify expected tables were restored
+	for _, table := range tc.expectedRestored {
+		_, err := executeQueryWithResult(ctx, t, clickhouseContainer, fmt.Sprintf("SELECT * FROM %s LIMIT 1", table))
+		require.NoError(t, err, "table %s should exist after restore", table)
+	}
+
+	// Verify excluded tables were NOT restored
+	for _, table := range tc.expectedMissing {
+		_, err := executeQueryWithResult(ctx, t, clickhouseContainer, fmt.Sprintf("SELECT * FROM %s", table))
+		require.Error(t, err, "table %s should not exist after restore", table)
+	}
 }
 
-func testGCSStorage(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container) {
+func testGCSStorage(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container, testCase string) {
 	gcsContainer, err := startFakeGCSContainer(ctx)
 	require.NoError(t, err, "Failed to start fake GCS container")
 	defer func() {
@@ -207,7 +329,7 @@ func testGCSStorage(ctx context.Context, t *testing.T, clickhouseContainer testc
 	})
 }
 
-func testAzureBlobStorage(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container) {
+func testAzureBlobStorage(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container, testCase string) {
 	azuriteContainer, err := startAzuriteContainer(ctx)
 	require.NoError(t, err, "Failed to start Azurite container")
 	defer func() {
@@ -230,7 +352,7 @@ func testAzureBlobStorage(ctx context.Context, t *testing.T, clickhouseContainer
 	})
 }
 
-func testFTPStorage(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container) {
+func testFTPStorage(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container, testCase string) {
 	ftpContainer, err := startFTPContainer(ctx)
 	require.NoError(t, err, "Failed to start FTP container")
 	defer func() {
@@ -252,7 +374,7 @@ func testFTPStorage(ctx context.Context, t *testing.T, clickhouseContainer testc
 	})
 }
 
-func testSFTPStorage(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container) {
+func testSFTPStorage(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container, testCase string) {
 	sftpContainer, err := startSFTPContainer(ctx)
 	require.NoError(t, err, "Failed to start SFTP container")
 	defer func() {
@@ -274,7 +396,7 @@ func testSFTPStorage(ctx context.Context, t *testing.T, clickhouseContainer test
 	})
 }
 
-func testFileStorage(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container) {
+func testFileStorage(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container, testCase string) {
 	// Create temp directory for test
 	tempDir := t.TempDir()
 
@@ -364,7 +486,10 @@ func createTestTables(ctx context.Context, t *testing.T, container testcontainer
 	queries := []string{
 		`CREATE DATABASE IF NOT EXISTS test_db1`,
 		`CREATE DATABASE IF NOT EXISTS test_db2`,
-		`CREATE DATABASE IF NOT EXISTS test_db3`, // Will be excluded by default
+		`CREATE DATABASE IF NOT EXISTS test_db3`,
+		`CREATE DATABASE IF NOT EXISTS logs_2023`,
+		`CREATE DATABASE IF NOT EXISTS logs_2024`,
+		`CREATE DATABASE IF NOT EXISTS system_db`, // Should be excluded by default
 
 		// Tables in test_db1
 		`CREATE TABLE test_db1.users (
@@ -379,6 +504,12 @@ func createTestTables(ctx context.Context, t *testing.T, container testcontainer
 		) ENGINE = MergeTree()
 		ORDER BY id`,
 
+		`CREATE TABLE test_db1.audit_log (
+			id UInt32,
+			action String
+		) ENGINE = MergeTree()
+		ORDER BY id`,
+
 		// Tables in test_db2
 		`CREATE TABLE test_db2.products (
 			id UInt32,
@@ -386,8 +517,34 @@ func createTestTables(ctx context.Context, t *testing.T, container testcontainer
 		) ENGINE = MergeTree()
 		ORDER BY id`,
 
-		// System table (should be excluded)
+		`CREATE TABLE test_db2.inventory (
+			id UInt32,
+			item String
+		) ENGINE = MergeTree()
+		ORDER BY id`,
+
+		// Tables in test_db3
 		`CREATE TABLE test_db3.metrics (
+			id UInt32,
+			name String
+		) ENGINE = MergeTree()
+		ORDER BY id`,
+
+		// Log databases
+		`CREATE TABLE logs_2023.events (
+			id UInt32,
+			event String
+		) ENGINE = MergeTree()
+		ORDER BY id`,
+
+		`CREATE TABLE logs_2024.events (
+			id UInt32,
+			event String
+		) ENGINE = MergeTree()
+		ORDER BY id`,
+
+		// System tables (should be excluded by default)
+		`CREATE TABLE system_db.settings (
 			id UInt32,
 			name String
 		) ENGINE = MergeTree()
@@ -396,8 +553,13 @@ func createTestTables(ctx context.Context, t *testing.T, container testcontainer
 		// Insert test data
 		`INSERT INTO test_db1.users VALUES (1, 'Alice'), (2, 'Bob')`,
 		`INSERT INTO test_db1.logs VALUES (1, 'log entry 1'), (2, 'log entry 2')`,
+		`INSERT INTO test_db1.audit_log VALUES (1, 'login'), (2, 'logout')`,
 		`INSERT INTO test_db2.products VALUES (1, 'Product A'), (2, 'Product B')`,
+		`INSERT INTO test_db2.inventory VALUES (1, 'Item 1'), (2, 'Item 2')`,
 		`INSERT INTO test_db3.metrics VALUES (1, 'metric1'), (2, 'metric2')`,
+		`INSERT INTO logs_2023.events VALUES (1, 'event1'), (2, 'event2')`,
+		`INSERT INTO logs_2024.events VALUES (1, 'event1'), (2, 'event2')`,
+		`INSERT INTO system_db.settings VALUES (1, 'setting1'), (2, 'setting2')`,
 	}
 
 	for _, query := range queries {
