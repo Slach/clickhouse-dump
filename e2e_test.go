@@ -95,17 +95,16 @@ func testS3Storage(ctx context.Context, t *testing.T, clickhouseContainer testco
 	minioPort, err := minioContainer.MappedPort(ctx, "9000")
 	require.NoError(t, err, "Failed to get Minio port")
 
-	runMainTestScenario(ctx, t, clickhouseContainer, map[string]string{
-		"type":   "s3",
-		"bucket": "testbucket",
-		"region": "us-east-1",
-		"path":   "",
-		"host":   minioHost,
-		"port":   minioPort.Port(),
+	runMainTestScenario(ctx, t, clickhouseContainer, []string{
+		"--storage-type=s3",
+		"--storage-bucket=testbucket",
+		"--storage-region=us-east-1",
+		"--storage-path=",
+		"--storage-host=" + minioHost + ":" + minioPort.Port(),
 	}, testCase, backupName)
 }
 
-func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container, storageConfig map[string]string, testCase string, backupName string) {
+func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container, storageFlags []string, testCase string, backupName string) {
 	// Clear any existing tables first
 	require.NoError(t, clearTestTables(ctx, t, clickhouseContainer))
 
@@ -372,11 +371,11 @@ func testGCSStorage(ctx context.Context, t *testing.T, clickhouseContainer testc
 	gcsPort, err := gcsContainer.MappedPort(ctx, "4443")
 	require.NoError(t, err, "Failed to get GCS port")
 
-	runMainTestScenario(ctx, t, clickhouseContainer, map[string]string{
-		"type":   "gcs",
-		"bucket": "testbucket",
-		"path":   "",
-		"host":   fmt.Sprintf("%s:%s", gcsHost, gcsPort.Port()),
+	runMainTestScenario(ctx, t, clickhouseContainer, []string{
+		"--storage-type=gcs",
+		"--storage-bucket=testbucket",
+		"--storage-path=",
+		"--storage-host=" + gcsHost + ":" + gcsPort.Port(),
 	}, testCase, backupName)
 }
 
@@ -394,13 +393,13 @@ func testAzureBlobStorage(ctx context.Context, t *testing.T, clickhouseContainer
 	azuritePort, err := azuriteContainer.MappedPort(ctx, "10000")
 	require.NoError(t, err, "Failed to get Azurite port")
 
-	runMainTestScenario(ctx, t, clickhouseContainer, map[string]string{
-		"type":      "azblob",
-		"account":   "devstoreaccount1",
-		"key":       "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==",
-		"container": "testcontainer",
-		"path":      "",
-		"host":      fmt.Sprintf("%s:%s", azuriteHost, azuritePort.Port()),
+	runMainTestScenario(ctx, t, clickhouseContainer, []string{
+		"--storage-type=azblob",
+		"--storage-account=devstoreaccount1",
+		"--storage-key=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==",
+		"--storage-container=testcontainer",
+		"--storage-path=",
+		"--storage-host=" + azuriteHost + ":" + azuritePort.Port(),
 	}, testCase, backupName)
 }
 
@@ -418,12 +417,12 @@ func testFTPStorage(ctx context.Context, t *testing.T, clickhouseContainer testc
 	ftpPort, err := ftpContainer.MappedPort(ctx, "21")
 	require.NoError(t, err, "Failed to get FTP port")
 
-	runMainTestScenario(ctx, t, clickhouseContainer, map[string]string{
-		"type":     "ftp",
-		"host":     fmt.Sprintf("%s:%s", ftpHost, ftpPort.Port()),
-		"user":     "testuser",
-		"password": "testpass",
-		"path":     "",
+	runMainTestScenario(ctx, t, clickhouseContainer, []string{
+		"--storage-type=ftp",
+		"--storage-host=" + ftpHost + ":" + ftpPort.Port(),
+		"--storage-user=testuser",
+		"--storage-password=testpass",
+		"--storage-path=",
 	}, testCase, backupName)
 }
 
@@ -441,12 +440,12 @@ func testSFTPStorage(ctx context.Context, t *testing.T, clickhouseContainer test
 	sftpPort, err := sftpContainer.MappedPort(ctx, "22")
 	require.NoError(t, err, "Failed to get SFTP port")
 
-	runMainTestScenario(ctx, t, clickhouseContainer, map[string]string{
-		"type":     "sftp",
-		"host":     fmt.Sprintf("%s:%s", sftpHost, sftpPort.Port()),
-		"user":     "testuser",
-		"password": "testpass",
-		"path":     "",
+	runMainTestScenario(ctx, t, clickhouseContainer, []string{
+		"--storage-type=sftp",
+		"--storage-host=" + sftpHost + ":" + sftpPort.Port(),
+		"--storage-user=testuser",
+		"--storage-password=testpass",
+		"--storage-path=",
 	}, testCase, backupName)
 }
 
@@ -454,9 +453,9 @@ func testFileStorage(ctx context.Context, t *testing.T, clickhouseContainer test
 	// Create temp directory for test
 	tempDir := t.TempDir()
 
-	runMainTestScenario(ctx, t, clickhouseContainer, map[string]string{
-		"type": "file",
-		"path": tempDir,
+	runMainTestScenario(ctx, t, clickhouseContainer, []string{
+		"--storage-type=file",
+		"--storage-path=" + tempDir,
 	}, testCase, "test_backup")
 }
 
