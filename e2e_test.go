@@ -122,8 +122,7 @@ func testGCSStorage(ctx context.Context, t *testing.T, clickhouseContainer testc
 		"--storage-type", "gcs",
 		"--storage-bucket", "testbucket",
 		"--storage-path", "",
-		"--host", gcsHost,
-		"--port", gcsPort.Port(),
+		"--storage-host", fmt.Sprintf("%s:%s", gcsHost, gcsPort.Port()),
 	})
 }
 
@@ -146,8 +145,7 @@ func testAzureBlobStorage(ctx context.Context, t *testing.T, clickhouseContainer
 		"--storage-key", "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==",
 		"--storage-container", "testcontainer",
 		"--storage-path", "",
-		"--host", azuriteHost,
-		"--port", azuritePort.Port(),
+		"--storage-host", fmt.Sprintf("%s:%s", azuriteHost, azuritePort.Port()),
 	})
 }
 
