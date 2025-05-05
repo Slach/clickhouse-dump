@@ -96,13 +96,12 @@ func testS3Storage(ctx context.Context, t *testing.T, clickhouseContainer testco
 	require.NoError(t, err, "Failed to get Minio port")
 
 	runMainTestScenario(ctx, t, clickhouseContainer, map[string]string{
-		"type":     "s3",
-		"bucket":   "testbucket",
-		"region":   "us-east-1",
-		"path":     "",
-		"host":     minioHost,
-		"port":     minioPort.Port(),
-		"endpoint": fmt.Sprintf("http://%s:%s", minioHost, minioPort.Port()),
+		"type":   "s3",
+		"bucket": "testbucket",
+		"region": "us-east-1",
+		"path":   "",
+		"host":   minioHost,
+		"port":   minioPort.Port(),
 	}, testCase, backupName)
 }
 
@@ -276,11 +275,6 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 		StorageConfig:    storageConfig,
 	}
 
-	// Ensure StorageType is set
-	if config.StorageType == "" {
-		return fmt.Errorf("storage-type must be specified")
-	}
-
 	// Test 1: Dump
 	app := &cli.App{
 		Name: "clickhouse-dump",
@@ -292,8 +286,10 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 	}
 	// Create flag set and set args
 	fs := &flag.FlagSet{}
-	fs.Parse([]string{backupName})
-	
+	if err = fs.Parse([]string{backupName}); err != nil {
+		require.NoError(t, err, "Failed setup FlagSet")
+	}
+
 	dumpCtx := cli.NewContext(app, fs, nil)
 	dumpCtx.Context = ctx
 	dumpCtx.Command = app.Command("dump")
@@ -311,8 +307,10 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 
 	// Test 2: Restore
 	// Reuse flag set for restore
-	fs.Parse([]string{backupName})
-	
+	if err = fs.Parse([]string{backupName}); err != nil {
+		require.NoError(t, err, "Failed setup FlagSet")
+	}
+
 	restoreCtx := cli.NewContext(app, fs, nil)
 	restoreCtx.Context = ctx
 	restoreCtx.Command = app.Command("restore")
@@ -349,8 +347,8 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 			t.Fatalf("unexpected table in verification: %s", table)
 		}
 
-		err = verifyTestData(ctx, t, clickhouseContainer, table, expectedData)
-		require.NoError(t, err, "table %s data verification failed", table)
+		verifyDataErr := verifyTestData(ctx, t, clickhouseContainer, table, expectedData)
+		require.NoError(t, verifyDataErr, "table %s data verification failed", table)
 	}
 
 	// Verify excluded tables were NOT restored
