@@ -135,6 +135,19 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 		}, storageArgs...)...,
 	)
 	require.NoError(t, err, "Failed to dump data")
+
+	// Verify dump files were created
+	if storageArgs[1] == "file" {
+		expectedFiles := []string{
+			"default.test_db1.users.schema.sql",
+			"default.test_db1.users.data.sql",
+			"default.test_db1.logs.schema.sql", 
+			"default.test_db1.logs.data.sql",
+			"default.test_db2.products.schema.sql",
+			"default.test_db2.products.data.sql",
+		}
+		require.NoError(t, verifyDumpResults(ctx, t, clickhouseContainer, storageArgs[3], expectedFiles))
+	}
 	
 	// Clear tables before restore
 	require.NoError(t, clearTestTables(ctx, t, clickhouseContainer))
