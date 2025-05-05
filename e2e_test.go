@@ -69,6 +69,8 @@ func testS3Storage(ctx context.Context, t *testing.T, clickhouseContainer testco
 		"--storage-type", "s3",
 		"--storage-config", fmt.Sprintf("bucket=testbucket,region=us-east-1,endpoint=http://%s:%s", minioHost, minioPort.Port()),
 		"--databases", "test_db1",
+		"--compress-format", "gzip",
+		"--compress-level", "6",
 	)
 	require.NoError(t, err, "Failed to dump data")
 
@@ -145,7 +147,7 @@ func testFileStorage(ctx context.Context, t *testing.T, clickhouseContainer test
 	require.NoError(t, verifyDumpResults(ctx, t, clickhouseContainer, tempDir, []string{
 		"test_db1.users.schema.sql",
 		"test_db1.users.data.sql",
-		"test_db1.logs.schema.sql", 
+		"test_db1.logs.schema.sql",
 		"test_db1.logs.data.sql",
 		"test_db2.products.schema.sql",
 		"test_db2.products.data.sql",
@@ -324,34 +326,34 @@ func createTestTables(ctx context.Context, t *testing.T, container testcontainer
 		`CREATE DATABASE IF NOT EXISTS test_db1`,
 		`CREATE DATABASE IF NOT EXISTS test_db2`,
 		`CREATE DATABASE IF NOT EXISTS system`, // Will be excluded by default
-		
+
 		// Tables in test_db1
 		`CREATE TABLE test_db1.users (
 			id UInt32,
 			name String
 		) ENGINE = MergeTree()
 		ORDER BY id`,
-		
+
 		`CREATE TABLE test_db1.logs (
 			id UInt32,
 			message String
 		) ENGINE = MergeTree()
 		ORDER BY id`,
-		
+
 		// Tables in test_db2
 		`CREATE TABLE test_db2.products (
 			id UInt32,
 			name String
 		) ENGINE = MergeTree()
 		ORDER BY id`,
-		
+
 		// System table (should be excluded)
 		`CREATE TABLE system.metrics (
 			id UInt32,
 			name String
 		) ENGINE = MergeTree()
 		ORDER BY id`,
-		
+
 		// Insert test data
 		`INSERT INTO test_db1.users VALUES (1, 'Alice'), (2, 'Bob')`,
 		`INSERT INTO test_db1.logs VALUES (1, 'log entry 1'), (2, 'log entry 2')`,
