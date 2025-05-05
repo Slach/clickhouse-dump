@@ -283,11 +283,11 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 			},
 		},
 	}
-	dumpCmd := app.Command("dump")
-	dumpCtx := cli.NewContext(app, nil, nil)
-	dumpCtx.Context = ctx
-	dumpCtx.Command = dumpCmd
-	dumpCtx.Args().Add(backupName) // Set the backup name argument
+	dumpCtx := cli.NewContext(app, nil, &cli.Context{
+		Context: ctx,
+		Args:    cli.Args{backupName},
+	})
+	dumpCtx.Command = app.Command("dump")
 
 	err = RunDumper(dumpCtx)
 	require.NoError(t, err, "Failed to dump data")
@@ -301,11 +301,11 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 	require.NoError(t, clearTestTables(ctx, t, clickhouseContainer))
 
 	// Test 2: Restore
-	restoreCmd := app.Command("restore")
-	restoreCtx := cli.NewContext(app, nil, nil)
-	restoreCtx.Context = ctx
-	restoreCtx.Command = restoreCmd
-	restoreCtx.Args().Add(backupName) // Set the backup name argument
+	restoreCtx := cli.NewContext(app, nil, &cli.Context{
+		Context: ctx,
+		Args:    cli.Args{backupName},
+	})
+	restoreCtx.Command = app.Command("restore")
 
 	err = RunRestorer(restoreCtx)
 	require.NoError(t, err, "Failed to restore data")
