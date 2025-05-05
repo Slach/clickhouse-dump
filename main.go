@@ -149,16 +149,16 @@ func main() {
 		},
 		Commands: []*cli.Command{
 			{
-				Name:   "dump",
-				Usage:  "Dump ClickHouse tables schema and data to remote storage",
-				Action: RunDumper,
-				// Add dump-specific flags here if preferred over global
+				Name:      "dump",
+				Usage:     "Dump ClickHouse tables schema and data to remote storage",
+				Action:    RunDumper,
+				ArgsUsage: "BACKUP_NAME",
 			},
 			{
-				Name:   "restore",
-				Usage:  "Restore ClickHouse tables from remote storage",
-				Action: RunRestorer,
-				// Add restore-specific flags here if preferred over global
+				Name:      "restore",
+				Usage:     "Restore ClickHouse tables from remote storage",
+				Action:    RunRestorer,
+				ArgsUsage: "BACKUP_NAME",
 			},
 		},
 	}
@@ -174,10 +174,16 @@ func main() {
 }
 
 func RunDumper(c *cli.Context) error {
+	if c.Args().Len() == 0 {
+		return fmt.Errorf("backup name is required as argument")
+	}
+	backupName := c.Args().First()
+
 	config, err := getConfig(c)
 	if err != nil {
 		return fmt.Errorf("configuration error: %w", err)
 	}
+	config.BackupName = backupName
 	dumper, err := NewDumper(config)
 	if err != nil {
 		return fmt.Errorf("failed to initialize dumper: %w", err)
@@ -193,10 +199,16 @@ func RunDumper(c *cli.Context) error {
 }
 
 func RunRestorer(c *cli.Context) error {
+	if c.Args().Len() == 0 {
+		return fmt.Errorf("backup name is required as argument")
+	}
+	backupName := c.Args().First()
+
 	config, err := getConfig(c)
 	if err != nil {
 		return fmt.Errorf("configuration error: %w", err)
 	}
+	config.BackupName = backupName
 	restorer, err := NewRestorer(config)
 	if err != nil {
 		return fmt.Errorf("failed to initialize restorer: %w", err)

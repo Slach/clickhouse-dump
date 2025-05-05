@@ -104,7 +104,7 @@ func testS3Storage(ctx context.Context, t *testing.T, clickhouseContainer testco
 	})
 }
 
-func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container, storageConfig map[string]string, testCase string) {
+func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container, storageConfig map[string]string, testCase string, backupName string) {
 	// Clear any existing tables first
 	require.NoError(t, clearTestTables(ctx, t, clickhouseContainer))
 
@@ -258,6 +258,7 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 
 	// Create test config
 	config := &Config{
+		BackupName:     backupName,
 		Host:            host,
 		Port:            port.Int(),
 		User:            "default",
