@@ -112,22 +112,29 @@ func (d *Dumper) getTables() (map[string][]string, error) {
 }
 
 func (d *Dumper) dumpSchema(table string) error {
+	parts := strings.SplitN(table, ".", 2)
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid table name format: %s", table)
+	}
+	dbName, tableName := parts[0], parts[1]
+
 	query := fmt.Sprintf("SELECT create_table_query FROM system.tables WHERE database='%s' AND name='%s' SETTINGS display_secrets_in_show_and_select=1 FORMAT TabSeparated", dbName, tableName)
 	resp, err := d.client.ExecuteQuery(query)
 	if err != nil {
 		return err
 	}
 
-	parts := strings.SplitN(table, ".", 2)
-	if len(parts) != 2 {
-		return fmt.Errorf("invalid table name format: %s", table)
-	}
-	dbName, tableName := parts[0], parts[1]
 	filename := fmt.Sprintf("%s/%s/%s.schema.sql", d.config.StorageConfig["path"], dbName, tableName)
 	return d.storage.Upload(filename, bytes.NewReader(resp), d.config.CompressFormat, d.config.CompressLevel)
 }
 
 func (d *Dumper) dumpData(table string) error {
+	parts := strings.SplitN(table, ".", 2)
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid table name format: %s", table)
+	}
+	dbName, tableName := parts[0], parts[1]
+
 	query := fmt.Sprintf("SELECT * FROM %s FORMAT SQLInsert SETTINGS output_format_sql_insert_max_batch_size=%d", table, d.config.BatchSize)
 	body, err := d.client.ExecuteQueryStreaming(query)
 	if err != nil {
