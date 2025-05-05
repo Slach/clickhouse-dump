@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/urfave/cli/v2"
 	"context"
 	"fmt"
 	"io"
@@ -82,6 +83,7 @@ func startClickHouseContainer(ctx context.Context) (testcontainers.Container, er
 }
 
 func testS3Storage(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container, testCase string) {
+	backupName := "test_backup_" + testCase
 	minioContainer, err := startMinioContainer(ctx)
 	require.NoError(t, err, "Failed to start Minio container")
 	defer func() {
@@ -310,6 +312,7 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 }
 
 func testGCSStorage(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container, testCase string) {
+	backupName := "test_backup_" + testCase
 	gcsContainer, err := startFakeGCSContainer(ctx)
 	require.NoError(t, err, "Failed to start fake GCS container")
 	defer func() {
@@ -331,6 +334,7 @@ func testGCSStorage(ctx context.Context, t *testing.T, clickhouseContainer testc
 }
 
 func testAzureBlobStorage(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container, testCase string) {
+	backupName := "test_backup_" + testCase
 	azuriteContainer, err := startAzuriteContainer(ctx)
 	require.NoError(t, err, "Failed to start Azurite container")
 	defer func() {
@@ -354,6 +358,7 @@ func testAzureBlobStorage(ctx context.Context, t *testing.T, clickhouseContainer
 }
 
 func testFTPStorage(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container, testCase string) {
+	backupName := "test_backup_" + testCase
 	ftpContainer, err := startFTPContainer(ctx)
 	require.NoError(t, err, "Failed to start FTP container")
 	defer func() {
@@ -376,6 +381,7 @@ func testFTPStorage(ctx context.Context, t *testing.T, clickhouseContainer testc
 }
 
 func testSFTPStorage(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container, testCase string) {
+	backupName := "test_backup_" + testCase
 	sftpContainer, err := startSFTPContainer(ctx)
 	require.NoError(t, err, "Failed to start SFTP container")
 	defer func() {
