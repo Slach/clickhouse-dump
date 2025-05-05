@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"github.com/urfave/cli/v2"
 	"io"
@@ -284,10 +285,10 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 		},
 	}
 	// Create flag set and set args
-	flagSet := &flag.FlagSet{}
-	flagSet.Parse([]string{backupName})
+	fs := &flag.FlagSet{}
+	fs.Parse([]string{backupName})
 	
-	dumpCtx := cli.NewContext(app, flagSet, nil)
+	dumpCtx := cli.NewContext(app, fs, nil)
 	dumpCtx.Context = ctx
 	dumpCtx.Command = app.Command("dump")
 
@@ -303,11 +304,10 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 	require.NoError(t, clearTestTables(ctx, t, clickhouseContainer))
 
 	// Test 2: Restore
-	// Create flag set and set args
-	flagSet := &flag.FlagSet{}
-	flagSet.Parse([]string{backupName})
+	// Reuse flag set for restore
+	fs.Parse([]string{backupName})
 	
-	restoreCtx := cli.NewContext(app, flagSet, nil)
+	restoreCtx := cli.NewContext(app, fs, nil)
 	restoreCtx.Context = ctx
 	restoreCtx.Command = app.Command("restore")
 
