@@ -271,9 +271,6 @@ func getConfig(c *cli.Context) (*Config, error) {
 	if config.Host == "" {
 		return nil, fmt.Errorf("clickhouse host is required")
 	}
-	if config.Database == "" {
-		return nil, fmt.Errorf("clickhouse database is required")
-	}
 
 	return config, nil
 }

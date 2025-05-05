@@ -118,7 +118,7 @@ func (d *Dumper) dumpSchema(table string) error {
 		return err
 	}
 
-	filename := fmt.Sprintf("%s/%s.schema.sql", d.config.StorageConfig["path"], fullTableName)
+	filename := fmt.Sprintf("%s/%s.schema.sql", d.config.StorageConfig["path"], table)
 	return d.storage.Upload(filename, bytes.NewReader(resp), d.config.CompressFormat, d.config.CompressLevel)
 }
 
@@ -130,6 +130,6 @@ func (d *Dumper) dumpData(table string) error {
 	}
 	defer body.Close()
 
-	filename := fmt.Sprintf("%s/%s.data.sql", d.config.StorageConfig["path"], fullTableName)
+	filename := fmt.Sprintf("%s/%s.data.sql", d.config.StorageConfig["path"], table)
 	return d.storage.Upload(filename, body, d.config.CompressFormat, d.config.CompressLevel)
 }
