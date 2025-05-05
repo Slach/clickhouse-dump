@@ -19,20 +19,66 @@ import (
 func TestE2E(t *testing.T) {
 	ctx := context.Background()
 
-	// Start ClickHouse container
-	clickhouseContainer, err := startClickHouseContainer(ctx)
-	require.NoError(t, err, "Failed to start ClickHouse container")
-	defer func() {
-		require.NoError(t, clickhouseContainer.Terminate(ctx))
-	}()
+	// Run tests for different storage backends with dedicated ClickHouse containers
+	t.Run("S3", func(t *testing.T) {
+		clickhouseContainer, err := startClickHouseContainer(ctx)
+		require.NoError(t, err, "Failed to start ClickHouse container")
+		defer func() {
+			require.NoError(t, clearTestTables(ctx, t, clickhouseContainer))
+			require.NoError(t, clickhouseContainer.Terminate(ctx))
+		}()
+		testS3Storage(ctx, t, clickhouseContainer)
+	})
 
-	// Run tests for different storage backends
-	t.Run("S3", func(t *testing.T) { testS3Storage(ctx, t, clickhouseContainer) })
-	t.Run("GCS", func(t *testing.T) { testGCSStorage(ctx, t, clickhouseContainer) })
-	t.Run("AzureBlob", func(t *testing.T) { testAzureBlobStorage(ctx, t, clickhouseContainer) })
-	t.Run("FTP", func(t *testing.T) { testFTPStorage(ctx, t, clickhouseContainer) })
-	t.Run("SFTP", func(t *testing.T) { testSFTPStorage(ctx, t, clickhouseContainer) })
-	t.Run("File", func(t *testing.T) { testFileStorage(ctx, t, clickhouseContainer) })
+	t.Run("GCS", func(t *testing.T) {
+		clickhouseContainer, err := startClickHouseContainer(ctx)
+		require.NoError(t, err, "Failed to start ClickHouse container")
+		defer func() {
+			require.NoError(t, clearTestTables(ctx, t, clickhouseContainer))
+			require.NoError(t, clickhouseContainer.Terminate(ctx))
+		}()
+		testGCSStorage(ctx, t, clickhouseContainer)
+	})
+
+	t.Run("AzureBlob", func(t *testing.T) {
+		clickhouseContainer, err := startClickHouseContainer(ctx)
+		require.NoError(t, err, "Failed to start ClickHouse container")
+		defer func() {
+			require.NoError(t, clearTestTables(ctx, t, clickhouseContainer))
+			require.NoError(t, clickhouseContainer.Terminate(ctx))
+		}()
+		testAzureBlobStorage(ctx, t, clickhouseContainer)
+	})
+
+	t.Run("FTP", func(t *testing.T) {
+		clickhouseContainer, err := startClickHouseContainer(ctx)
+		require.NoError(t, err, "Failed to start ClickHouse container")
+		defer func() {
+			require.NoError(t, clearTestTables(ctx, t, clickhouseContainer))
+			require.NoError(t, clickhouseContainer.Terminate(ctx))
+		}()
+		testFTPStorage(ctx, t, clickhouseContainer)
+	})
+
+	t.Run("SFTP", func(t *testing.T) {
+		clickhouseContainer, err := startClickHouseContainer(ctx)
+		require.NoError(t, err, "Failed to start ClickHouse container")
+		defer func() {
+			require.NoError(t, clearTestTables(ctx, t, clickhouseContainer))
+			require.NoError(t, clickhouseContainer.Terminate(ctx))
+		}()
+		testSFTPStorage(ctx, t, clickhouseContainer)
+	})
+
+	t.Run("File", func(t *testing.T) {
+		clickhouseContainer, err := startClickHouseContainer(ctx)
+		require.NoError(t, err, "Failed to start ClickHouse container")
+		defer func() {
+			require.NoError(t, clearTestTables(ctx, t, clickhouseContainer))
+			require.NoError(t, clickhouseContainer.Terminate(ctx))
+		}()
+		testFileStorage(ctx, t, clickhouseContainer)
+	})
 }
 
 func startClickHouseContainer(ctx context.Context) (testcontainers.Container, error) {
@@ -74,7 +120,10 @@ func testS3Storage(ctx context.Context, t *testing.T, clickhouseContainer testco
 }
 
 func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container, storageArgs []string) {
-	// Create test tables and insert data
+	// Clear any existing tables first
+	require.NoError(t, clearTestTables(ctx, t, clickhouseContainer))
+
+	// Create fresh test tables and insert data
 	require.NoError(t, createTestTables(ctx, t, clickhouseContainer))
 
 	// Test 1: Default dump (should get all tables except system)
@@ -87,7 +136,7 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 	)
 	require.NoError(t, err, "Failed to dump data")
 	
-	// Clear tables
+	// Clear tables before restore
 	require.NoError(t, clearTestTables(ctx, t, clickhouseContainer))
 
 	// Restore with same filters
