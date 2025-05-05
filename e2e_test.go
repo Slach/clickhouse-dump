@@ -630,6 +630,14 @@ func verifyDumpResults(ctx context.Context, t *testing.T, container testcontaine
 	return nil
 }
 
+func runDumper(c *cli.Context) error {
+	return nil
+}
+
+func runRestorer(c *cli.Context) error {
+	return nil
+}
+
 func executeQuery(ctx context.Context, t *testing.T, container testcontainers.Container, query string) error {
 	host, err := container.Host(ctx)
 	if err != nil {
