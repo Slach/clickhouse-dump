@@ -126,18 +126,54 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 	// Create fresh test tables and insert data
 	require.NoError(t, createTestTables(ctx, t, clickhouseContainer))
 
-	// Test 1: Default dump (should get all tables except system)
-	err := runClickHouseDump(ctx, t, clickhouseContainer,
-		append([]string{
-			"dump",
-			"--compress-format", "gzip",
-			"--compress-level", "6",
-		}, storageArgs...)...,
-	)
+	// Get ClickHouse connection details
+	host, err := clickhouseContainer.Host(ctx)
+	require.NoError(t, err)
+	port, err := clickhouseContainer.MappedPort(ctx, "8123")
+	require.NoError(t, err)
+
+	// Create test config
+	config := &Config{
+		Host:           host,
+		Port:           port.Int(),
+		User:          "default",
+		Password:      "",
+		Database:      "default",
+		BatchSize:     100000,
+		CompressFormat: "gzip",
+		CompressLevel: 6,
+		StorageType:   storageArgs[1],
+		StorageConfig: map[string]string{},
+	}
+
+	// Parse storage args into config
+	switch config.StorageType {
+	case "file":
+		config.StorageConfig["path"] = storageArgs[3]
+	case "s3":
+		config.StorageConfig["bucket"] = storageArgs[3]
+		config.StorageConfig["region"] = storageArgs[5]
+	case "gcs":
+		config.StorageConfig["bucket"] = storageArgs[3]
+	case "azblob":
+		config.StorageConfig["account"] = storageArgs[3]
+		config.StorageConfig["key"] = storageArgs[5]
+		config.StorageConfig["container"] = storageArgs[7]
+	case "ftp", "sftp":
+		config.StorageConfig["host"] = storageArgs[3]
+		config.StorageConfig["user"] = storageArgs[5]
+		config.StorageConfig["password"] = storageArgs[7]
+	}
+
+	// Test 1: Dump
+	err = runDumper(&cli.Context{
+		Context: ctx,
+		Command: &cli.Command{Name: "dump"},
+	})
 	require.NoError(t, err, "Failed to dump data")
 
 	// Verify dump files were created
-	if storageArgs[1] == "file" {
+	if config.StorageType == "file" {
 		expectedFiles := []string{
 			"default.test_db1.users.schema.sql",
 			"default.test_db1.users.data.sql",
@@ -146,18 +182,17 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 			"default.test_db2.products.schema.sql",
 			"default.test_db2.products.data.sql",
 		}
-		require.NoError(t, verifyDumpResults(ctx, t, clickhouseContainer, storageArgs[3], expectedFiles))
+		require.NoError(t, verifyDumpResults(ctx, t, clickhouseContainer, config.StorageConfig["path"], expectedFiles))
 	}
 	
 	// Clear tables before restore
 	require.NoError(t, clearTestTables(ctx, t, clickhouseContainer))
 
-	// Restore with same filters
-	err = runClickHouseDump(ctx, t, clickhouseContainer,
-		append([]string{
-			"restore",
-		}, storageArgs...)...,
-	)
+	// Test 2: Restore
+	err = runRestorer(&cli.Context{
+		Context: ctx,
+		Command: &cli.Command{Name: "restore"},
+	})
 	require.NoError(t, err, "Failed to restore data")
 
 	// Verify only non-system tables were restored
@@ -343,33 +378,6 @@ func startSFTPContainer(ctx context.Context) (testcontainers.Container, error) {
 	})
 }
 
-func runClickHouseDump(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container, args ...string) error {
-	clickhouseHost, err := clickhouseContainer.Host(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get ClickHouse host: %v", err)
-	}
-
-	clickhousePort, err := clickhouseContainer.MappedPort(ctx, "8123")
-	if err != nil {
-		return fmt.Errorf("failed to get ClickHouse port: %v", err)
-	}
-
-	allArgs := append([]string{
-		"--host", clickhouseHost,
-		"--port", clickhousePort.Port(),
-		"--user", "default",
-		"--password", "",
-		"--database", "default",
-	}, args...)
-
-	cmd := exec.Command("./clickhouse-dump", allArgs...)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("clickhouse-dump failed: %v\nOutput: %s", err, output)
-	}
-
-	return nil
-}
 
 func createTestTables(ctx context.Context, t *testing.T, container testcontainers.Container) error {
 	queries := []string{

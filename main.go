@@ -132,13 +132,13 @@ func main() {
 			{
 				Name:   "dump",
 				Usage:  "Dump ClickHouse tables schema and data to remote storage",
-				Action: runDumper,
+				Action: RunDumper,
 				// Add dump-specific flags here if preferred over global
 			},
 			{
 				Name:   "restore",
 				Usage:  "Restore ClickHouse tables from remote storage",
-				Action: runRestorer,
+				Action: RunRestorer,
 				// Add restore-specific flags here if preferred over global
 			},
 		},
@@ -154,7 +154,7 @@ func main() {
 	}
 }
 
-func runDumper(c *cli.Context) error {
+func RunDumper(c *cli.Context) error {
 	config, err := getConfig(c)
 	if err != nil {
 		return fmt.Errorf("configuration error: %w", err)
@@ -173,7 +173,7 @@ func runDumper(c *cli.Context) error {
 	return err
 }
 
-func runRestorer(c *cli.Context) error {
+func RunRestorer(c *cli.Context) error {
 	config, err := getConfig(c)
 	if err != nil {
 		return fmt.Errorf("configuration error: %w", err)
