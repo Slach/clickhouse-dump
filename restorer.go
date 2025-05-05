@@ -78,7 +78,7 @@ func (r *Restorer) Restore() error {
 	}()
 
 	// --- Restore Schema ---
-	schemaPrefix := fmt.Sprintf("%s/%s.", r.config.StorageConfig["path"], r.config.Database) // Base prefix
+	schemaPrefix := fmt.Sprintf("%s/", r.config.StorageConfig["path"]) // Base prefix
 	schemaSuffix := ".schema.sql"
 	log.Printf("Listing schema files with prefix: %s*%s", schemaPrefix, schemaSuffix)
 

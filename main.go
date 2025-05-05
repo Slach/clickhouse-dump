@@ -47,11 +47,30 @@ func main() {
 				Required: false, // Often provided via env var
 			},
 			&cli.StringFlag{
-				Name:     "database",
-				Aliases:  []string{"d"},
-				Usage:    "ClickHouse database",
-				EnvVars:  []string{"CLICKHOUSE_DATABASE"},
-				Required: true, // Database is usually required
+				Name:    "databases",
+				Aliases: []string{"d"},
+				Value:   ".*",
+				Usage:   "Regexp pattern for databases to include",
+				EnvVars: []string{"CLICKHOUSE_DATABASES"},
+			},
+			&cli.StringFlag{
+				Name:    "exclude-databases",
+				Value:   "system|INFORMATION_SCHEMA|information_schema",
+				Usage:   "Regexp pattern for databases to exclude",
+				EnvVars: []string{"EXCLUDE_DATABASES"},
+			},
+			&cli.StringFlag{
+				Name:    "tables",
+				Aliases: []string{"t"},
+				Value:   ".*",
+				Usage:   "Regexp pattern for tables to include",
+				EnvVars: []string{"TABLES"},
+			},
+			&cli.StringFlag{
+				Name:    "exclude-tables",
+				Value:   "",
+				Usage:   "Regexp pattern for tables to exclude",
+				EnvVars: []string{"EXCLUDE_TABLES"},
 			},
 			// Dump Specific Flags (can be moved to dump command if needed)
 			&cli.IntFlag{
@@ -196,7 +215,10 @@ func getConfig(c *cli.Context) (*Config, error) {
 		Port:           c.Int("port"),
 		User:           c.String("user"),
 		Password:       c.String("password"),
-		Database:       c.String("database"),
+		Databases:       c.String("databases"),
+		ExcludeDatabases: c.String("exclude-databases"),
+		Tables:          c.String("tables"),
+		ExcludeTables:   c.String("exclude-tables"),
 		BatchSize:      c.Int("batch-size"),         // Used by dumper
 		CompressFormat: c.String("compress-format"), // Used by dumper
 		CompressLevel:  c.Int("compress-level"),     // Used by dumper

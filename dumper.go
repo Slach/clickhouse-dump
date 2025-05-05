@@ -47,31 +47,67 @@ func NewDumper(config *Config) (*Dumper, error) {
 }
 
 func (d *Dumper) Dump() error {
-	tables, err := d.getTables()
+	dbTables, err := d.getTables()
 	if err != nil {
 		return err
 	}
-	log.Printf("found %d tables for dump", len(tables))
-	for _, table := range tables {
-		if err := d.dumpSchema(table); err != nil {
-			return err
-		}
-		if err := d.dumpData(table); err != nil {
-			return err
+
+	totalTables := 0
+	for db := range dbTables {
+		totalTables += len(dbTables[db])
+	}
+	log.Printf("found %d tables across %d databases for dump", totalTables, len(dbTables))
+
+	for db, tables := range dbTables {
+		for _, table := range tables {
+			fullTableName := fmt.Sprintf("%s.%s", db, table)
+			if err := d.dumpSchema(fullTableName); err != nil {
+				return err
+			}
+			if err := d.dumpData(fullTableName); err != nil {
+				return err
+			}
 		}
 	}
 
 	return nil
 }
 
-func (d *Dumper) getTables() ([]string, error) {
-	query := "SHOW TABLES"
+func (d *Dumper) getTables() (map[string][]string, error) {
+	query := fmt.Sprintf(`
+		SELECT 
+			database, 
+			name 
+		FROM system.tables 
+		WHERE 
+			match(database, '%s') AND 
+			NOT match(database, '%s') AND
+			match(name, '%s') AND
+			(NOT match(name, '%s') OR '%s' = '')
+		FORMAT TabSeparated`,
+		d.config.Databases,
+		d.config.ExcludeDatabases,
+		d.config.Tables,
+		d.config.ExcludeTables,
+		d.config.ExcludeTables)
+
 	resp, err := d.client.ExecuteQuery(query)
 	if err != nil {
 		return nil, err
 	}
 
-	tables := strings.Split(strings.TrimSpace(string(resp)), "\n")
+	tables := make(map[string][]string)
+	lines := strings.Split(strings.TrimSpace(string(resp)), "\n")
+	for _, line := range lines {
+		parts := strings.Split(line, "\t")
+		if len(parts) != 2 {
+			continue
+		}
+		db := parts[0]
+		table := parts[1]
+		tables[db] = append(tables[db], table)
+	}
+
 	return tables, nil
 }
 
@@ -82,7 +118,7 @@ func (d *Dumper) dumpSchema(table string) error {
 		return err
 	}
 
-	filename := fmt.Sprintf("%s/%s.%s.schema.sql", d.config.StorageConfig["path"], d.config.Database, table)
+	filename := fmt.Sprintf("%s/%s.schema.sql", d.config.StorageConfig["path"], fullTableName)
 	return d.storage.Upload(filename, bytes.NewReader(resp), d.config.CompressFormat, d.config.CompressLevel)
 }
 
@@ -94,6 +130,6 @@ func (d *Dumper) dumpData(table string) error {
 	}
 	defer body.Close()
 
-	filename := fmt.Sprintf("%s/%s.%s.data.sql", d.config.StorageConfig["path"], d.config.Database, table)
+	filename := fmt.Sprintf("%s/%s.data.sql", d.config.StorageConfig["path"], fullTableName)
 	return d.storage.Upload(filename, body, d.config.CompressFormat, d.config.CompressLevel)
 }
