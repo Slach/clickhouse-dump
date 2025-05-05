@@ -78,7 +78,7 @@ func (r *Restorer) Restore() error {
 	}()
 
 	// --- Restore Schema ---
-	schemaPrefix := fmt.Sprintf("%s/", r.config.StorageConfig["path"]) // Base prefix
+	schemaPrefix := fmt.Sprintf("%s/", r.config.StorageConfig["path"])
 	schemaSuffix := ".schema.sql"
 	log.Printf("Listing schema files with prefix: %s*%s", schemaPrefix, schemaSuffix)
 
@@ -95,7 +95,11 @@ func (r *Restorer) Restore() error {
 			// We rely on Download handling the compression extension later.
 			baseName := strings.TrimSuffix(file, storage.GetCompressionExtension(file))
 			if strings.HasSuffix(baseName, schemaSuffix) {
-				schemaFiles = append(schemaFiles, baseName) // Store without compression ext
+				// Extract db/table from path like "path/db/table.schema.sql"
+				parts := strings.Split(strings.TrimPrefix(baseName, schemaPrefix), "/")
+				if len(parts) == 3 && parts[2] != "" {
+					schemaFiles = append(schemaFiles, baseName)
+				}
 			}
 		}
 	}
@@ -137,7 +141,11 @@ func (r *Restorer) Restore() error {
 		if strings.HasSuffix(file, dataSuffix) {
 			baseName := strings.TrimSuffix(file, storage.GetCompressionExtension(file))
 			if strings.HasSuffix(baseName, dataSuffix) {
-				dataFiles = append(dataFiles, baseName) // Store without compression ext
+				// Extract db/table from path like "path/db/table.data.sql"
+				parts := strings.Split(strings.TrimPrefix(baseName, schemaPrefix), "/")
+				if len(parts) == 3 && parts[2] != "" {
+					dataFiles = append(dataFiles, baseName)
+				}
 			}
 		}
 	}
