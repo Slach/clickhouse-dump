@@ -133,22 +133,22 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 			tables:           ".*",
 			excludeTables:    "",
 			expectedFiles: []string{
-				"test_db1.users.schema.sql",
-				"test_db1.users.data.sql",
-				"test_db1.logs.schema.sql",
-				"test_db1.logs.data.sql",
-				"test_db1.audit_log.schema.sql",
-				"test_db1.audit_log.data.sql",
-				"test_db2.products.schema.sql",
-				"test_db2.products.data.sql",
-				"test_db2.inventory.schema.sql",
-				"test_db2.inventory.data.sql",
-				"test_db3.metrics.schema.sql",
-				"test_db3.metrics.data.sql",
-				"logs_2023.events.schema.sql",
-				"logs_2023.events.data.sql",
-				"logs_2024.events.schema.sql",
-				"logs_2024.events.data.sql",
+				fmt.Sprintf("%s/test_db1.users.schema.sql", backupName),
+				fmt.Sprintf("%s/test_db1.users.data.sql", backupName),
+				fmt.Sprintf("%s/test_db1.logs.schema.sql", backupName),
+				fmt.Sprintf("%s/test_db1.logs.data.sql", backupName),
+				fmt.Sprintf("%s/test_db1.audit_log.schema.sql", backupName),
+				fmt.Sprintf("%s/test_db1.audit_log.data.sql", backupName),
+				fmt.Sprintf("%s/test_db2.products.schema.sql", backupName),
+				fmt.Sprintf("%s/test_db2.products.data.sql", backupName),
+				fmt.Sprintf("%s/test_db2.inventory.schema.sql", backupName),
+				fmt.Sprintf("%s/test_db2.inventory.data.sql", backupName),
+				fmt.Sprintf("%s/test_db3.metrics.schema.sql", backupName),
+				fmt.Sprintf("%s/test_db3.metrics.data.sql", backupName),
+				fmt.Sprintf("%s/logs_2023.events.schema.sql", backupName),
+				fmt.Sprintf("%s/logs_2023.events.data.sql", backupName),
+				fmt.Sprintf("%s/logs_2024.events.schema.sql", backupName),
+				fmt.Sprintf("%s/logs_2024.events.data.sql", backupName),
 			},
 			expectedRestored: []string{
 				"test_db1.users",
@@ -404,7 +404,7 @@ func testFileStorage(ctx context.Context, t *testing.T, clickhouseContainer test
 	runMainTestScenario(ctx, t, clickhouseContainer, map[string]string{
 		"type": "file",
 		"path": tempDir,
-	})
+	}, testCase, "test_backup")
 }
 
 func startMinioContainer(ctx context.Context) (testcontainers.Container, error) {
