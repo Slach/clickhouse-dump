@@ -96,12 +96,13 @@ func testS3Storage(ctx context.Context, t *testing.T, clickhouseContainer testco
 	require.NoError(t, err, "Failed to get Minio port")
 
 	runMainTestScenario(ctx, t, clickhouseContainer, map[string]string{
-		"type":   "s3",
-		"bucket": "testbucket",
-		"region": "us-east-1",
-		"path":   "",
-		"host":   minioHost,
-		"port":   minioPort.Port(),
+		"type":     "s3",
+		"bucket":   "testbucket",
+		"region":   "us-east-1",
+		"path":     "",
+		"host":     minioHost,
+		"port":     minioPort.Port(),
+		"endpoint": fmt.Sprintf("http://%s:%s", minioHost, minioPort.Port()),
 	}, testCase, backupName)
 }
 
@@ -273,6 +274,11 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 		CompressLevel:    6,
 		StorageType:      storageConfig["type"],
 		StorageConfig:    storageConfig,
+	}
+
+	// Ensure StorageType is set
+	if config.StorageType == "" {
+		return fmt.Errorf("storage-type must be specified")
 	}
 
 	// Test 1: Dump
