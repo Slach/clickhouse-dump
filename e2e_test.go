@@ -62,7 +62,11 @@ func testS3Storage(ctx context.Context, t *testing.T, clickhouseContainer testco
 
 	runMainTestScenario(ctx, t, clickhouseContainer, []string{
 		"--storage-type", "s3",
-		"--storage-config", fmt.Sprintf("bucket=testbucket,region=us-east-1,endpoint=http://%s:%s", minioHost, minioPort.Port()),
+		"--storage-bucket", "testbucket",
+		"--storage-region", "us-east-1",
+		"--storage-path", "",
+		"--host", minioHost,
+		"--port", minioPort.Port(),
 	})
 }
 
@@ -116,7 +120,10 @@ func testGCSStorage(ctx context.Context, t *testing.T, clickhouseContainer testc
 
 	runMainTestScenario(ctx, t, clickhouseContainer, []string{
 		"--storage-type", "gcs",
-		"--storage-config", fmt.Sprintf("bucket=testbucket,endpoint=http://%s:%s", gcsHost, gcsPort.Port()),
+		"--storage-bucket", "testbucket",
+		"--storage-path", "",
+		"--host", gcsHost,
+		"--port", gcsPort.Port(),
 	})
 }
 
@@ -135,7 +142,12 @@ func testAzureBlobStorage(ctx context.Context, t *testing.T, clickhouseContainer
 
 	runMainTestScenario(ctx, t, clickhouseContainer, []string{
 		"--storage-type", "azblob",
-		"--storage-config", fmt.Sprintf("account=devstoreaccount1,key=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==,container=testcontainer,endpoint=http://%s:%s/devstoreaccount1", azuriteHost, azuritePort.Port()),
+		"--storage-account", "devstoreaccount1",
+		"--storage-key", "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==",
+		"--storage-container", "testcontainer",
+		"--storage-path", "",
+		"--host", azuriteHost,
+		"--port", azuritePort.Port(),
 	})
 }
 
@@ -154,7 +166,10 @@ func testFTPStorage(ctx context.Context, t *testing.T, clickhouseContainer testc
 
 	runMainTestScenario(ctx, t, clickhouseContainer, []string{
 		"--storage-type", "ftp",
-		"--storage-config", fmt.Sprintf("host=%s:%s,user=testuser,password=testpass", ftpHost, ftpPort.Port()),
+		"--storage-host", fmt.Sprintf("%s:%s", ftpHost, ftpPort.Port()),
+		"--storage-user", "testuser",
+		"--storage-password", "testpass",
+		"--storage-path", "",
 	})
 }
 
@@ -173,7 +188,10 @@ func testSFTPStorage(ctx context.Context, t *testing.T, clickhouseContainer test
 
 	runMainTestScenario(ctx, t, clickhouseContainer, []string{
 		"--storage-type", "sftp",
-		"--storage-config", fmt.Sprintf("host=%s:%s,user=testuser,password=testpass", sftpHost, sftpPort.Port()),
+		"--storage-host", fmt.Sprintf("%s:%s", sftpHost, sftpPort.Port()),
+		"--storage-user", "testuser",
+		"--storage-password", "testpass",
+		"--storage-path", "",
 	})
 }
 
