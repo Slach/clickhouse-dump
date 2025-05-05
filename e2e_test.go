@@ -153,8 +153,8 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 	require.NoError(t, verifyTestData(ctx, t, clickhouseContainer, "test_db2.products", "1\tProduct A\n2\tProduct B\n"))
 	
 	// Verify system tables were NOT restored
-	_, err = executeQueryWithResult(ctx, t, clickhouseContainer, "SELECT * FROM system.metrics")
-	require.Error(t, err, "system.metrics should not exist after restore")
+	_, err = executeQueryWithResult(ctx, t, clickhouseContainer, "SELECT * FROM test_db3.metrics")
+	require.Error(t, err, "test_db3.metrics should not exist after restore")
 }
 
 func testGCSStorage(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container) {
@@ -362,7 +362,7 @@ func createTestTables(ctx context.Context, t *testing.T, container testcontainer
 	queries := []string{
 		`CREATE DATABASE IF NOT EXISTS test_db1`,
 		`CREATE DATABASE IF NOT EXISTS test_db2`,
-		`CREATE DATABASE IF NOT EXISTS system`, // Will be excluded by default
+		`CREATE DATABASE IF NOT EXISTS test_db3`, // Will be excluded by default
 
 		// Tables in test_db1
 		`CREATE TABLE test_db1.users (
@@ -385,7 +385,7 @@ func createTestTables(ctx context.Context, t *testing.T, container testcontainer
 		ORDER BY id`,
 
 		// System table (should be excluded)
-		`CREATE TABLE system.metrics (
+		`CREATE TABLE test_db3.metrics (
 			id UInt32,
 			name String
 		) ENGINE = MergeTree()
@@ -395,7 +395,7 @@ func createTestTables(ctx context.Context, t *testing.T, container testcontainer
 		`INSERT INTO test_db1.users VALUES (1, 'Alice'), (2, 'Bob')`,
 		`INSERT INTO test_db1.logs VALUES (1, 'log entry 1'), (2, 'log entry 2')`,
 		`INSERT INTO test_db2.products VALUES (1, 'Product A'), (2, 'Product B')`,
-		`INSERT INTO system.metrics VALUES (1, 'metric1'), (2, 'metric2')`,
+		`INSERT INTO test_db3.metrics VALUES (1, 'metric1'), (2, 'metric2')`,
 	}
 
 	for _, query := range queries {
@@ -411,7 +411,8 @@ func clearTestTables(ctx context.Context, t *testing.T, container testcontainers
 		"DROP TABLE IF EXISTS test_db1.users",
 		"DROP TABLE IF EXISTS test_db1.logs",
 		"DROP TABLE IF EXISTS test_db2.products",
-		"DROP TABLE IF EXISTS system.metrics",
+		"DROP TABLE IF EXISTS test_db3.metrics",
+		"DROP DATABASE IF EXISTS test_db3",
 		"DROP DATABASE IF EXISTS test_db1",
 		"DROP DATABASE IF EXISTS test_db2",
 	}
