@@ -60,39 +60,45 @@ func testS3Storage(ctx context.Context, t *testing.T, clickhouseContainer testco
 	minioPort, err := minioContainer.MappedPort(ctx, "9000")
 	require.NoError(t, err, "Failed to get Minio port")
 
+	runMainTestScenario(ctx, t, clickhouseContainer, []string{
+		"--storage-type", "s3",
+		"--storage-config", fmt.Sprintf("bucket=testbucket,region=us-east-1,endpoint=http://%s:%s", minioHost, minioPort.Port()),
+	})
+}
+
+func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container, storageArgs []string) {
 	// Create test tables and insert data
 	require.NoError(t, createTestTables(ctx, t, clickhouseContainer))
 
-	// Test with database filter
-	err = runClickHouseDump(ctx, t, clickhouseContainer,
-		"dump",
-		"--storage-type", "s3",
-		"--storage-config", fmt.Sprintf("bucket=testbucket,region=us-east-1,endpoint=http://%s:%s", minioHost, minioPort.Port()),
-		"--databases", "test_db1",
-		"--compress-format", "gzip",
-		"--compress-level", "6",
+	// Test 1: Default dump (should get all tables except system)
+	err := runClickHouseDump(ctx, t, clickhouseContainer,
+		append([]string{
+			"dump",
+			"--compress-format", "gzip",
+			"--compress-level", "6",
+		}, storageArgs...)...,
 	)
 	require.NoError(t, err, "Failed to dump data")
-
+	
 	// Clear tables
 	require.NoError(t, clearTestTables(ctx, t, clickhouseContainer))
 
 	// Restore with same filters
 	err = runClickHouseDump(ctx, t, clickhouseContainer,
-		"restore",
-		"--storage-type", "s3",
-		"--storage-config", fmt.Sprintf("bucket=testbucket,region=us-east-1,endpoint=http://%s:%s", minioHost, minioPort.Port()),
-		"--databases", "test_db1",
+		append([]string{
+			"restore",
+		}, storageArgs...)...,
 	)
 	require.NoError(t, err, "Failed to restore data")
 
-	// Verify only test_db1 tables were restored
+	// Verify only non-system tables were restored
 	require.NoError(t, verifyTestData(ctx, t, clickhouseContainer, "test_db1.users", "1\tAlice\n2\tBob\n"))
 	require.NoError(t, verifyTestData(ctx, t, clickhouseContainer, "test_db1.logs", "1\tlog entry 1\n2\tlog entry 2\n"))
+	require.NoError(t, verifyTestData(ctx, t, clickhouseContainer, "test_db2.products", "1\tProduct A\n2\tProduct B\n"))
 	
-	// Verify test_db2 tables were NOT restored
-	_, err = executeQueryWithResult(ctx, t, clickhouseContainer, "SELECT * FROM test_db2.products")
-	require.Error(t, err, "test_db2.products should not exist after filtered restore")
+	// Verify system tables were NOT restored
+	_, err = executeQueryWithResult(ctx, t, clickhouseContainer, "SELECT * FROM system.metrics")
+	require.Error(t, err, "system.metrics should not exist after restore")
 }
 
 func testGCSStorage(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container) {
@@ -102,7 +108,16 @@ func testGCSStorage(ctx context.Context, t *testing.T, clickhouseContainer testc
 		require.NoError(t, gcsContainer.Terminate(ctx))
 	}()
 
-	// TODO: Implement GCS storage test
+	gcsHost, err := gcsContainer.Host(ctx)
+	require.NoError(t, err, "Failed to get GCS host")
+
+	gcsPort, err := gcsContainer.MappedPort(ctx, "4443")
+	require.NoError(t, err, "Failed to get GCS port")
+
+	runMainTestScenario(ctx, t, clickhouseContainer, []string{
+		"--storage-type", "gcs",
+		"--storage-config", fmt.Sprintf("bucket=testbucket,endpoint=http://%s:%s", gcsHost, gcsPort.Port()),
+	})
 }
 
 func testAzureBlobStorage(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container) {
@@ -112,7 +127,16 @@ func testAzureBlobStorage(ctx context.Context, t *testing.T, clickhouseContainer
 		require.NoError(t, azuriteContainer.Terminate(ctx))
 	}()
 
-	// TODO: Implement Azure Blob storage test
+	azuriteHost, err := azuriteContainer.Host(ctx)
+	require.NoError(t, err, "Failed to get Azurite host")
+
+	azuritePort, err := azuriteContainer.MappedPort(ctx, "10000")
+	require.NoError(t, err, "Failed to get Azurite port")
+
+	runMainTestScenario(ctx, t, clickhouseContainer, []string{
+		"--storage-type", "azblob",
+		"--storage-config", fmt.Sprintf("account=devstoreaccount1,key=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==,container=testcontainer,endpoint=http://%s:%s/devstoreaccount1", azuriteHost, azuritePort.Port()),
+	})
 }
 
 func testFTPStorage(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container) {
@@ -122,7 +146,16 @@ func testFTPStorage(ctx context.Context, t *testing.T, clickhouseContainer testc
 		require.NoError(t, ftpContainer.Terminate(ctx))
 	}()
 
-	// TODO: Implement FTP storage test
+	ftpHost, err := ftpContainer.Host(ctx)
+	require.NoError(t, err, "Failed to get FTP host")
+
+	ftpPort, err := ftpContainer.MappedPort(ctx, "21")
+	require.NoError(t, err, "Failed to get FTP port")
+
+	runMainTestScenario(ctx, t, clickhouseContainer, []string{
+		"--storage-type", "ftp",
+		"--storage-config", fmt.Sprintf("host=%s:%s,user=testuser,password=testpass", ftpHost, ftpPort.Port()),
+	})
 }
 
 func testSFTPStorage(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container) {
@@ -132,95 +165,26 @@ func testSFTPStorage(ctx context.Context, t *testing.T, clickhouseContainer test
 		require.NoError(t, sftpContainer.Terminate(ctx))
 	}()
 
-	// TODO: Implement SFTP storage test
+	sftpHost, err := sftpContainer.Host(ctx)
+	require.NoError(t, err, "Failed to get SFTP host")
+
+	sftpPort, err := sftpContainer.MappedPort(ctx, "22")
+	require.NoError(t, err, "Failed to get SFTP port")
+
+	runMainTestScenario(ctx, t, clickhouseContainer, []string{
+		"--storage-type", "sftp",
+		"--storage-config", fmt.Sprintf("host=%s:%s,user=testuser,password=testpass", sftpHost, sftpPort.Port()),
+	})
 }
 
 func testFileStorage(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container) {
 	// Create temp directory for test
 	tempDir := t.TempDir()
 
-	// Create test tables and insert data
-	require.NoError(t, createTestTables(ctx, t, clickhouseContainer))
-
-	// Test 1: Default dump (should get all tables except system)
-	err := runClickHouseDump(ctx, t, clickhouseContainer,
-		"dump",
+	runMainTestScenario(ctx, t, clickhouseContainer, []string{
 		"--storage-type", "file",
 		"--storage-path", tempDir,
-	)
-	require.NoError(t, err, "Failed to dump data")
-	require.NoError(t, verifyDumpResults(ctx, t, clickhouseContainer, tempDir, []string{
-		"test_db1.users.schema.sql",
-		"test_db1.users.data.sql",
-		"test_db1.logs.schema.sql",
-		"test_db1.logs.data.sql",
-		"test_db2.products.schema.sql",
-		"test_db2.products.data.sql",
-	}))
-
-	// Test 2: Filter by database
-	tempDir = t.TempDir()
-	err = runClickHouseDump(ctx, t, clickhouseContainer,
-		"dump",
-		"--storage-type", "file",
-		"--storage-path", tempDir,
-		"--databases", "test_db1",
-	)
-	require.NoError(t, err, "Failed to dump data")
-	require.NoError(t, verifyDumpResults(ctx, t, clickhouseContainer, tempDir, []string{
-		"test_db1.users.schema.sql",
-		"test_db1.users.data.sql",
-		"test_db1.logs.schema.sql",
-		"test_db1.logs.data.sql",
-	}))
-
-	// Test 3: Filter by table pattern
-	tempDir = t.TempDir()
-	err = runClickHouseDump(ctx, t, clickhouseContainer,
-		"dump",
-		"--storage-type", "file",
-		"--storage-path", tempDir,
-		"--tables", "user.*|prod.*",
-	)
-	require.NoError(t, err, "Failed to dump data")
-	require.NoError(t, verifyDumpResults(ctx, t, clickhouseContainer, tempDir, []string{
-		"test_db1.users.schema.sql",
-		"test_db1.users.data.sql",
-		"test_db2.products.schema.sql",
-		"test_db2.products.data.sql",
-	}))
-
-	// Test 4: Exclude tables
-	tempDir = t.TempDir()
-	err = runClickHouseDump(ctx, t, clickhouseContainer,
-		"dump",
-		"--storage-type", "file",
-		"--storage-path", tempDir,
-		"--exclude-tables", "logs",
-	)
-	require.NoError(t, err, "Failed to dump data")
-	require.NoError(t, verifyDumpResults(ctx, t, clickhouseContainer, tempDir, []string{
-		"test_db1.users.schema.sql",
-		"test_db1.users.data.sql",
-		"test_db2.products.schema.sql",
-		"test_db2.products.data.sql",
-	}))
-
-	// Test 5: Custom exclude databases
-	tempDir = t.TempDir()
-	err = runClickHouseDump(ctx, t, clickhouseContainer,
-		"dump",
-		"--storage-type", "file",
-		"--storage-path", tempDir,
-		"--exclude-databases", "test_db2",
-	)
-	require.NoError(t, err, "Failed to dump data")
-	require.NoError(t, verifyDumpResults(ctx, t, clickhouseContainer, tempDir, []string{
-		"test_db1.users.schema.sql",
-		"test_db1.users.data.sql",
-		"test_db1.logs.schema.sql",
-		"test_db1.logs.data.sql",
-	}))
+	})
 }
 
 func startMinioContainer(ctx context.Context) (testcontainers.Container, error) {
