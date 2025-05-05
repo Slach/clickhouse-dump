@@ -275,10 +275,21 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 	}
 
 	// Test 1: Dump
-	err = RunDumper(&cli.Context{
-		Context: ctx,
-		Command: &cli.Command{Name: "dump"},
-	})
+	app := &cli.App{
+		Name: "clickhouse-dump",
+		Commands: []*cli.Command{
+			{
+				Name: "dump",
+			},
+		},
+	}
+	dumpCmd := app.Command("dump")
+	dumpCtx := cli.NewContext(app, nil, nil)
+	dumpCtx.Context = ctx
+	dumpCtx.Command = dumpCmd
+	dumpCtx.Args().Add(backupName) // Set the backup name argument
+
+	err = RunDumper(dumpCtx)
 	require.NoError(t, err, "Failed to dump data")
 
 	// Verify dump files were created
@@ -290,10 +301,13 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 	require.NoError(t, clearTestTables(ctx, t, clickhouseContainer))
 
 	// Test 2: Restore
-	err = RunRestorer(&cli.Context{
-		Context: ctx,
-		Command: &cli.Command{Name: "restore"},
-	})
+	restoreCmd := app.Command("restore")
+	restoreCtx := cli.NewContext(app, nil, nil)
+	restoreCtx.Context = ctx
+	restoreCtx.Command = restoreCmd
+	restoreCtx.Args().Add(backupName) // Set the backup name argument
+
+	err = RunRestorer(restoreCtx)
 	require.NoError(t, err, "Failed to restore data")
 
 	// Verify expected tables were restored with correct data
