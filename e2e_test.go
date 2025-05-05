@@ -109,17 +109,17 @@ func testS3Storage(ctx context.Context, t *testing.T, clickhouseContainer testco
 	minioPort, err := minioContainer.MappedPort(ctx, "9000")
 	require.NoError(t, err, "Failed to get Minio port")
 
-	runMainTestScenario(ctx, t, clickhouseContainer, []string{
-		"--storage-type", "s3",
-		"--storage-bucket", "testbucket",
-		"--storage-region", "us-east-1",
-		"--storage-path", "",
-		"--host", minioHost,
-		"--port", minioPort.Port(),
+	runMainTestScenario(ctx, t, clickhouseContainer, map[string]string{
+		"type":   "s3",
+		"bucket": "testbucket",
+		"region": "us-east-1",
+		"path":   "",
+		"host":   minioHost,
+		"port":   minioPort.Port(),
 	})
 }
 
-func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container, storageArgs []string) {
+func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container, storageConfig map[string]string) {
 	// Clear any existing tables first
 	require.NoError(t, clearTestTables(ctx, t, clickhouseContainer))
 
@@ -142,27 +142,8 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 		BatchSize:     100000,
 		CompressFormat: "gzip",
 		CompressLevel: 6,
-		StorageType:   storageArgs[1],
-		StorageConfig: map[string]string{},
-	}
-
-	// Parse storage args into config
-	switch config.StorageType {
-	case "file":
-		config.StorageConfig["path"] = storageArgs[3]
-	case "s3":
-		config.StorageConfig["bucket"] = storageArgs[3]
-		config.StorageConfig["region"] = storageArgs[5]
-	case "gcs":
-		config.StorageConfig["bucket"] = storageArgs[3]
-	case "azblob":
-		config.StorageConfig["account"] = storageArgs[3]
-		config.StorageConfig["key"] = storageArgs[5]
-		config.StorageConfig["container"] = storageArgs[7]
-	case "ftp", "sftp":
-		config.StorageConfig["host"] = storageArgs[3]
-		config.StorageConfig["user"] = storageArgs[5]
-		config.StorageConfig["password"] = storageArgs[7]
+		StorageType:   storageConfig["type"],
+		StorageConfig: storageConfig,
 	}
 
 	// Test 1: Dump
@@ -182,7 +163,7 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 			"default.test_db2.products.schema.sql",
 			"default.test_db2.products.data.sql",
 		}
-		require.NoError(t, verifyDumpResults(ctx, t, clickhouseContainer, config.StorageConfig["path"], expectedFiles))
+		require.NoError(t, verifyDumpResults(ctx, t, clickhouseContainer, storageConfig["path"], expectedFiles))
 	}
 	
 	// Clear tables before restore
@@ -218,11 +199,11 @@ func testGCSStorage(ctx context.Context, t *testing.T, clickhouseContainer testc
 	gcsPort, err := gcsContainer.MappedPort(ctx, "4443")
 	require.NoError(t, err, "Failed to get GCS port")
 
-	runMainTestScenario(ctx, t, clickhouseContainer, []string{
-		"--storage-type", "gcs",
-		"--storage-bucket", "testbucket",
-		"--storage-path", "",
-		"--storage-host", fmt.Sprintf("%s:%s", gcsHost, gcsPort.Port()),
+	runMainTestScenario(ctx, t, clickhouseContainer, map[string]string{
+		"type":   "gcs",
+		"bucket": "testbucket",
+		"path":   "",
+		"host":   fmt.Sprintf("%s:%s", gcsHost, gcsPort.Port()),
 	})
 }
 
@@ -239,13 +220,13 @@ func testAzureBlobStorage(ctx context.Context, t *testing.T, clickhouseContainer
 	azuritePort, err := azuriteContainer.MappedPort(ctx, "10000")
 	require.NoError(t, err, "Failed to get Azurite port")
 
-	runMainTestScenario(ctx, t, clickhouseContainer, []string{
-		"--storage-type", "azblob",
-		"--storage-account", "devstoreaccount1",
-		"--storage-key", "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==",
-		"--storage-container", "testcontainer",
-		"--storage-path", "",
-		"--storage-host", fmt.Sprintf("%s:%s", azuriteHost, azuritePort.Port()),
+	runMainTestScenario(ctx, t, clickhouseContainer, map[string]string{
+		"type":      "azblob",
+		"account":   "devstoreaccount1",
+		"key":       "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==",
+		"container": "testcontainer",
+		"path":      "",
+		"host":      fmt.Sprintf("%s:%s", azuriteHost, azuritePort.Port()),
 	})
 }
 
@@ -262,12 +243,12 @@ func testFTPStorage(ctx context.Context, t *testing.T, clickhouseContainer testc
 	ftpPort, err := ftpContainer.MappedPort(ctx, "21")
 	require.NoError(t, err, "Failed to get FTP port")
 
-	runMainTestScenario(ctx, t, clickhouseContainer, []string{
-		"--storage-type", "ftp",
-		"--storage-host", fmt.Sprintf("%s:%s", ftpHost, ftpPort.Port()),
-		"--storage-user", "testuser",
-		"--storage-password", "testpass",
-		"--storage-path", "",
+	runMainTestScenario(ctx, t, clickhouseContainer, map[string]string{
+		"type":     "ftp",
+		"host":     fmt.Sprintf("%s:%s", ftpHost, ftpPort.Port()),
+		"user":     "testuser",
+		"password": "testpass",
+		"path":     "",
 	})
 }
 
@@ -284,12 +265,12 @@ func testSFTPStorage(ctx context.Context, t *testing.T, clickhouseContainer test
 	sftpPort, err := sftpContainer.MappedPort(ctx, "22")
 	require.NoError(t, err, "Failed to get SFTP port")
 
-	runMainTestScenario(ctx, t, clickhouseContainer, []string{
-		"--storage-type", "sftp",
-		"--storage-host", fmt.Sprintf("%s:%s", sftpHost, sftpPort.Port()),
-		"--storage-user", "testuser",
-		"--storage-password", "testpass",
-		"--storage-path", "",
+	runMainTestScenario(ctx, t, clickhouseContainer, map[string]string{
+		"type":     "sftp",
+		"host":     fmt.Sprintf("%s:%s", sftpHost, sftpPort.Port()),
+		"user":     "testuser",
+		"password": "testpass",
+		"path":     "",
 	})
 }
 
@@ -297,9 +278,9 @@ func testFileStorage(ctx context.Context, t *testing.T, clickhouseContainer test
 	// Create temp directory for test
 	tempDir := t.TempDir()
 
-	runMainTestScenario(ctx, t, clickhouseContainer, []string{
-		"--storage-type", "file",
-		"--storage-path", tempDir,
+	runMainTestScenario(ctx, t, clickhouseContainer, map[string]string{
+		"type": "file",
+		"path": tempDir,
 	})
 }
 
