@@ -255,20 +255,3 @@ func getConfig(c *cli.Context) (*Config, error) {
 
 	return config, nil
 }
-
-// Config struct needs to be defined or imported if it's in another file.
-// Assuming it's defined in dumper.go or similar:
-/*
-type Config struct {
-	Host           string
-	Port           int
-	User           string
-	Password       string
-	Database       string
-	BatchSize      int
-	StorageType    string
-	StorageConfig  map[string]string
-	CompressFormat string
-	CompressLevel  int
-}
-*/

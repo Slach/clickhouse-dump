@@ -265,25 +265,7 @@ func (r *Restorer) executeSingleStatement(query string) error {
 	// Optional: Add logging for the query being executed (be careful with sensitive data)
 	// log.Printf("Executing query: %s", query)
 	if _, err := r.client.ExecuteQuery(query); err != nil {
-		// Provide more context on error if possible
-		log.Printf("Error executing query: [%s...]", firstNChars(query, 100)) // Log beginning of failed query
 		return err
 	}
 	return nil
-}
-
-// Helper to get first N characters of a string for logging.
-func firstNChars(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	// Find rune boundary near n
-	i := 0
-	for j := range s {
-		if i >= n {
-			return s[:j] + "..."
-		}
-		i++
-	}
-	return s // Should not happen if n < len(s)
 }

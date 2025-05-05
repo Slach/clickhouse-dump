@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/Slach/clickhouse-dump/storage"
+	"log"
 	"strings"
 )
 
@@ -50,7 +51,7 @@ func (d *Dumper) Dump() error {
 	if err != nil {
 		return err
 	}
-
+	log.Printf("found %d tables for dump", len(tables))
 	for _, table := range tables {
 		if err := d.dumpSchema(table); err != nil {
 			return err
