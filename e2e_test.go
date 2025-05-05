@@ -296,10 +296,37 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 	})
 	require.NoError(t, err, "Failed to restore data")
 
-	// Verify expected tables were restored
+	// Verify expected tables were restored with correct data
 	for _, table := range tc.expectedRestored {
+		// First check table exists
 		_, err := executeTestQueryWithResult(ctx, t, clickhouseContainer, fmt.Sprintf("SELECT * FROM %s LIMIT 1", table))
 		require.NoError(t, err, "table %s should exist after restore", table)
+
+		// Then verify test data was restored correctly
+		var expectedData string
+		switch table {
+		case "test_db1.users":
+			expectedData = "1\tAlice\n2\tBob\n"
+		case "test_db1.logs":
+			expectedData = "1\tlog entry 1\n2\tlog entry 2\n"
+		case "test_db1.audit_log":
+			expectedData = "1\tlogin\n2\tlogout\n"
+		case "test_db2.products":
+			expectedData = "1\tProduct A\n2\tProduct B\n"
+		case "test_db2.inventory":
+			expectedData = "1\tItem 1\n2\tItem 2\n"
+		case "test_db3.metrics":
+			expectedData = "1\tmetric1\n2\tmetric2\n"
+		case "logs_2023.events":
+			expectedData = "1\tevent1\n2\tevent2\n"
+		case "logs_2024.events":
+			expectedData = "1\tevent1\n2\tevent2\n"
+		default:
+			t.Fatalf("unexpected table in verification: %s", table)
+		}
+
+		err = verifyTestData(ctx, t, clickhouseContainer, table, expectedData)
+		require.NoError(t, err, "table %s data verification failed", table)
 	}
 
 	// Verify excluded tables were NOT restored
