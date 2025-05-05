@@ -1,15 +1,13 @@
 package main
 
 import (
-	"github.com/urfave/cli/v2"
 	"context"
 	"fmt"
+	"github.com/urfave/cli/v2"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -74,7 +72,7 @@ func startClickHouseContainer(ctx context.Context) (testcontainers.Container, er
 		Env: map[string]string{
 			"CLICKHOUSE_SKIP_USER_SETUP": "1",
 		},
-		WaitingFor:   wait.ForHTTP("/").WithPort("8123/tcp"),
+		WaitingFor: wait.ForHTTP("/").WithPort("8123/tcp"),
 	}
 	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
@@ -103,7 +101,7 @@ func testS3Storage(ctx context.Context, t *testing.T, clickhouseContainer testco
 		"path":   "",
 		"host":   minioHost,
 		"port":   minioPort.Port(),
-	})
+	}, testCase, backupName)
 }
 
 func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container, storageConfig map[string]string, testCase string, backupName string) {
@@ -260,24 +258,24 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 
 	// Create test config
 	config := &Config{
-		BackupName:     backupName,
-		Host:            host,
-		Port:            port.Int(),
-		User:            "default",
-		Password:        "",
-		Databases:       tc.databases,
+		BackupName:       backupName,
+		Host:             host,
+		Port:             port.Int(),
+		User:             "default",
+		Password:         "",
+		Databases:        tc.databases,
 		ExcludeDatabases: tc.excludeDatabases,
-		Tables:          tc.tables,
-		ExcludeTables:   tc.excludeTables,
-		BatchSize:       100000,
-		CompressFormat:  "gzip",
-		CompressLevel:   6,
-		StorageType:     storageConfig["type"],
-		StorageConfig:   storageConfig,
+		Tables:           tc.tables,
+		ExcludeTables:    tc.excludeTables,
+		BatchSize:        100000,
+		CompressFormat:   "gzip",
+		CompressLevel:    6,
+		StorageType:      storageConfig["type"],
+		StorageConfig:    storageConfig,
 	}
 
 	// Test 1: Dump
-	err = runDumper(&cli.Context{
+	err = RunDumper(&cli.Context{
 		Context: ctx,
 		Command: &cli.Command{Name: "dump"},
 	})
@@ -285,14 +283,14 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 
 	// Verify dump files were created
 	if config.StorageType == "file" {
-		require.NoError(t, verifyDumpResults(ctx, t, clickhouseContainer, storageConfig["path"], tc.expectedFiles))
+		require.NoError(t, verifyDumpResults(storageConfig["path"], tc.expectedFiles))
 	}
-	
+
 	// Clear tables before restore
 	require.NoError(t, clearTestTables(ctx, t, clickhouseContainer))
 
 	// Test 2: Restore
-	err = runRestorer(&cli.Context{
+	err = RunRestorer(&cli.Context{
 		Context: ctx,
 		Command: &cli.Command{Name: "restore"},
 	})
@@ -300,13 +298,13 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 
 	// Verify expected tables were restored
 	for _, table := range tc.expectedRestored {
-		_, err := executeQueryWithResult(ctx, t, clickhouseContainer, fmt.Sprintf("SELECT * FROM %s LIMIT 1", table))
+		_, err := executeTestQueryWithResult(ctx, t, clickhouseContainer, fmt.Sprintf("SELECT * FROM %s LIMIT 1", table))
 		require.NoError(t, err, "table %s should exist after restore", table)
 	}
 
 	// Verify excluded tables were NOT restored
 	for _, table := range tc.expectedMissing {
-		_, err := executeQueryWithResult(ctx, t, clickhouseContainer, fmt.Sprintf("SELECT * FROM %s", table))
+		_, err := executeTestQueryWithResult(ctx, t, clickhouseContainer, fmt.Sprintf("SELECT * FROM %s", table))
 		require.Error(t, err, "table %s should not exist after restore", table)
 	}
 }
@@ -330,7 +328,7 @@ func testGCSStorage(ctx context.Context, t *testing.T, clickhouseContainer testc
 		"bucket": "testbucket",
 		"path":   "",
 		"host":   fmt.Sprintf("%s:%s", gcsHost, gcsPort.Port()),
-	})
+	}, testCase, backupName)
 }
 
 func testAzureBlobStorage(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container, testCase string) {
@@ -354,7 +352,7 @@ func testAzureBlobStorage(ctx context.Context, t *testing.T, clickhouseContainer
 		"container": "testcontainer",
 		"path":      "",
 		"host":      fmt.Sprintf("%s:%s", azuriteHost, azuritePort.Port()),
-	})
+	}, testCase, backupName)
 }
 
 func testFTPStorage(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container, testCase string) {
@@ -377,7 +375,7 @@ func testFTPStorage(ctx context.Context, t *testing.T, clickhouseContainer testc
 		"user":     "testuser",
 		"password": "testpass",
 		"path":     "",
-	})
+	}, testCase, backupName)
 }
 
 func testSFTPStorage(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container, testCase string) {
@@ -400,7 +398,7 @@ func testSFTPStorage(ctx context.Context, t *testing.T, clickhouseContainer test
 		"user":     "testuser",
 		"password": "testpass",
 		"path":     "",
-	})
+	}, testCase, backupName)
 }
 
 func testFileStorage(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container, testCase string) {
@@ -488,7 +486,6 @@ func startSFTPContainer(ctx context.Context) (testcontainers.Container, error) {
 	})
 }
 
-
 func createTestTables(ctx context.Context, t *testing.T, container testcontainers.Container) error {
 	queries := []string{
 		`CREATE DATABASE IF NOT EXISTS test_db1`,
@@ -570,7 +567,7 @@ func createTestTables(ctx context.Context, t *testing.T, container testcontainer
 	}
 
 	for _, query := range queries {
-		if err := executeQuery(ctx, t, container, query); err != nil {
+		if err := executeTestQuery(ctx, t, container, query); err != nil {
 			return err
 		}
 	}
@@ -589,7 +586,7 @@ func clearTestTables(ctx context.Context, t *testing.T, container testcontainers
 	}
 
 	for _, query := range queries {
-		if err := executeQuery(ctx, t, container, query); err != nil {
+		if err := executeTestQuery(ctx, t, container, query); err != nil {
 			return err
 		}
 	}
@@ -598,7 +595,7 @@ func clearTestTables(ctx context.Context, t *testing.T, container testcontainers
 
 func verifyTestData(ctx context.Context, t *testing.T, container testcontainers.Container, table string, expected string) error {
 	query := fmt.Sprintf("SELECT * FROM %s ORDER BY id;", table)
-	result, err := executeQueryWithResult(ctx, t, container, query)
+	result, err := executeTestQueryWithResult(ctx, t, container, query)
 	if err != nil {
 		return err
 	}
@@ -610,7 +607,7 @@ func verifyTestData(ctx context.Context, t *testing.T, container testcontainers.
 	return nil
 }
 
-func verifyDumpResults(ctx context.Context, t *testing.T, container testcontainers.Container, tempDir string, expectedFiles []string) error {
+func verifyDumpResults(tempDir string, expectedFiles []string) error {
 	files, err := os.ReadDir(tempDir)
 	if err != nil {
 		return err
@@ -630,7 +627,7 @@ func verifyDumpResults(ctx context.Context, t *testing.T, container testcontaine
 	return nil
 }
 
-func executeQuery(ctx context.Context, t *testing.T, container testcontainers.Container, query string) error {
+func executeTestQuery(ctx context.Context, t *testing.T, container testcontainers.Container, query string) error {
 	host, err := container.Host(ctx)
 	if err != nil {
 		return err
@@ -658,7 +655,7 @@ func executeQuery(ctx context.Context, t *testing.T, container testcontainers.Co
 	return nil
 }
 
-func executeQueryWithResult(ctx context.Context, t *testing.T, container testcontainers.Container, query string) (string, error) {
+func executeTestQueryWithResult(ctx context.Context, t *testing.T, container testcontainers.Container, query string) (string, error) {
 	host, err := container.Host(ctx)
 	if err != nil {
 		return "", err
@@ -669,8 +666,8 @@ func executeQueryWithResult(ctx context.Context, t *testing.T, container testcon
 		return "", err
 	}
 
-	url := fmt.Sprintf("http://%s:%s/?query=%s", host, port.Port(), url.QueryEscape(query))
-	resp, err := http.Get(url)
+	clickhouseUrl := fmt.Sprintf("http://%s:%s/?query=%s", host, port.Port(), url.QueryEscape(query))
+	resp, err := http.Get(clickhouseUrl)
 	if err != nil {
 		return "", err
 	}
@@ -679,11 +676,11 @@ func executeQueryWithResult(ctx context.Context, t *testing.T, container testcon
 	}()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, _ := io.ReadAll(resp.Body)
 		return "", fmt.Errorf("query failed with status %d: %s", resp.StatusCode, string(body))
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", err
 	}
