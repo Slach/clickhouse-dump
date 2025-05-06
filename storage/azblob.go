@@ -28,12 +28,23 @@ func NewAzBlobStorage(accountName, accountKey, containerName string) (*AzBlobSto
 	p := azblob.NewPipeline(credential, azblob.PipelineOptions{})
 
 	// Construct the container URL
-	// Ensure the container name is URL-encoded if necessary, though usually not needed for valid names.
-	u, err := url.Parse(fmt.Sprintf("https://%s.blob.core.windows.net/%s", accountName, containerName))
+	// For Azurite (local testing), use the custom endpoint if provided
+	endpoint := fmt.Sprintf("https://%s.blob.core.windows.net", accountName)
+	if customEndpoint := os.Getenv("AZURITE_ENDPOINT"); customEndpoint != "" {
+		endpoint = customEndpoint
+	}
+
+	u, err := url.Parse(fmt.Sprintf("%s/%s", endpoint, containerName))
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse azure container URL: %w", err)
 	}
 	containerURL := azblob.NewContainerURL(*u, p)
+
+	// Verify container exists
+	_, err = containerURL.GetProperties(ctx, azblob.LeaseAccessConditions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to access container %s: %w", containerName, err)
+	}
 
 	// Optional: Verify container exists? Could add a check here.
 

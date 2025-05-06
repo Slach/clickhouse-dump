@@ -367,6 +367,7 @@ func testAzureBlobStorage(ctx context.Context, t *testing.T, clickhouseContainer
 	azuritePort, err := azuriteContainer.MappedPort(ctx, "10000")
 	require.NoError(t, err, "Failed to get Azurite port")
 
+	// For Azurite (local testing), we need to use special credentials and endpoint
 	runMainTestScenario(ctx, t, clickhouseContainer, map[string]string{
 		"storage-type":      "azblob",
 		"storage-account":   "devstoreaccount1",
