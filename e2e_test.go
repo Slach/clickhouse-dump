@@ -368,12 +368,12 @@ func testAzureBlobStorage(ctx context.Context, t *testing.T, clickhouseContainer
 	require.NoError(t, err, "Failed to get Azurite port")
 
 	runMainTestScenario(ctx, t, clickhouseContainer, map[string]string{
-		"storage-type":       "azblob",
-		"storage-account":    "devstoreaccount1",
-		"storage-key":        "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==",
-		"storage-container":  "testcontainer",
-		"storage-path":       "",
-		"storage-endpoint":   fmt.Sprintf("http://%s:%s/devstoreaccount1", azuriteHost, azuritePort.Port()),
+		"storage-type":      "azblob",
+		"storage-account":   "devstoreaccount1",
+		"storage-key":       "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==",
+		"storage-container": "testcontainer",
+		"storage-path":      "",
+		"storage-endpoint":  fmt.Sprintf("http://%s:%s/devstoreaccount1", azuriteHost, azuritePort.Port()),
 	}, testCase, backupName)
 }
 
