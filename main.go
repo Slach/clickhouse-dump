@@ -110,27 +110,27 @@ var app = &cli.App{
 		},
 		&cli.StringFlag{
 			Name:    "storage-account",
-			Usage:   "S3 access key ID",
+			Usage:   "Storage account name/access key (S3: access key ID, Azure: account name)",
 			EnvVars: []string{"AWS_ACCESS_KEY_ID", "STORAGE_ACCOUNT"},
 		},
 		&cli.StringFlag{
 			Name:    "storage-key",
-			Usage:   "S3 secret access key",
+			Usage:   "Storage secret key (S3: secret access key, Azure: account key, GCS: path to credentials JSON)",
 			EnvVars: []string{"AWS_SECRET_ACCESS_KEY", "STORAGE_KEY"},
 		},
 		&cli.StringFlag{
 			Name:    "storage-endpoint",
-			Usage:   "S3/GCS/AzBlob custom endpoint URL (for testing/minio/etc)",
+			Usage:   "Custom endpoint URL (S3: for MinIO/etc, GCS: for fake-gcs-server, Azure: for Azurite)",
 			EnvVars: []string{"STORAGE_ENDPOINT"},
 		},
 		&cli.StringFlag{
 			Name:    "storage-account",
-			Usage:   "Azure Blob Storage account name",
+			Usage:   "Azure Blob Storage account name (for azblob storage type)",
 			EnvVars: []string{"STORAGE_ACCOUNT"},
 		},
 		&cli.StringFlag{
 			Name:    "storage-key",
-			Usage:   "Azure Blob Storage account key",
+			Usage:   "Azure Blob Storage account key (for azblob storage type)",
 			EnvVars: []string{"STORAGE_KEY"},
 		},
 		&cli.StringFlag{
