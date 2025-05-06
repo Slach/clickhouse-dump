@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"os"
 
 	"github.com/Azure/azure-storage-blob-go/azblob"
 )
@@ -41,7 +42,7 @@ func NewAzBlobStorage(accountName, accountKey, containerName string) (*AzBlobSto
 	containerURL := azblob.NewContainerURL(*u, p)
 
 	// Verify container exists
-	_, err = containerURL.GetProperties(ctx, azblob.LeaseAccessConditions{})
+	_, err = containerURL.GetProperties(context.Background(), azblob.LeaseAccessConditions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to access container %s: %w", containerName, err)
 	}
@@ -109,16 +110,6 @@ func (a *AzBlobStorage) Download(filename string) (io.ReadCloser, error) {
 		}
 		// If it's not a BlobNotFound error, return it immediately
 		return nil, lastErr
-		// }
-		// else { // GetProperties failed
-		// 	lastErr = fmt.Errorf("failed attempt to get properties for %s from azure container %s: %w", blobName, a.containerURL.String(), err)
-		// 	if stgErr, ok := err.(azblob.StorageError); ok {
-		// 		if stgErr.ServiceCode() == azblob.ServiceCodeBlobNotFound {
-		// 			continue // Try next extension
-		// 		}
-		// 	}
-		// 	return nil, lastErr // Return other errors
-		// }
 	}
 
 	// If we tried all extensions and none worked, return the last error encountered
