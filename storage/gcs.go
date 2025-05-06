@@ -13,16 +13,24 @@ type GCSStorage struct {
 	bucket     *storage.BucketHandle
 	bucketName string          // Store bucket name for logging
 	client     *storage.Client // Store client to close it later
+	endpoint   string          // Custom endpoint URL
 }
 
 // NewGCSStorage creates a new Google Cloud Storage client.
-func NewGCSStorage(bucketName string) (*GCSStorage, error) {
+func NewGCSStorage(bucketName, endpoint string) (*GCSStorage, error) {
 	if bucketName == "" {
 		return nil, fmt.Errorf("gcs bucket name cannot be empty")
 	}
 	ctx := context.Background()
+	
+	// Create client options
+	opts := []option.ClientOption{}
+	if endpoint != "" {
+		opts = append(opts, option.WithEndpoint(endpoint))
+	}
+	
 	// Creates a client with default credentials found in the environment.
-	client, err := storage.NewClient(ctx)
+	client, err := storage.NewClient(ctx, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create gcs client: %w", err)
 	}
