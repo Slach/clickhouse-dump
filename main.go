@@ -124,14 +124,9 @@ var app = &cli.App{
 			EnvVars: []string{"STORAGE_ENDPOINT"},
 		},
 		&cli.StringFlag{
-			Name:    "storage-account",
-			Usage:   "Azure Blob Storage account name (for azblob storage type)",
-			EnvVars: []string{"STORAGE_ACCOUNT"},
-		},
-		&cli.StringFlag{
-			Name:    "storage-key",
-			Usage:   "Azure Blob Storage account key (for azblob storage type)",
-			EnvVars: []string{"STORAGE_KEY"},
+			Name:    "storage-container",
+			Usage:   "Azure Blob Storage container name",
+			EnvVars: []string{"STORAGE_CONTAINER"},
 		},
 		&cli.StringFlag{
 			Name:    "storage-container",
