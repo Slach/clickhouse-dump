@@ -110,6 +110,21 @@ var app = &cli.App{
 		},
 		&cli.StringFlag{
 			Name:    "storage-account",
+			Usage:   "S3 access key ID",
+			EnvVars: []string{"AWS_ACCESS_KEY_ID", "STORAGE_ACCOUNT"},
+		},
+		&cli.StringFlag{
+			Name:    "storage-key",
+			Usage:   "S3 secret access key",
+			EnvVars: []string{"AWS_SECRET_ACCESS_KEY", "STORAGE_KEY"},
+		},
+		&cli.StringFlag{
+			Name:    "storage-endpoint",
+			Usage:   "S3/GCS/AzBlob custom endpoint URL (for testing/minio/etc)",
+			EnvVars: []string{"STORAGE_ENDPOINT"},
+		},
+		&cli.StringFlag{
+			Name:    "storage-account",
 			Usage:   "Azure Blob Storage account name",
 			EnvVars: []string{"STORAGE_ACCOUNT"},
 		},
@@ -251,10 +266,12 @@ func getConfig(c *cli.Context) (*Config, error) {
 	case "s3":
 		config.StorageConfig["bucket"] = c.String("storage-bucket")
 		config.StorageConfig["region"] = c.String("storage-region")
+		config.StorageConfig["account"] = c.String("storage-account")
+		config.StorageConfig["key"] = c.String("storage-key")
+		config.StorageConfig["endpoint"] = c.String("storage-endpoint")
 		if config.StorageConfig["bucket"] == "" {
 			return nil, fmt.Errorf("storage-bucket is required for s3 storage type")
 		}
-		// Region might be optional if AWS SDK can determine it from environment/config files
 	case "gcs":
 		config.StorageConfig["bucket"] = c.String("storage-bucket")
 		if config.StorageConfig["bucket"] == "" {

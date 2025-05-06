@@ -22,7 +22,13 @@ func NewDumper(config *Config) (*Dumper, error) {
 	case "file":
 		s, err = storage.NewFileStorage(config.StorageConfig["path"])
 	case "s3":
-		s, err = storage.NewS3Storage(config.StorageConfig["bucket"], config.StorageConfig["region"])
+		s, err = storage.NewS3Storage(
+			config.StorageConfig["bucket"],
+			config.StorageConfig["region"],
+			config.StorageConfig["account"],
+			config.StorageConfig["key"],
+			config.StorageConfig["endpoint"],
+		)
 	case "gcs":
 		s, err = storage.NewGCSStorage(config.StorageConfig["bucket"])
 	case "azblob":

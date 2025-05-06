@@ -19,13 +19,36 @@ type S3Storage struct {
 	downloader *manager.Downloader
 }
 
-func NewS3Storage(bucket, region string) (*S3Storage, error) {
-	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithRegion(region))
+func NewS3Storage(bucket, region, accessKey, secretKey, endpoint string) (*S3Storage, error) {
+	opts := []func(*config.LoadOptions) error{
+		config.WithRegion(region),
+	}
+
+	// Use explicit credentials if provided
+	if accessKey != "" && secretKey != "" {
+		opts = append(opts, config.WithCredentialsProvider(aws.CredentialsProviderFunc(
+			func(ctx context.Context) (aws.Credentials, error) {
+				return aws.Credentials{
+					AccessKeyID:     accessKey,
+					SecretAccessKey: secretKey,
+				}, nil
+			})))
+	}
+
+	cfg, err := config.LoadDefaultConfig(context.TODO(), opts...)
 	if err != nil {
 		return nil, err
 	}
 
-	client := s3.NewFromConfig(cfg)
+	clientOpts := []func(*s3.Options){}
+	if endpoint != "" {
+		clientOpts = append(clientOpts, func(o *s3.Options) {
+			o.BaseEndpoint = aws.String(endpoint)
+			o.UsePathStyle = true // Needed for MinIO and other S3-compatible services
+		})
+	}
+
+	client := s3.NewFromConfig(cfg, clientOpts...)
 
 	return &S3Storage{
 		bucket:     bucket,
