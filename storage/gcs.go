@@ -17,7 +17,7 @@ type GCSStorage struct {
 }
 
 // NewGCSStorage creates a new Google Cloud Storage client.
-func NewGCSStorage(bucketName, endpoint string) (*GCSStorage, error) {
+func NewGCSStorage(bucketName, endpoint, credentialsFile string) (*GCSStorage, error) {
 	if bucketName == "" {
 		return nil, fmt.Errorf("gcs bucket name cannot be empty")
 	}
@@ -29,7 +29,12 @@ func NewGCSStorage(bucketName, endpoint string) (*GCSStorage, error) {
 		opts = append(opts, option.WithEndpoint(endpoint))
 	}
 	
-	// Creates a client with default credentials found in the environment.
+	// Use credentials file if specified
+	if credentialsFile != "" {
+		opts = append(opts, option.WithCredentialsFile(credentialsFile))
+	}
+	
+	// Creates a client with specified credentials or default credentials from environment
 	client, err := storage.NewClient(ctx, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create gcs client: %w", err)
