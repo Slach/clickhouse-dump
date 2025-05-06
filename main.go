@@ -129,11 +129,6 @@ var app = &cli.App{
 			EnvVars: []string{"STORAGE_CONTAINER"},
 		},
 		&cli.StringFlag{
-			Name:    "storage-container",
-			Usage:   "Azure Blob Storage container name",
-			EnvVars: []string{"STORAGE_CONTAINER"},
-		},
-		&cli.StringFlag{
 			Name:    "storage-host",
 			Usage:   "SFTP/FTP host (and optional port like host:port)",
 			EnvVars: []string{"STORAGE_HOST"},
