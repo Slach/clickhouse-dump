@@ -154,7 +154,6 @@ var app = &cli.App{
 			Value:   "",
 			EnvVars: []string{"STORAGE_PATH"},
 		},
-		// TODO: Add flags for endpoint overrides (S3, GCS, AzBlob) if needed for testing/non-standard setups
 	},
 	Commands: []*cli.Command{
 		{
