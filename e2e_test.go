@@ -2,13 +2,12 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
-	"github.com/urfave/cli/v2"
 	"io"
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -95,16 +94,16 @@ func testS3Storage(ctx context.Context, t *testing.T, clickhouseContainer testco
 	minioPort, err := minioContainer.MappedPort(ctx, "9000")
 	require.NoError(t, err, "Failed to get Minio port")
 
-	runMainTestScenario(ctx, t, clickhouseContainer, []string{
-		"--storage-type=s3",
-		"--storage-bucket=testbucket",
-		"--storage-region=us-east-1",
-		"--storage-path=",
-		"--storage-host=" + minioHost + ":" + minioPort.Port(),
+	runMainTestScenario(ctx, t, clickhouseContainer, map[string]string{
+		"storage-type":   "s3",
+		"storage-bucket": "testbucket",
+		"storage-region": "us-east-1",
+		"storage-path":   "",
+		"storage-host":   minioHost + ":" + minioPort.Port(),
 	}, testCase, backupName)
 }
 
-func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container, storageFlags []string, testCase string, backupName string) {
+func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container, storageFlags map[string]string, testCase string, backupName string) {
 	// Clear any existing tables first
 	require.NoError(t, clearTestTables(ctx, t, clickhouseContainer))
 
@@ -133,22 +132,22 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 			tables:           ".*",
 			excludeTables:    "",
 			expectedFiles: []string{
-				fmt.Sprintf("%s/test_db1.users.schema.sql", backupName),
-				fmt.Sprintf("%s/test_db1.users.data.sql", backupName),
-				fmt.Sprintf("%s/test_db1.logs.schema.sql", backupName),
-				fmt.Sprintf("%s/test_db1.logs.data.sql", backupName),
-				fmt.Sprintf("%s/test_db1.audit_log.schema.sql", backupName),
-				fmt.Sprintf("%s/test_db1.audit_log.data.sql", backupName),
-				fmt.Sprintf("%s/test_db2.products.schema.sql", backupName),
-				fmt.Sprintf("%s/test_db2.products.data.sql", backupName),
-				fmt.Sprintf("%s/test_db2.inventory.schema.sql", backupName),
-				fmt.Sprintf("%s/test_db2.inventory.data.sql", backupName),
-				fmt.Sprintf("%s/test_db3.metrics.schema.sql", backupName),
-				fmt.Sprintf("%s/test_db3.metrics.data.sql", backupName),
-				fmt.Sprintf("%s/logs_2023.events.schema.sql", backupName),
-				fmt.Sprintf("%s/logs_2023.events.data.sql", backupName),
-				fmt.Sprintf("%s/logs_2024.events.schema.sql", backupName),
-				fmt.Sprintf("%s/logs_2024.events.data.sql", backupName),
+				fmt.Sprintf("%s/test_db1/users.schema.sql", backupName),
+				fmt.Sprintf("%s/test_db1/users.data.sql", backupName),
+				fmt.Sprintf("%s/test_db1/logs.schema.sql", backupName),
+				fmt.Sprintf("%s/test_db1/logs.data.sql", backupName),
+				fmt.Sprintf("%s/test_db1/audit_log.schema.sql", backupName),
+				fmt.Sprintf("%s/test_db1/audit_log.data.sql", backupName),
+				fmt.Sprintf("%s/test_db2/products.schema.sql", backupName),
+				fmt.Sprintf("%s/test_db2/products.data.sql", backupName),
+				fmt.Sprintf("%s/test_db2/inventory.schema.sql", backupName),
+				fmt.Sprintf("%s/test_db2/inventory.data.sql", backupName),
+				fmt.Sprintf("%s/test_db3/metrics.schema.sql", backupName),
+				fmt.Sprintf("%s/test_db3/metrics.data.sql", backupName),
+				fmt.Sprintf("%s/logs_2023/events.schema.sql", backupName),
+				fmt.Sprintf("%s/logs_2023/events.data.sql", backupName),
+				fmt.Sprintf("%s/logs_2024/events.schema.sql", backupName),
+				fmt.Sprintf("%s/logs_2024/events.data.sql", backupName),
 			},
 			expectedRestored: []string{
 				"test_db1.users",
@@ -170,14 +169,14 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 			tables:           ".*",
 			excludeTables:    "",
 			expectedFiles: []string{
-				"test_db1.users.schema.sql",
-				"test_db1.users.data.sql",
-				"test_db1.logs.schema.sql",
-				"test_db1.logs.data.sql",
-				"test_db1.audit_log.schema.sql",
-				"test_db1.audit_log.data.sql",
-				"logs_2024.events.schema.sql",
-				"logs_2024.events.data.sql",
+				fmt.Sprintf("%s/test_db1/users.schema.sql", backupName),
+				fmt.Sprintf("%s/test_db1/users.data.sql", backupName),
+				fmt.Sprintf("%s/test_db1/logs.schema.sql", backupName),
+				fmt.Sprintf("%s/test_db1/logs.data.sql", backupName),
+				fmt.Sprintf("%s/test_db1/audit_log.schema.sql", backupName),
+				fmt.Sprintf("%s/test_db1/audit_log.data.sql", backupName),
+				fmt.Sprintf("%s/test_db1/events.schema.sql", backupName),
+				fmt.Sprintf("%s/test_db1/events.data.sql", backupName),
 			},
 			expectedRestored: []string{
 				"test_db1.users",
@@ -199,14 +198,14 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 			tables:           ".*",
 			excludeTables:    "logs|metrics",
 			expectedFiles: []string{
-				"test_db1.users.schema.sql",
-				"test_db1.users.data.sql",
-				"test_db1.audit_log.schema.sql",
-				"test_db1.audit_log.data.sql",
-				"test_db2.products.schema.sql",
-				"test_db2.products.data.sql",
-				"test_db2.inventory.schema.sql",
-				"test_db2.inventory.data.sql",
+				fmt.Sprintf("%s/test_db1/users.schema.sql", backupName),
+				fmt.Sprintf("%s/test_db1/users.data.sql", backupName),
+				fmt.Sprintf("%s/test_db1/audit_log.schema.sql", backupName),
+				fmt.Sprintf("%s/test_db1/audit_log.data.sql", backupName),
+				fmt.Sprintf("%s/test_db2/products.schema.sql", backupName),
+				fmt.Sprintf("%s/test_db2/products.data.sql", backupName),
+				fmt.Sprintf("%s/test_db2/inventory.schema.sql", backupName),
+				fmt.Sprintf("%s/test_db2/inventory.data.sql", backupName),
 			},
 			expectedRestored: []string{
 				"test_db1.users",
@@ -256,34 +255,6 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 		t.Fatalf("unknown test case: %s", testCase)
 	}
 
-	// Create test app context with all flags
-	app := &cli.App{
-		Name: "clickhouse-dump",
-		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "host"},
-			&cli.IntFlag{Name: "port"},
-			&cli.StringFlag{Name: "user"},
-			&cli.StringFlag{Name: "password"},
-			&cli.StringFlag{Name: "databases"},
-			&cli.StringFlag{Name: "exclude-databases"},
-			&cli.StringFlag{Name: "tables"},
-			&cli.StringFlag{Name: "exclude-tables"},
-			&cli.IntFlag{Name: "batch-size"},
-			&cli.StringFlag{Name: "compress-format"},
-			&cli.IntFlag{Name: "compress-level"},
-			&cli.StringFlag{Name: "storage-type"},
-			&cli.StringFlag{Name: "storage-bucket"},
-			&cli.StringFlag{Name: "storage-region"},
-			&cli.StringFlag{Name: "storage-account"},
-			&cli.StringFlag{Name: "storage-key"},
-			&cli.StringFlag{Name: "storage-container"},
-			&cli.StringFlag{Name: "storage-host"},
-			&cli.StringFlag{Name: "storage-user"},
-			&cli.StringFlag{Name: "storage-password"},
-			&cli.StringFlag{Name: "storage-path"},
-		},
-	}
-
 	// Build args from test case and storage flags
 	args := []string{
 		"clickhouse-dump",
@@ -298,70 +269,33 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 		"--compress-format=gzip",
 		"--compress-level=6",
 	}
-	args = append(args, storageFlags...)
+	storageFlagsSlice := make([]string, 0)
 
-	// Parse flags to get config
-	flagSet := flag.NewFlagSet("test", flag.ContinueOnError)
-	ctx := cli.NewContext(app, flagSet, nil)
-	err := app.Run(append(args, backupName))
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse test flags: %w", err)
+	for paramName, paramValue := range storageFlags {
+		storageFlagsSlice = append(storageFlagsSlice, fmt.Sprintf("--%s=%s", paramName, paramValue))
 	}
-
-	config, err := getConfig(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create test config: %w", err)
-	}
-	config.BackupName = backupName
+	args = append(args, storageFlagsSlice...)
 
 	// Test 1: Dump
-	app := &cli.App{
-		Name: "clickhouse-dump",
-		Commands: []*cli.Command{
-			{
-				Name: "dump",
-			},
-		},
-	}
-	// Create flag set and set args
-	fs := &flag.FlagSet{}
-	if err = fs.Parse([]string{backupName}); err != nil {
-		require.NoError(t, err, "Failed setup FlagSet")
-	}
-
-	dumpCtx := cli.NewContext(app, fs, nil)
-	dumpCtx.Context = ctx
-	dumpCtx.Command = app.Command("dump")
-
-	err = RunDumper(dumpCtx)
-	require.NoError(t, err, "Failed to dump data")
-
+	dumpArgs := append(args, "dump", backupName)
+	dumpErr := app.Run(dumpArgs)
+	require.NoError(t, dumpErr, "fail to execute dump command %v", dumpArgs)
 	// Verify dump files were created
-	if config.StorageType == "file" {
-		require.NoError(t, verifyDumpResults(storageConfig["path"], tc.expectedFiles))
+	if storageFlags["storage-type"] == "file" {
+		require.NoError(t, verifyDumpResults(storageFlags["storage-path"], tc.expectedFiles))
 	}
 
 	// Clear tables before restore
 	require.NoError(t, clearTestTables(ctx, t, clickhouseContainer))
 
 	// Test 2: Restore
-	// Reuse flag set for restore
-	if err = fs.Parse([]string{backupName}); err != nil {
-		require.NoError(t, err, "Failed setup FlagSet")
-	}
+	restoreArgs := append(args, "restore", backupName)
+	restoreErr := app.Run(restoreArgs)
+	require.NoError(t, restoreErr, "fail to execute dump command %v", restoreArgs)
 
-	restoreCtx := cli.NewContext(app, fs, nil)
-	restoreCtx.Context = ctx
-	restoreCtx.Command = app.Command("restore")
-
-	err = RunRestorer(restoreCtx)
-	require.NoError(t, err, "Failed to restore data")
-
-	// Verify expected tables were restored with correct data
 	for _, table := range tc.expectedRestored {
-		// First check table exists
-		_, err := executeTestQueryWithResult(ctx, t, clickhouseContainer, fmt.Sprintf("SELECT * FROM %s LIMIT 1", table))
-		require.NoError(t, err, "table %s should exist after restore", table)
+		_, existsErr := executeTestQueryWithResult(ctx, t, clickhouseContainer, fmt.Sprintf("SELECT * FROM %s LIMIT 1", table))
+		require.NoError(t, existsErr, "table %s should exist after restore", table)
 
 		// Then verify test data was restored correctly
 		var expectedData string
@@ -398,7 +332,7 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 }
 
 func testGCSStorage(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container, testCase string) {
-	backupName := "test_backup_" + testCase
+	backupName := "test_gcs_" + testCase
 	gcsContainer, err := startFakeGCSContainer(ctx)
 	require.NoError(t, err, "Failed to start fake GCS container")
 	defer func() {
@@ -411,16 +345,16 @@ func testGCSStorage(ctx context.Context, t *testing.T, clickhouseContainer testc
 	gcsPort, err := gcsContainer.MappedPort(ctx, "4443")
 	require.NoError(t, err, "Failed to get GCS port")
 
-	runMainTestScenario(ctx, t, clickhouseContainer, []string{
-		"--storage-type=gcs",
-		"--storage-bucket=testbucket",
-		"--storage-path=",
-		"--storage-host=" + gcsHost + ":" + gcsPort.Port(),
+	runMainTestScenario(ctx, t, clickhouseContainer, map[string]string{
+		"storage-type":   "gcs",
+		"storage-bucket": "testbucket",
+		"storage-path":   "",
+		"storage-host":   gcsHost + ":" + gcsPort.Port(),
 	}, testCase, backupName)
 }
 
 func testAzureBlobStorage(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container, testCase string) {
-	backupName := "test_backup_" + testCase
+	backupName := "test_azblob_" + testCase
 	azuriteContainer, err := startAzuriteContainer(ctx)
 	require.NoError(t, err, "Failed to start Azurite container")
 	defer func() {
@@ -433,18 +367,18 @@ func testAzureBlobStorage(ctx context.Context, t *testing.T, clickhouseContainer
 	azuritePort, err := azuriteContainer.MappedPort(ctx, "10000")
 	require.NoError(t, err, "Failed to get Azurite port")
 
-	runMainTestScenario(ctx, t, clickhouseContainer, []string{
-		"--storage-type=azblob",
-		"--storage-account=devstoreaccount1",
-		"--storage-key=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==",
-		"--storage-container=testcontainer",
-		"--storage-path=",
-		"--storage-host=" + azuriteHost + ":" + azuritePort.Port(),
+	runMainTestScenario(ctx, t, clickhouseContainer, map[string]string{
+		"type":      "azblob",
+		"account":   "devstoreaccount1",
+		"key":       "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==",
+		"container": "testcontainer",
+		"path":      "",
+		"host":      azuriteHost + ":" + azuritePort.Port(),
 	}, testCase, backupName)
 }
 
 func testFTPStorage(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container, testCase string) {
-	backupName := "test_backup_" + testCase
+	backupName := "test_ftp_" + testCase
 	ftpContainer, err := startFTPContainer(ctx)
 	require.NoError(t, err, "Failed to start FTP container")
 	defer func() {
@@ -457,17 +391,17 @@ func testFTPStorage(ctx context.Context, t *testing.T, clickhouseContainer testc
 	ftpPort, err := ftpContainer.MappedPort(ctx, "21")
 	require.NoError(t, err, "Failed to get FTP port")
 
-	runMainTestScenario(ctx, t, clickhouseContainer, []string{
-		"--storage-type=ftp",
-		"--storage-host=" + ftpHost + ":" + ftpPort.Port(),
-		"--storage-user=testuser",
-		"--storage-password=testpass",
-		"--storage-path=",
+	runMainTestScenario(ctx, t, clickhouseContainer, map[string]string{
+		"storage-type":     "ftp",
+		"storage-host":     ftpHost + ":" + ftpPort.Port(),
+		"storage-user":     "testuser",
+		"storage-password": "testpass",
+		"storage-path":     "",
 	}, testCase, backupName)
 }
 
 func testSFTPStorage(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container, testCase string) {
-	backupName := "test_backup_" + testCase
+	backupName := "test_sftp_" + testCase
 	sftpContainer, err := startSFTPContainer(ctx)
 	require.NoError(t, err, "Failed to start SFTP container")
 	defer func() {
@@ -480,12 +414,12 @@ func testSFTPStorage(ctx context.Context, t *testing.T, clickhouseContainer test
 	sftpPort, err := sftpContainer.MappedPort(ctx, "22")
 	require.NoError(t, err, "Failed to get SFTP port")
 
-	runMainTestScenario(ctx, t, clickhouseContainer, []string{
-		"--storage-type=sftp",
-		"--storage-host=" + sftpHost + ":" + sftpPort.Port(),
-		"--storage-user=testuser",
-		"--storage-password=testpass",
-		"--storage-path=",
+	runMainTestScenario(ctx, t, clickhouseContainer, map[string]string{
+		"storage-type":     "sftp",
+		"storage-host":     sftpHost + ":" + sftpPort.Port(),
+		"storage-user":     "testuser",
+		"storage-password": "testpass",
+		"storage-path":     "",
 	}, testCase, backupName)
 }
 
@@ -493,10 +427,10 @@ func testFileStorage(ctx context.Context, t *testing.T, clickhouseContainer test
 	// Create temp directory for test
 	tempDir := t.TempDir()
 
-	runMainTestScenario(ctx, t, clickhouseContainer, []string{
-		"--storage-type=file",
-		"--storage-path=" + tempDir,
-	}, testCase, "test_backup")
+	runMainTestScenario(ctx, t, clickhouseContainer, map[string]string{
+		"storage-type": "file",
+		"storage-path": tempDir,
+	}, testCase, "test_file_"+testCase)
 }
 
 func startMinioContainer(ctx context.Context) (testcontainers.Container, error) {

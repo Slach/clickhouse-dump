@@ -118,7 +118,7 @@ func (d *Dumper) dumpSchema(table string) error {
 	}
 	dbName, tableName := parts[0], parts[1]
 
-	query := fmt.Sprintf("SELECT create_table_query FROM system.tables WHERE database='%s' AND name='%s' SETTINGS display_secrets_in_show_and_select=1 FORMAT TabSeparated", dbName, tableName)
+	query := fmt.Sprintf("SELECT create_table_query FROM system.tables WHERE database='%s' AND name='%s' SETTINGS format_display_secrets_in_show_and_select=1 FORMAT TabSeparated", dbName, tableName)
 	resp, err := d.client.ExecuteQuery(query)
 	if err != nil {
 		return err
