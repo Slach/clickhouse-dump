@@ -16,6 +16,10 @@ type FileStorage struct {
 
 // NewFileStorage creates a new FileStorage instance
 func NewFileStorage(basePath string, debug bool) (*FileStorage, error) {
+	f := &FileStorage{
+		basePath: basePath,
+		debug:    debug,
+	}
 	// Ensure basePath exists and is a directory
 	if basePath != "" {
 		f.debugf("Creating base directory: %s", basePath)
@@ -24,13 +28,8 @@ func NewFileStorage(basePath string, debug bool) (*FileStorage, error) {
 			return nil, fmt.Errorf("failed to create base path %s: %w", basePath, err)
 		}
 	}
-
-	fs := &FileStorage{
-		basePath: basePath,
-		debug:    debug,
-	}
-	fs.debugf("Initialized file storage at: %s", basePath)
-	return fs, nil
+	f.debugf("Initialized file storage at: %s", basePath)
+	return f, nil
 }
 
 // debugf logs only if debug is enabled
@@ -100,19 +99,19 @@ func (f *FileStorage) Download(filename string) (io.ReadCloser, error) {
 
 	var lastErr error
 	for _, ext := range extensionsToTry {
-		fullPath := filepath.Join(f.basePath, filename + ext)
+		fullPath := filepath.Join(f.basePath, filename+ext)
 		f.debugf("Trying to open file: %s", fullPath)
 		file, err := os.Open(fullPath)
 		if err == nil {
 			f.debugf("Successfully opened file: %s", fullPath)
 			// Success! Wrap the file reader with decompression.
-			return decompressStream(file, filename + ext), nil
+			return decompressStream(file, filename+ext), nil
 		}
 		f.debugf("Failed to open file %s: %v", fullPath, err)
 		lastErr = err
 	}
 
-	err := fmt.Errorf("failed to open any version of %s (tried extensions .gz, .zstd, none): %w", 
+	err := fmt.Errorf("failed to open any version of %s (tried extensions .gz, .zstd, none): %w",
 		filename, lastErr)
 	f.debugf("%v", err)
 	return nil, err
