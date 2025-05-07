@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"testing"
 
@@ -134,22 +135,22 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 			tables:           ".*",
 			excludeTables:    "",
 			expectedFiles: []string{
-				"test_db1/users.schema.sql",
-				"test_db1/users.data.sql",
-				"test_db1/logs.schema.sql", 
-				"test_db1/logs.data.sql",
-				"test_db1/audit_log.schema.sql",
-				"test_db1/audit_log.data.sql",
-				"test_db2/products.schema.sql",
-				"test_db2/products.data.sql",
-				"test_db2/inventory.schema.sql",
-				"test_db2/inventory.data.sql",
-				"test_db3/metrics.schema.sql",
-				"test_db3/metrics.data.sql",
-				"logs_2023/events.schema.sql",
-				"logs_2023/events.data.sql",
-				"logs_2024/events.schema.sql",
-				"logs_2024/events.data.sql",
+				fmt.Sprintf("%s/test_db1/users.schema.sql", backupName),
+				fmt.Sprintf("%s/test_db1/users.data.sql", backupName),
+				fmt.Sprintf("%s/test_db1/logs.schema.sql", backupName),
+				fmt.Sprintf("%s/test_db1/logs.data.sql", backupName),
+				fmt.Sprintf("%s/test_db1/audit_log.schema.sql", backupName),
+				fmt.Sprintf("%s/test_db1/audit_log.data.sql", backupName),
+				fmt.Sprintf("%s/test_db2/products.schema.sql", backupName),
+				fmt.Sprintf("%s/test_db2/products.data.sql", backupName),
+				fmt.Sprintf("%s/test_db2/inventory.schema.sql", backupName),
+				fmt.Sprintf("%s/test_db2/inventory.data.sql", backupName),
+				fmt.Sprintf("%s/test_db3/metrics.schema.sql", backupName),
+				fmt.Sprintf("%s/test_db3/metrics.data.sql", backupName),
+				fmt.Sprintf("%s/logs_2023/events.schema.sql", backupName),
+				fmt.Sprintf("%s/logs_2023/events.data.sql", backupName),
+				fmt.Sprintf("%s/logs_2024/events.schema.sql", backupName),
+				fmt.Sprintf("%s/logs_2024/events.data.sql", backupName),
 			},
 			expectedRestored: []string{
 				"test_db1.users",
@@ -637,10 +638,10 @@ func verifyDumpResults(t *testing.T, tempDir string, expectedFiles []string) err
 	// Build list of possible compressed variants for each expected file
 	compressionExts := []string{"", ".gz", ".zstd"}
 	expectedVariants := make(map[string]bool)
-	
+
 	for _, file := range expectedFiles {
 		for _, ext := range compressionExts {
-			expectedVariants[filepath.Join(tempDir, file+ext)] = true
+			expectedVariants[file+ext] = true
 		}
 	}
 
@@ -673,7 +674,7 @@ func verifyDumpResults(t *testing.T, tempDir string, expectedFiles []string) err
 	}
 
 	if foundCount < len(expectedFiles) {
-		return fmt.Errorf("missing files in dump, found %d/%d expected files", foundCount, len(expectedFiles))
+		return fmt.Errorf("missing files in dump, found %d/%d expected files, foundFiles=%v, expectedVariants=%v", foundCount, len(expectedFiles), foundFiles, expectedVariants)
 	}
 
 	return nil
