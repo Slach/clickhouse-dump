@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -11,7 +12,20 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	awsV2Logging "github.com/aws/smithy-go/logging"
 )
+
+type S3LogAdapter struct {
+}
+
+func newS3Logger() S3LogAdapter {
+	return S3LogAdapter{}
+}
+
+func (apapter S3LogAdapter) Logf(severity awsV2Logging.Classification, msg string, args ...interface{}) {
+	msg = fmt.Sprintf("[s3:%s] %s\n", severity, msg)
+	log.Printf(msg, args...)
+}
 
 type S3Storage struct {
 	bucket     string
@@ -47,6 +61,7 @@ func NewS3Storage(bucket, region, accessKey, secretKey, endpoint string, debug b
 
 	// Configure debug logging if enabled
 	if debug {
+		cfg.Logger = newS3Logger()
 		cfg.ClientLogMode = aws.LogRequestWithBody | aws.LogResponseWithBody | aws.LogRetries
 	}
 
