@@ -18,7 +18,7 @@ type FTPStorage struct {
 }
 
 // NewFTPStorage creates a new FTP storage client.
-func NewFTPStorage(host, user, password string) (*FTPStorage, error) {
+func NewFTPStorage(host, user, password string, debug bool) (*FTPStorage, error) {
 	if host == "" || user == "" { // Password can potentially be empty for anonymous
 		return nil, fmt.Errorf("ftp host and user cannot be empty")
 	}

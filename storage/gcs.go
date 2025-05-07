@@ -18,7 +18,7 @@ type GCSStorage struct {
 }
 
 // NewGCSStorage creates a new Google Cloud Storage client.
-func NewGCSStorage(bucketName, endpoint, credentialsFile string) (*GCSStorage, error) {
+func NewGCSStorage(bucketName, endpoint, credentialsFile string, debug bool) (*GCSStorage, error) {
 	if bucketName == "" {
 		return nil, fmt.Errorf("gcs bucket name cannot be empty")
 	}
