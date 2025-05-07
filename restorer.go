@@ -64,6 +64,9 @@ func NewRestorer(config *Config) (*Restorer, error) {
 		return nil, fmt.Errorf("failed to initialize storage type %s: %w", config.StorageType, err)
 	}
 
+	// Set debug mode on storage
+	s.SetDebug(config.Debug)
+
 	return &Restorer{
 		config:  config,
 		client:  NewClickHouseClient(config),

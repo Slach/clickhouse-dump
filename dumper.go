@@ -45,6 +45,9 @@ func NewDumper(config *Config) (*Dumper, error) {
 		return nil, err
 	}
 
+	// Set debug mode on storage
+	s.SetDebug(config.Debug)
+
 	return &Dumper{
 		config:  config,
 		client:  NewClickHouseClient(config),

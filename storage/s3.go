@@ -17,6 +17,7 @@ type S3Storage struct {
 	client     *s3.Client
 	uploader   *manager.Uploader
 	downloader *manager.Downloader
+	debug      bool
 }
 
 func NewS3Storage(bucket, region, accessKey, secretKey, endpoint string) (*S3Storage, error) {
@@ -109,4 +110,11 @@ func (s *S3Storage) List(prefix string) ([]string, error) {
 func (s *S3Storage) Close() error {
 	// AWS SDK v2 clients don't need explicit closing
 	return nil
+}
+
+func (s *S3Storage) SetDebug(debug bool) {
+	s.debug = debug
+	if s.debug {
+		log.Println("Debug logging enabled for S3 storage")
+	}
 }
