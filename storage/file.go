@@ -41,7 +41,9 @@ func (f *FileStorage) debugf(format string, args ...interface{}) {
 
 // Upload writes data to a local file
 func (f *FileStorage) Upload(filename string, reader io.Reader, format string, level int) error {
-	fullPath := filepath.Join(f.basePath, filename)
+	// Clean the filename path first to avoid duplicate path segments
+	cleanFilename := filepath.Clean(filename)
+	fullPath := filepath.Join(f.basePath, cleanFilename)
 	f.debugf("Uploading file: %s (compression: %s level %d)", fullPath, format, level)
 
 	// Ensure directory exists
