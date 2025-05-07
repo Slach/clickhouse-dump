@@ -102,6 +102,7 @@ func testS3Storage(ctx context.Context, t *testing.T, clickhouseContainer testco
 		"storage-host":     minioHost + ":" + minioPort.Port(),
 		"storage-account":  "minioadmin",
 		"storage-key":      "minioadmin",
+		"debug":            "true",
 	}, testCase, backupName)
 }
 
@@ -352,6 +353,7 @@ func testGCSStorage(ctx context.Context, t *testing.T, clickhouseContainer testc
 		"storage-bucket": "testbucket",
 		"storage-path":   "",
 		"storage-host":   gcsHost + ":" + gcsPort.Port(),
+		"debug":          "true",
 	}, testCase, backupName)
 }
 
@@ -377,6 +379,7 @@ func testAzureBlobStorage(ctx context.Context, t *testing.T, clickhouseContainer
 		"storage-container": "testcontainer",
 		"storage-path":      "",
 		"storage-endpoint":  fmt.Sprintf("http://%s:%s/devstoreaccount1", azuriteHost, azuritePort.Port()),
+		"debug":            "true",
 	}, testCase, backupName)
 }
 
@@ -400,6 +403,7 @@ func testFTPStorage(ctx context.Context, t *testing.T, clickhouseContainer testc
 		"storage-user":     "testuser",
 		"storage-password": "testpass",
 		"storage-path":     "",
+		"debug":           "true",
 	}, testCase, backupName)
 }
 
@@ -423,6 +427,7 @@ func testSFTPStorage(ctx context.Context, t *testing.T, clickhouseContainer test
 		"storage-user":     "testuser",
 		"storage-password": "testpass",
 		"storage-path":     "",
+		"debug":           "true",
 	}, testCase, backupName)
 }
 
@@ -433,6 +438,7 @@ func testFileStorage(ctx context.Context, t *testing.T, clickhouseContainer test
 	runMainTestScenario(ctx, t, clickhouseContainer, map[string]string{
 		"storage-type": "file",
 		"storage-path": tempDir,
+		"debug":       "true",
 	}, testCase, "test_file_"+testCase)
 }
 
