@@ -135,6 +135,11 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 			tables:           ".*",
 			excludeTables:    "",
 			expectedFiles: []string{
+				fmt.Sprintf("%s/test_db1.database.sql", backupName),
+				fmt.Sprintf("%s/test_db2.database.sql", backupName), 
+				fmt.Sprintf("%s/test_db3.database.sql", backupName),
+				fmt.Sprintf("%s/logs_2023.database.sql", backupName),
+				fmt.Sprintf("%s/logs_2024.database.sql", backupName),
 				fmt.Sprintf("%s/test_db1/users.schema.sql", backupName),
 				fmt.Sprintf("%s/test_db1/users.data.sql", backupName),
 				fmt.Sprintf("%s/test_db1/logs.schema.sql", backupName),

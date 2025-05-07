@@ -86,10 +86,44 @@ func (r *Restorer) Restore() error {
 		}
 	}()
 
-	// --- Restore Schema ---
+	// --- Restore Databases ---
+	dbPrefix := fmt.Sprintf("%s/%s/", r.config.StorageConfig["path"], r.config.BackupName)
+	dbSuffix := ".database.sql"
+	log.Printf("Listing database files with prefix: %s*%s", dbPrefix, dbSuffix)
+
+	allFiles, err := r.storage.List(dbPrefix)
+	if err != nil {
+		return fmt.Errorf("failed to list files in storage with prefix %s: %w", dbPrefix, err)
+	}
+
+	// Filter for database files
+	var dbFiles []string
+	for _, file := range allFiles {
+		if strings.HasSuffix(file, dbSuffix) {
+			baseName := strings.TrimSuffix(file, storage.GetCompressionExtension(file))
+			if strings.HasSuffix(baseName, dbSuffix) {
+				dbFiles = append(dbFiles, baseName)
+			}
+		}
+	}
+
+	log.Printf("Found %d database files to restore.", len(dbFiles))
+	for _, dbFileBase := range dbFiles {
+		log.Printf("Restoring database from %s...", dbFileBase)
+		reader, err := r.storage.Download(dbFileBase)
+		if err != nil {
+			return fmt.Errorf("failed to download database file %s: %w", dbFileBase, err)
+		}
+		if err := r.restoreSchema(reader); err != nil {
+			return fmt.Errorf("failed to restore database from %s: %w", dbFileBase, err)
+		}
+		log.Printf("Successfully restored database from %s.", dbFileBase)
+	}
+
+	// --- Restore Tables ---
 	schemaPrefix := fmt.Sprintf("%s/%s/", r.config.StorageConfig["path"], r.config.BackupName)
 	schemaSuffix := ".schema.sql"
-	log.Printf("Listing schema files with prefix: %s*%s", schemaPrefix, schemaSuffix)
+	log.Printf("Listing table schema files with prefix: %s*%s", schemaPrefix, schemaSuffix)
 
 	allFiles, err := r.storage.List(schemaPrefix)
 	if err != nil {

@@ -53,7 +53,61 @@ func NewDumper(config *Config) (*Dumper, error) {
 	}, nil
 }
 
+func (d *Dumper) GetDatabases() ([]string, error) {
+	query := fmt.Sprintf(`
+		SELECT name 
+		FROM system.databases 
+		WHERE 
+			match(name, '%s') AND 
+			NOT match(name, '%s')
+		FORMAT TabSeparated`,
+		d.config.Databases,
+		d.config.ExcludeDatabases)
+
+	resp, err := d.client.ExecuteQuery(query)
+	if err != nil {
+		return nil, err
+	}
+
+	var databases []string
+	lines := strings.Split(strings.TrimSpace(string(resp)), "\n")
+	for _, line := range lines {
+		if line != "" {
+			databases = append(databases, line)
+		}
+	}
+
+	return databases, nil
+}
+
+func (d *Dumper) dumpDatabaseSchema(dbName string) error {
+	query := fmt.Sprintf("SHOW CREATE DATABASE `%s` SETTINGS format_display_secrets_in_show_and_select=1 FORMAT TabSeparated", dbName)
+	resp, err := d.client.ExecuteQuery(query)
+	if err != nil {
+		return err
+	}
+
+	// Replace CREATE DATABASE with CREATE DATABASE IF NOT EXISTS
+	createStmt := strings.Replace(string(resp), "CREATE DATABASE", "CREATE DATABASE IF NOT EXISTS", 1)
+
+	filename := fmt.Sprintf("%s/%s/%s.database.sql", d.config.StorageConfig["path"], d.config.BackupName, dbName)
+	return d.storage.Upload(filename, strings.NewReader(createStmt), d.config.CompressFormat, d.config.CompressLevel)
+}
+
 func (d *Dumper) Dump() error {
+	// First dump database schemas
+	databases, err := d.GetDatabases()
+	if err != nil {
+		return err
+	}
+
+	for _, db := range databases {
+		if err := d.dumpDatabaseSchema(db); err != nil {
+			return err
+		}
+	}
+
+	// Then dump tables
 	dbTables, err := d.getTables()
 	if err != nil {
 		return err
