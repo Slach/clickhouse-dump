@@ -16,7 +16,7 @@ type AzBlobStorage struct {
 }
 
 // NewAzBlobStorage creates a new Azure Blob Storage client.
-func NewAzBlobStorage(accountName, accountKey, containerName string, debug bool) (*AzBlobStorage, error) {
+func NewAzBlobStorage(accountName, accountKey, containerName string) (*AzBlobStorage, error) {
 	if accountName == "" || accountKey == "" || containerName == "" {
 		return nil, fmt.Errorf("azure storage account name, key, and container name cannot be empty")
 	}

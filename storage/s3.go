@@ -19,7 +19,7 @@ type S3Storage struct {
 	downloader *manager.Downloader
 }
 
-func NewS3Storage(bucket, region, accessKey, secretKey, endpoint string, debug bool) (*S3Storage, error) {
+func NewS3Storage(bucket, region, accessKey, secretKey, endpoint string) (*S3Storage, error) {
 	opts := []func(*config.LoadOptions) error{
 		config.WithRegion(region),
 	}
