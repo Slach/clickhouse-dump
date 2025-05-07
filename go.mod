@@ -9,12 +9,14 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.29.14
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.17.75
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.79.3
+	github.com/aws/smithy-go v1.22.3
 	github.com/jlaffaye/ftp v0.2.0
 	github.com/klauspost/compress v1.18.0
 	github.com/pkg/sftp v1.13.9
 	github.com/stretchr/testify v1.10.0
 	github.com/testcontainers/testcontainers-go v0.37.0
 	github.com/urfave/cli/v2 v2.27.6
+	github.com/urfave/cli/v3 v3.3.2
 	golang.org/x/crypto v0.38.0
 	google.golang.org/api v0.231.0
 )
@@ -48,7 +50,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sso v1.25.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.30.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.33.19 // indirect
-	github.com/aws/smithy-go v1.22.3 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cncf/xds/go v0.0.0-20250501225837-2ac532fd4443 // indirect
