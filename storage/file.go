@@ -103,7 +103,10 @@ func (f *FileStorage) Download(filename string) (io.ReadCloser, error) {
 
 	var lastErr error
 	for _, ext := range extensionsToTry {
-		fullPath := filepath.Join(f.basePath, filename+ext)
+		fullPath := filename + ext
+		if !strings.HasPrefix(fullPath, f.basePath) {
+			fullPath = filepath.Join(f.basePath, filename+ext)
+		}
 		f.debugf("Trying to open file: %s", fullPath)
 		file, err := os.Open(fullPath)
 		if err == nil {
@@ -126,7 +129,10 @@ func (f *FileStorage) List(prefix string) ([]string, error) {
 	f.debugf("Listing files with prefix: %s", prefix)
 	var matches []string
 
-	searchPath := filepath.Join(f.basePath, prefix)
+	searchPath := prefix
+	if !strings.HasPrefix(searchPath, f.basePath) {
+		searchPath = filepath.Join(f.basePath, prefix)
+	}
 	dir := filepath.Dir(searchPath)
 	pattern := filepath.Base(searchPath) + "*"
 	f.debugf("Searching in directory: %s with pattern: %s", dir, pattern)
