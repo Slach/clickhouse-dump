@@ -28,6 +28,8 @@ func NewRestorer(config *Config) (*Restorer, error) {
 	}
 
 	switch config.StorageType {
+	case "file":
+		s, err = storage.NewFileStorage(config.StorageConfig["path"], config.Debug)
 	case "s3":
 		s, err = storage.NewS3Storage(
 			config.StorageConfig["bucket"],
