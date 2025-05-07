@@ -91,7 +91,7 @@ func NewS3Storage(bucket, region, accessKey, secretKey, endpoint string, debug b
 
 func (s *S3Storage) Upload(filename string, reader io.Reader, format string, level int) error {
 	compressedReader, ext := compressStream(reader, format, level)
-	_, err := s.uploader.Upload(context.TODO(), &s3.PutObjectInput{
+	_, err := s.uploader.Upload(context.Background(), &s3.PutObjectInput{
 		Bucket: aws.String(s.bucket),
 		Key:    aws.String(filename + ext),
 		Body:   compressedReader,

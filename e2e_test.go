@@ -95,13 +95,13 @@ func testS3Storage(ctx context.Context, t *testing.T, clickhouseContainer testco
 	require.NoError(t, err, "Failed to get Minio port")
 
 	runMainTestScenario(ctx, t, clickhouseContainer, map[string]string{
-		"storage-type":     "s3",
-		"storage-bucket":   "testbucket",
-		"storage-region":   "us-east-1",
-		"storage-path":     "",
-		"storage-host":     minioHost + ":" + minioPort.Port(),
-		"storage-account":  "minioadmin",
-		"storage-key":      "minioadmin",
+		"storage-type":    "s3",
+		"storage-bucket":  "testbucket",
+		"storage-region":  "us-east-1",
+		"storage-path":    "",
+		"storage-host":    minioHost + ":" + minioPort.Port(),
+		"storage-account": "minioadmin",
+		"storage-key":     "minioadmin",
 	}, testCase, backupName)
 }
 
@@ -285,7 +285,7 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 	require.NoError(t, dumpErr, "fail to execute dump command %v", dumpArgs)
 	// Verify dump files were created
 	if storageFlags["storage-type"] == "file" {
-		require.NoError(t, verifyDumpResults(storageFlags["storage-path"], tc.expectedFiles))
+		require.NoError(t, verifyDumpResults(t, storageFlags["storage-path"], tc.expectedFiles))
 	}
 
 	// Clear tables before restore
@@ -633,11 +633,12 @@ func verifyTestData(ctx context.Context, t *testing.T, container testcontainers.
 	return nil
 }
 
-func verifyDumpResults(tempDir string, expectedFiles []string) error {
+func verifyDumpResults(t *testing.T, tempDir string, expectedFiles []string) error {
 	files, err := os.ReadDir(tempDir)
 	if err != nil {
 		return err
 	}
+	t.Logf("SUKA!!! tempDir=%s files=%v", tempDir, files)
 
 	foundFiles := make(map[string]bool)
 	for _, file := range files {

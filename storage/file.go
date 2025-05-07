@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // FileStorage implements RemoteStorage for local filesystem
@@ -41,7 +42,10 @@ func (f *FileStorage) debugf(format string, args ...interface{}) {
 
 // Upload writes data to a local file
 func (f *FileStorage) Upload(filename string, reader io.Reader, format string, level int) error {
-	fullPath := filepath.Join(f.basePath, filename)
+	fullPath := filename
+	if !strings.HasPrefix(filename, f.basePath) {
+		fullPath = filepath.Join(f.basePath, filename)
+	}
 	f.debugf("Uploading file: %s (compression: %s level %d)", fullPath, format, level)
 
 	// Ensure directory exists
