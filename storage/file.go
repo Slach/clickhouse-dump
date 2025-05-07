@@ -133,14 +133,11 @@ func (f *FileStorage) List(prefix string) ([]string, error) {
 	if !strings.HasPrefix(searchPath, f.basePath) {
 		searchPath = filepath.Join(f.basePath, prefix)
 	}
-	dir := filepath.Dir(searchPath)
-	pattern := filepath.Base(searchPath) + "*"
-	f.debugf("Searching in directory: %s with pattern: %s", dir, pattern)
 
-	entries, err := os.ReadDir(dir)
+	entries, err := os.ReadDir(searchPath)
 	if err != nil {
-		f.debugf("Failed to read directory %s: %v", dir, err)
-		return nil, fmt.Errorf("failed to read directory %s: %w", dir, err)
+		f.debugf("Failed to read directory %s: %v", searchPath, err)
+		return nil, fmt.Errorf("failed to read directory %s: %w", searchPath, err)
 	}
 
 	for _, entry := range entries {
@@ -148,20 +145,13 @@ func (f *FileStorage) List(prefix string) ([]string, error) {
 			continue
 		}
 		name := entry.Name()
-		matched, err := filepath.Match(pattern, name)
-		if err != nil {
-			f.debugf("Invalid pattern %s: %v", pattern, err)
-			return nil, fmt.Errorf("invalid pattern %s: %w", pattern, err)
+		relPath, relErr := filepath.Rel(f.basePath, filepath.Join(searchPath, name))
+		if relErr != nil {
+			log.Printf("Failed to get relative path for %s: %v", name, relErr)
+			return nil, fmt.Errorf("failed to get relative path: %w", relErr)
 		}
-		if matched {
-			relPath, err := filepath.Rel(f.basePath, filepath.Join(dir, name))
-			if err != nil {
-				log.Printf("Failed to get relative path for %s: %v", name, err)
-				return nil, fmt.Errorf("failed to get relative path: %w", err)
-			}
-			f.debugf("Found matching file: %s", relPath)
-			matches = append(matches, relPath)
-		}
+		f.debugf("Found matching file: %s", relPath)
+		matches = append(matches, relPath)
 	}
 
 	f.debugf("Found %d matching files", len(matches))

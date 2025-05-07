@@ -87,17 +87,16 @@ func (r *Restorer) Restore() error {
 	}()
 
 	// --- Restore Databases ---
-	dbPrefix := fmt.Sprintf("%s/%s/", r.config.StorageConfig["path"], r.config.BackupName)
-	dbSuffix := ".database.sql"
-	log.Printf("Listing database files with prefix: %s*%s", dbPrefix, dbSuffix)
-
-	allFiles, err := r.storage.List(dbPrefix)
+	backupPrefix := fmt.Sprintf("%s/%s/", r.config.StorageConfig["path"], r.config.BackupName)
+	log.Printf("Listing storage items with prefix: %s", backupPrefix)
+	allFiles, err := r.storage.List(backupPrefix)
 	if err != nil {
-		return fmt.Errorf("failed to list files in storage with prefix %s: %w", dbPrefix, err)
+		return fmt.Errorf("failed to list files in storage with prefix %s: %w", backupPrefix, err)
 	}
 
 	// Filter for database files
 	var dbFiles []string
+	dbSuffix := ".database.sql"
 	for _, file := range allFiles {
 		if strings.HasSuffix(file, dbSuffix) {
 			baseName := strings.TrimSuffix(file, storage.GetCompressionExtension(file))
@@ -110,12 +109,12 @@ func (r *Restorer) Restore() error {
 	log.Printf("Found %d database files to restore.", len(dbFiles))
 	for _, dbFileBase := range dbFiles {
 		log.Printf("Restoring database from %s...", dbFileBase)
-		reader, err := r.storage.Download(dbFileBase)
-		if err != nil {
-			return fmt.Errorf("failed to download database file %s: %w", dbFileBase, err)
+		reader, downloadErr := r.storage.Download(dbFileBase)
+		if downloadErr != nil {
+			return fmt.Errorf("failed to download database file %s: %w", dbFileBase, downloadErr)
 		}
-		if err := r.restoreSchema(reader); err != nil {
-			return fmt.Errorf("failed to restore database from %s: %w", dbFileBase, err)
+		if restoreErr := r.restoreSchema(reader); restoreErr != nil {
+			return fmt.Errorf("failed to restore database from %s: %w", dbFileBase, restoreErr)
 		}
 		log.Printf("Successfully restored database from %s.", dbFileBase)
 	}
@@ -123,14 +122,6 @@ func (r *Restorer) Restore() error {
 	// --- Restore Tables ---
 	schemaPrefix := fmt.Sprintf("%s/%s/", r.config.StorageConfig["path"], r.config.BackupName)
 	schemaSuffix := ".schema.sql"
-	log.Printf("Listing table schema files with prefix: %s*%s", schemaPrefix, schemaSuffix)
-
-	allFiles, err := r.storage.List(schemaPrefix)
-	if err != nil {
-		return fmt.Errorf("failed to list files in storage with prefix %s: %w", schemaPrefix, err)
-	}
-
-	// Filter for actual schema files (List might return other files with the same prefix)
 	var schemaFiles []string
 	for _, file := range allFiles {
 		if strings.HasSuffix(file, schemaSuffix) {
@@ -150,35 +141,20 @@ func (r *Restorer) Restore() error {
 	log.Printf("Found %d schema files to restore.", len(schemaFiles))
 	for _, schemaFileBase := range schemaFiles {
 		log.Printf("Restoring schema from %s...", schemaFileBase)
-		reader, downloadEr := r.storage.Download(schemaFileBase) // Download will handle finding .gz, .zstd etc.
-		if downloadEr != nil {
-			return fmt.Errorf("failed to download schema file %s: %w", schemaFileBase, downloadEr)
+		reader, downloadErr := r.storage.Download(schemaFileBase) // Download will handle finding .gz, .zstd etc.
+		if downloadErr != nil {
+			return fmt.Errorf("failed to download schema file %s: %w", schemaFileBase, downloadErr)
 		}
 		// Ensure the downloaded stream is closed
-		func() {
-			defer func() {
-				if closeErr := reader.Close(); closeErr != nil {
-					log.Printf("Warning: failed to close reader for %s: %v", schemaFileBase, closeErr)
-				}
-			}()
-			if err := r.restoreSchema(reader); err != nil {
-				// Wrap error with filename context
-				err = fmt.Errorf("failed to restore schema from %s: %w", schemaFileBase, err)
-			}
-		}() // Execute the closure immediately
+		if restoreErr := r.restoreSchema(reader); restoreErr != nil {
+			// Wrap error with filename context
+			return fmt.Errorf("failed to restore schema from %s: %w", schemaFileBase, restoreErr)
+		}
 		log.Printf("Successfully restored schema from %s.", schemaFileBase)
 	}
 
 	// --- Restore Data ---
 	dataSuffix := ".data.sql"
-	log.Printf("Listing data files with prefix: %s*%s", schemaPrefix, dataSuffix)
-	// Re-list or filter `allFiles` if List is expensive and returned everything needed
-	// Assuming List is efficient enough, or we need to re-list for data files specifically
-	allFiles, err = r.storage.List(schemaPrefix) // Re-list or reuse previous list if appropriate
-	if err != nil {
-		return fmt.Errorf("failed to list files in storage with prefix %s: %w", schemaPrefix, err)
-	}
-
 	var dataFiles []string
 	for _, file := range allFiles {
 		if strings.HasSuffix(file, dataSuffix) {
@@ -196,15 +172,15 @@ func (r *Restorer) Restore() error {
 	log.Printf("Found %d data files to restore.", len(dataFiles))
 	for _, dataFileBase := range dataFiles {
 		log.Printf("Restoring data from %s...", dataFileBase)
-		reader, err := r.storage.Download(dataFileBase)
-		if err != nil {
-			return fmt.Errorf("failed to download data file %s: %w", dataFileBase, err)
+		reader, downloadErr := r.storage.Download(dataFileBase)
+		if downloadErr != nil {
+			return fmt.Errorf("failed to download data file %s: %w", dataFileBase, downloadErr)
 		}
 		// Process data stream
-		err = r.restoreData(reader) // restoreData now handles closing the reader
-		if err != nil {
+		restoreErr := r.restoreData(reader) // restoreData now handles closing the reader
+		if restoreErr != nil {
 			// Wrap error with filename context
-			return fmt.Errorf("failed to restore data from %s: %w", dataFileBase, err)
+			return fmt.Errorf("failed to restore data from %s: %w", dataFileBase, downloadErr)
 		}
 		log.Printf("Successfully restored data from %s.", dataFileBase)
 	}
@@ -214,7 +190,12 @@ func (r *Restorer) Restore() error {
 }
 
 // restoreSchema reads schema definition from the reader and executes it.
-func (r *Restorer) restoreSchema(reader io.Reader) error {
+func (r *Restorer) restoreSchema(reader io.ReadCloser) error {
+	defer func() {
+		if closeErr := reader.Close(); closeErr != nil {
+			log.Printf("Warning: failed to close schema reader: %v", closeErr)
+		}
+	}()
 	content, err := io.ReadAll(reader) // Schemas are usually small
 	if err != nil {
 		return fmt.Errorf("failed to read schema content: %w", err)
@@ -238,8 +219,8 @@ func (r *Restorer) restoreSchema(reader io.Reader) error {
 // It ensures the reader is closed.
 func (r *Restorer) restoreData(reader io.ReadCloser) error {
 	defer func() {
-		if cerr := reader.Close(); cerr != nil {
-			log.Printf("Warning: failed to close data reader: %v", cerr)
+		if closeErr := reader.Close(); closeErr != nil {
+			log.Printf("Warning: failed to close data reader: %v", closeErr)
 		}
 	}()
 	return r.executeStatementsFromStream(reader)
@@ -247,7 +228,7 @@ func (r *Restorer) restoreData(reader io.ReadCloser) error {
 
 // executeStatementsFromStream reads SQL statements separated by semicolons (respecting quotes)
 // from the reader and executes them.
-func (r *Restorer) executeStatementsFromStream(reader io.Reader) error {
+func (r *Restorer) executeStatementsFromStream(reader io.ReadCloser) error {
 	bufReader := bufio.NewReader(reader)
 	var statementBuilder strings.Builder
 	var inSingleQuotes, inDoubleQuotes, inBackticks bool
