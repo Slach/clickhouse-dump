@@ -28,6 +28,7 @@ type RemoteStorage interface {
 	// List returns a list of filenames in the storage backend matching the prefix.
 	// The returned filenames might include compression extensions.
 	// If recursive is true, it will list all files under the prefix recursively.
+	// The prefix should be treated as a directory path when recursive=true.
 	List(prefix string, recursive bool) ([]string, error)
 
 	// Close terminates the connection to the storage backend, if applicable.

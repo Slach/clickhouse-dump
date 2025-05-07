@@ -114,14 +114,21 @@ func (s *S3Storage) Download(filename string) (io.ReadCloser, error) {
 	return io.NopCloser(decompressStream(writer, filename)), nil
 }
 
-func (s *S3Storage) List(prefix string) ([]string, error) {
+func (s *S3Storage) List(prefix string, recursive bool) ([]string, error) {
 	ctx := context.Background()
 	var objectNames []string
 
-	paginator := s3.NewListObjectsV2Paginator(s.client, &s3.ListObjectsV2Input{
-		Bucket: aws.String(s.bucket),
-		Prefix: aws.String(prefix),
-	})
+	input := &s3.ListObjectsV2Input{
+		Bucket:    aws.String(s.bucket),
+		Prefix:    aws.String(prefix),
+		Delimiter: aws.String("/"),
+	}
+
+	if recursive {
+		input.Delimiter = nil // Remove delimiter for recursive listing
+	}
+
+	paginator := s3.NewListObjectsV2Paginator(s.client, input)
 
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(ctx)
@@ -129,8 +136,16 @@ func (s *S3Storage) List(prefix string) ([]string, error) {
 			return nil, err
 		}
 
+		// Add objects
 		for _, obj := range page.Contents {
 			objectNames = append(objectNames, *obj.Key)
+		}
+
+		// For non-recursive, add common prefixes (subdirectories)
+		if !recursive {
+			for _, cp := range page.CommonPrefixes {
+				objectNames = append(objectNames, *cp.Prefix)
+			}
 		}
 	}
 

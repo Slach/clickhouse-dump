@@ -100,24 +100,42 @@ func (f *FTPStorage) Download(filename string) (io.ReadCloser, error) {
 // Note: This lists based on the *current working directory* on the FTP server.
 // It might be necessary to change directory (`Cwd`) before listing if dumps are in subdirs.
 // FTP LIST command output parsing can be fragile.
-func (f *FTPStorage) List(prefix string) ([]string, error) {
-	// Use NameList for potentially simpler parsing than List
-	entries, err := f.client.NameList(".") // List current directory
+func (f *FTPStorage) List(prefix string, recursive bool) ([]string, error) {
+	var matchingFiles []string
+
+	// Get current working directory
+	cwd, err := f.client.CurrentDir()
 	if err != nil {
-		return nil, fmt.Errorf("failed to list files on ftp host %s: %w", f.host, err)
+		return nil, fmt.Errorf("failed to get current directory: %w", err)
 	}
 
-	var matchingFiles []string
-	for _, entryName := range entries {
-		// Basic prefix check. This assumes the prefix doesn't contain directory separators
-		// if the FTP server returns full paths, which NameList usually doesn't.
-		if strings.HasPrefix(entryName, prefix) {
-			// Further check: Ensure it's likely a file, not a directory?
-			// FTP doesn't have a reliable cross-server way via NameList.
-			// Using List and parsing is more robust but complex.
-			// For now, assume NameList gives files or filter known patterns.
-			// Let's assume dump files won't look like directories.
-			matchingFiles = append(matchingFiles, entryName)
+	// Change to prefix directory if it's a path
+	prefixDir := filepath.Dir(prefix)
+	if prefixDir != "." {
+		if err := f.client.ChangeDir(prefixDir); err != nil {
+			return nil, fmt.Errorf("failed to change to directory %s: %w", prefixDir, err)
+		}
+		defer f.client.ChangeDir(cwd) // Restore original directory
+	}
+
+	entries, err := f.client.List(".")
+	if err != nil {
+		return nil, fmt.Errorf("failed to list files: %w", err)
+	}
+
+	for _, entry := range entries {
+		if entry.Type == ftp.EntryTypeFile {
+			fullPath := filepath.Join(prefixDir, entry.Name)
+			if strings.HasPrefix(fullPath, prefix) {
+				matchingFiles = append(matchingFiles, fullPath)
+			}
+		} else if recursive && entry.Type == ftp.EntryTypeFolder {
+			// Recursively list subdirectories
+			subFiles, err := f.List(filepath.Join(prefixDir, entry.Name, "*"), true)
+			if err != nil {
+				return nil, err
+			}
+			matchingFiles = append(matchingFiles, subFiles...)
 		}
 	}
 

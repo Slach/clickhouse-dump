@@ -112,24 +112,39 @@ func (g *GCSStorage) Download(filename string) (io.ReadCloser, error) {
 }
 
 // List returns a list of object names in the GCS bucket matching the prefix.
-func (g *GCSStorage) List(prefix string) ([]string, error) {
+func (g *GCSStorage) List(prefix string, recursive bool) ([]string, error) {
 	ctx := context.Background()
 	var objectNames []string
 
-	// Create query to list objects with the given prefix
-	query := &storage.Query{Prefix: prefix}
+	query := &storage.Query{
+		Prefix:    prefix,
+		Delimiter: "/",
+	}
+
+	if recursive {
+		query.Delimiter = "" // Remove delimiter for recursive listing
+	}
+
 	it := g.bucket.Objects(ctx, query)
 
 	for {
 		attrs, err := it.Next()
 		if err == iterator.Done {
-			// Finished iterating
 			break
 		}
 		if err != nil {
 			return nil, fmt.Errorf("failed to list objects in gcs bucket %s with prefix %s: %w", g.bucketName, prefix, err)
 		}
-		objectNames = append(objectNames, attrs.Name)
+
+		// For recursive or actual objects, add them
+		if recursive || attrs.Name != "" {
+			objectNames = append(objectNames, attrs.Name)
+		}
+
+		// For non-recursive, add prefixes (subdirectories)
+		if !recursive && attrs.Prefix != "" {
+			objectNames = append(objectNames, attrs.Prefix)
+		}
 	}
 
 	return objectNames, nil

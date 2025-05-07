@@ -117,26 +117,38 @@ func (a *AzBlobStorage) Download(filename string) (io.ReadCloser, error) {
 }
 
 // List returns a list of blob names in the Azure container matching the prefix.
-func (a *AzBlobStorage) List(prefix string) ([]string, error) {
+func (a *AzBlobStorage) List(prefix string, recursive bool) ([]string, error) {
 	ctx := context.Background()
 	var blobNames []string
 
-	marker := azblob.Marker{} // Start with no marker
+	marker := azblob.Marker{}
+	options := azblob.ListBlobsSegmentOptions{
+		Prefix:    prefix,
+		Delimiter: "/",
+	}
+
+	if recursive {
+		options.Delimiter = "" // Remove delimiter for recursive listing
+	}
+
 	for marker.NotDone() {
-		// List blobs segment by segment
-		listBlob, err := a.containerURL.ListBlobsFlatSegment(ctx, marker, azblob.ListBlobsSegmentOptions{
-			Prefix: prefix,
-			// Details: azblob.BlobListingDetails{ /* include metadata, tags etc. if needed */ },
-		})
+		listBlob, err := a.containerURL.ListBlobsHierarchySegment(ctx, marker, options)
 		if err != nil {
 			return nil, fmt.Errorf("failed to list blobs in azure container %s with prefix %s: %w", a.containerURL.String(), prefix, err)
 		}
 
+		// Add blobs
 		for _, blobInfo := range listBlob.Segment.BlobItems {
 			blobNames = append(blobNames, blobInfo.Name)
 		}
 
-		// Advance the marker for the next segment
+		// For non-recursive, add prefixes (subdirectories)
+		if !recursive {
+			for _, prefix := range listBlob.Segment.BlobPrefixes {
+				blobNames = append(blobNames, prefix.Name)
+			}
+		}
+
 		marker = listBlob.NextMarker
 	}
 
