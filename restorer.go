@@ -87,9 +87,23 @@ func (r *Restorer) Restore() error {
 	}()
 
 	// --- Restore Databases ---
-	backupPrefix := fmt.Sprintf("%s/%s", r.config.StorageConfig["path"], r.config.BackupName)
+	// Handle path joining properly - storage path may or may not end with /
+	basePath := strings.TrimRight(r.config.StorageConfig["path"], "/")
+	backupPrefix := fmt.Sprintf("%s/%s", basePath, r.config.BackupName)
 	log.Printf("Listing storage items with prefix: %s (recursive)", backupPrefix)
+	
+	// List files with the backup prefix
 	allFiles, err := r.storage.List(backupPrefix, true)
+	if err != nil {
+		return fmt.Errorf("failed to list files in storage with prefix %s: %w", backupPrefix, err)
+	}
+
+	// For file storage, we need to remove the base path prefix from the returned paths
+	if r.config.StorageType == "file" {
+		for i, file := range allFiles {
+			allFiles[i] = strings.TrimPrefix(file, basePath+"/")
+		}
+	}
 	if err != nil {
 		return fmt.Errorf("failed to list files in storage with prefix %s: %w", backupPrefix, err)
 	}
@@ -120,7 +134,7 @@ func (r *Restorer) Restore() error {
 	}
 
 	// --- Restore Tables ---
-	schemaPrefix := fmt.Sprintf("%s/%s/", r.config.StorageConfig["path"], r.config.BackupName)
+	schemaPrefix := fmt.Sprintf("%s/%s/", strings.TrimRight(r.config.StorageConfig["path"], "/"), r.config.BackupName)
 	schemaSuffix := ".schema.sql"
 	var schemaFiles []string
 	for _, file := range allFiles {
