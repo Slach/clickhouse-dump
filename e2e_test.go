@@ -134,22 +134,22 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 			tables:           ".*",
 			excludeTables:    "",
 			expectedFiles: []string{
-				fmt.Sprintf("%s/test_db1/users.schema.sql", backupName),
-				fmt.Sprintf("%s/test_db1/users.data.sql", backupName),
-				fmt.Sprintf("%s/test_db1/logs.schema.sql", backupName),
-				fmt.Sprintf("%s/test_db1/logs.data.sql", backupName),
-				fmt.Sprintf("%s/test_db1/audit_log.schema.sql", backupName),
-				fmt.Sprintf("%s/test_db1/audit_log.data.sql", backupName),
-				fmt.Sprintf("%s/test_db2/products.schema.sql", backupName),
-				fmt.Sprintf("%s/test_db2/products.data.sql", backupName),
-				fmt.Sprintf("%s/test_db2/inventory.schema.sql", backupName),
-				fmt.Sprintf("%s/test_db2/inventory.data.sql", backupName),
-				fmt.Sprintf("%s/test_db3/metrics.schema.sql", backupName),
-				fmt.Sprintf("%s/test_db3/metrics.data.sql", backupName),
-				fmt.Sprintf("%s/logs_2023/events.schema.sql", backupName),
-				fmt.Sprintf("%s/logs_2023/events.data.sql", backupName),
-				fmt.Sprintf("%s/logs_2024/events.schema.sql", backupName),
-				fmt.Sprintf("%s/logs_2024/events.data.sql", backupName),
+				"test_db1/users.schema.sql",
+				"test_db1/users.data.sql",
+				"test_db1/logs.schema.sql", 
+				"test_db1/logs.data.sql",
+				"test_db1/audit_log.schema.sql",
+				"test_db1/audit_log.data.sql",
+				"test_db2/products.schema.sql",
+				"test_db2/products.data.sql",
+				"test_db2/inventory.schema.sql",
+				"test_db2/inventory.data.sql",
+				"test_db3/metrics.schema.sql",
+				"test_db3/metrics.data.sql",
+				"logs_2023/events.schema.sql",
+				"logs_2023/events.data.sql",
+				"logs_2024/events.schema.sql",
+				"logs_2024/events.data.sql",
 			},
 			expectedRestored: []string{
 				"test_db1.users",
@@ -634,21 +634,46 @@ func verifyTestData(ctx context.Context, t *testing.T, container testcontainers.
 }
 
 func verifyDumpResults(t *testing.T, tempDir string, expectedFiles []string) error {
-	files, err := os.ReadDir(tempDir)
-	if err != nil {
-		return err
-	}
-	t.Logf("SUKA!!! tempDir=%s files=%v", tempDir, files)
-
-	foundFiles := make(map[string]bool)
-	for _, file := range files {
-		foundFiles[file.Name()] = true
-	}
-
-	for _, expected := range expectedFiles {
-		if !foundFiles[expected] {
-			return fmt.Errorf("expected file %s not found in dump", expected)
+	// Build list of possible compressed variants for each expected file
+	compressionExts := []string{"", ".gz", ".zstd"}
+	expectedVariants := make(map[string]bool)
+	
+	for _, file := range expectedFiles {
+		for _, ext := range compressionExts {
+			expectedVariants[filepath.Join(tempDir, file+ext)] = true
 		}
+	}
+
+	// Recursively find all files in tempDir
+	var foundFiles []string
+	err := filepath.Walk(tempDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			relPath, err := filepath.Rel(tempDir, path)
+			if err != nil {
+				return err
+			}
+			foundFiles = append(foundFiles, relPath)
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed to walk dump directory: %w", err)
+	}
+
+	// Check each found file against expected variants
+	foundCount := 0
+	for _, found := range foundFiles {
+		if expectedVariants[found] {
+			foundCount++
+			t.Logf("Found expected file: %s", found)
+		}
+	}
+
+	if foundCount < len(expectedFiles) {
+		return fmt.Errorf("missing files in dump, found %d/%d expected files", foundCount, len(expectedFiles))
 	}
 
 	return nil
