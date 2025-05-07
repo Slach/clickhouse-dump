@@ -141,43 +141,28 @@ func (s *SFTPStorage) Download(filename string) (io.ReadCloser, error) {
 }
 
 // List returns a list of filenames in the SFTP server matching the prefix.
-// This implementation uses Walk which is generally robust for prefixes.
-// It lists relative to the user's default directory or the client's CWD if changed.
-func (s *SFTPStorage) List(prefix string) ([]string, error) {
+// If recursive is true, it will list all files under the prefix recursively.
+func (s *SFTPStorage) List(prefix string, recursive bool) ([]string, error) {
 	var matchingFiles []string
 
-	// Determine the base directory and the prefix pattern
-	baseDir := filepath.Dir(prefix)
-	if baseDir == prefix { // If prefix is something like "db." with no slashes
-		baseDir = "." // Walk from current directory
-	}
-	prefixPattern := filepath.Base(prefix)
-
-	walker := s.client.Walk(baseDir)
+	walker := s.client.Walk(".")
 	for walker.Step() {
 		if err := walker.Err(); err != nil {
-			// Handle errors during walk, e.g., permission denied on a subdir
-			// Log the error and continue? Or return error? Let's return.
-			return nil, fmt.Errorf("error walking sftp path %s on host %s: %w", baseDir, s.host, err)
+			return nil, fmt.Errorf("error walking sftp path: %w", err)
 		}
 
-		// Get the full path relative to the walk root
-		currentPath := walker.Path()
-		// walker.Stat() gives FileInfo if needed (e.g., to filter directories)
-		if walker.Stat().IsDir() {
-			continue // Skip directories
+		path := walker.Path()
+		if !strings.HasPrefix(path, prefix) {
+			if walker.Stat().IsDir() {
+				walker.SkipDir() // Skip directories that don't match prefix
+			}
+			continue
 		}
 
-		// Check if the path matches the original prefix (including directory part if any)
-		// Need to use filepath.ToSlash for consistent matching if baseDir had backslashes locally
-		if strings.HasPrefix(filepath.ToSlash(currentPath), filepath.ToSlash(prefix)) {
-			// Walker paths are usually relative to the walk root. Need to reconstruct full path if baseDir != "."?
-			// Let's assume walker.Path() gives the path needed relative to CWD.
-			// If prefix was "data/db." and walk started at ".", path might be "data/db.table.sql.gz"
-			matchingFiles = append(matchingFiles, currentPath)
-		} else if baseDir == "." && strings.HasPrefix(currentPath, prefixPattern) {
-			// Handle case where walk started at "." and prefix had no slashes
-			matchingFiles = append(matchingFiles, currentPath)
+		if !walker.Stat().IsDir() {
+			if recursive || filepath.Dir(path) == filepath.Dir(prefix) {
+				matchingFiles = append(matchingFiles, path)
+			}
 		}
 	}
 
