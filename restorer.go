@@ -35,6 +35,7 @@ func NewRestorer(config *Config) (*Restorer, error) {
 			config.StorageConfig["account"],
 			config.StorageConfig["key"],
 			config.StorageConfig["endpoint"],
+			config.Debug,
 		)
 	case "gcs":
 		s, err = storage.NewGCSStorage(config.StorageConfig["bucket"], config.StorageConfig["endpoint"], config.StorageConfig["key"])

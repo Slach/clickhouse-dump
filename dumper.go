@@ -28,6 +28,7 @@ func NewDumper(config *Config) (*Dumper, error) {
 			config.StorageConfig["account"],
 			config.StorageConfig["key"],
 			config.StorageConfig["endpoint"],
+			config.Debug,
 		)
 	case "gcs":
 		s, err = storage.NewGCSStorage(config.StorageConfig["bucket"], config.StorageConfig["endpoint"], config.StorageConfig["key"])

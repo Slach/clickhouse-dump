@@ -32,8 +32,6 @@ type RemoteStorage interface {
 	// Close terminates the connection to the storage backend, if applicable.
 	Close() error
 
-	// SetDebug enables or disables debug logging
-	SetDebug(debug bool)
 }
 
 // compressStream wraps the reader with a compression writer based on format and level.
