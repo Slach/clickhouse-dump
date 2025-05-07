@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"io"
+	"log"
 	"os"
 	"strings"
 
@@ -21,6 +22,9 @@ type S3Storage struct {
 }
 
 func NewS3Storage(bucket, region, accessKey, secretKey, endpoint string, debug bool) (*S3Storage, error) {
+	if debug {
+		log.Printf("Initializing S3 storage with bucket=%s, region=%s, endpoint=%s", bucket, region, endpoint)
+	}
 	opts := []func(*config.LoadOptions) error{
 		config.WithRegion(region),
 	}
@@ -41,6 +45,14 @@ func NewS3Storage(bucket, region, accessKey, secretKey, endpoint string, debug b
 		return nil, err
 	}
 
+	// Configure debug logging if enabled
+	if debug {
+		cfg.Logger = aws.LoggerFunc(func(level aws.LogLevel, msg string, args ...interface{}) {
+			log.Printf("[AWS SDK] "+msg, args...)
+		})
+		cfg.ClientLogMode = aws.LogRetries | aws.LogRequest | aws.LogResponse
+	}
+
 	clientOpts := []func(*s3.Options){}
 	if endpoint != "" {
 		clientOpts = append(clientOpts, func(o *s3.Options) {
@@ -51,12 +63,18 @@ func NewS3Storage(bucket, region, accessKey, secretKey, endpoint string, debug b
 
 	client := s3.NewFromConfig(cfg, clientOpts...)
 
-	return &S3Storage{
+	s3Storage := &S3Storage{
 		bucket:     bucket,
 		client:     client,
 		uploader:   manager.NewUploader(client),
 		downloader: manager.NewDownloader(client),
-	}, nil
+		debug:      debug,
+	}
+
+	if debug {
+		log.Printf("S3 storage initialized successfully")
+	}
+	return s3Storage, nil
 }
 
 func (s *S3Storage) Upload(filename string, reader io.Reader, format string, level int) error {
