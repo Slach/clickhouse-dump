@@ -90,6 +90,11 @@ var app = &cli.App{
 			Usage:   "Compression level (gzip: 1-9, zstd: 1-22) (dump only)",
 			EnvVars: []string{"COMPRESS_LEVEL"},
 		},
+		&cli.BoolFlag{
+			Name:    "debug",
+			Usage:   "Enable debug logging",
+			EnvVars: []string{"DEBUG"},
+		},
 		// Storage Common Flags
 		&cli.StringFlag{
 			Name:     "storage-type",
@@ -243,6 +248,7 @@ func getConfig(c *cli.Context) (*Config, error) {
 		StorageConfig: map[string]string{
 			"path": c.String("storage-path"),
 		},
+		Debug:           c.Bool("debug"),
 	}
 
 	// Populate StorageConfig based on StorageType

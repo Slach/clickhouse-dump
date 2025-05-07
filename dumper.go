@@ -20,7 +20,7 @@ func NewDumper(config *Config) (*Dumper, error) {
 
 	switch config.StorageType {
 	case "file":
-		s, err = storage.NewFileStorage(config.StorageConfig["path"], config.Debug)
+		s, err = storage.NewFileStorage(config.StorageConfig["path"])
 	case "s3":
 		s, err = storage.NewS3Storage(
 			config.StorageConfig["bucket"],

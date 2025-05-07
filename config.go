@@ -15,4 +15,5 @@ type Config struct {
 	CompressFormat  string
 	CompressLevel   int
 	BackupName      string
+	Debug           bool
 }
