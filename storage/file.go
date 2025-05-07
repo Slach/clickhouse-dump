@@ -125,8 +125,8 @@ func (f *FileStorage) Download(filename string) (io.ReadCloser, error) {
 }
 
 // List returns files matching the prefix in the base path
-func (f *FileStorage) List(prefix string) ([]string, error) {
-	f.debugf("Listing files with prefix: %s", prefix)
+func (f *FileStorage) List(prefix string, recursive bool) ([]string, error) {
+	f.debugf("Listing files with prefix: %s (recursive: %v)", prefix, recursive)
 	var matches []string
 
 	searchPath := prefix
@@ -134,24 +134,46 @@ func (f *FileStorage) List(prefix string) ([]string, error) {
 		searchPath = filepath.Join(f.basePath, prefix)
 	}
 
-	entries, err := os.ReadDir(searchPath)
-	if err != nil {
-		f.debugf("Failed to read directory %s: %v", searchPath, err)
-		return nil, fmt.Errorf("failed to read directory %s: %w", searchPath, err)
+	var walkFn filepath.WalkFunc
+	if recursive {
+		walkFn = func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if !info.IsDir() {
+				relPath, err := filepath.Rel(f.basePath, path)
+				if err != nil {
+					return err
+				}
+				if strings.HasPrefix(relPath, prefix) {
+					matches = append(matches, relPath)
+				}
+			}
+			return nil
+		}
+	} else {
+		walkFn = func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if !info.IsDir() {
+				relPath, err := filepath.Rel(f.basePath, path)
+				if err != nil {
+					return err
+				}
+				dir := filepath.Dir(relPath)
+				if dir == filepath.Dir(prefix) || dir == prefix {
+					matches = append(matches, relPath)
+				}
+			}
+			return nil
+		}
 	}
 
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		name := entry.Name()
-		relPath, relErr := filepath.Rel(f.basePath, filepath.Join(searchPath, name))
-		if relErr != nil {
-			log.Printf("Failed to get relative path for %s: %v", name, relErr)
-			return nil, fmt.Errorf("failed to get relative path: %w", relErr)
-		}
-		f.debugf("Found matching file: %s", relPath)
-		matches = append(matches, relPath)
+	err := filepath.Walk(searchPath, walkFn)
+	if err != nil {
+		f.debugf("Failed to walk directory %s: %v", searchPath, err)
+		return nil, fmt.Errorf("failed to walk directory %s: %w", searchPath, err)
 	}
 
 	f.debugf("Found %d matching files", len(matches))

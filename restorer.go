@@ -87,9 +87,9 @@ func (r *Restorer) Restore() error {
 	}()
 
 	// --- Restore Databases ---
-	backupPrefix := fmt.Sprintf("%s/%s/", r.config.StorageConfig["path"], r.config.BackupName)
-	log.Printf("Listing storage items with prefix: %s", backupPrefix)
-	allFiles, err := r.storage.List(backupPrefix)
+	backupPrefix := fmt.Sprintf("%s/%s", r.config.StorageConfig["path"], r.config.BackupName)
+	log.Printf("Listing storage items with prefix: %s (recursive)", backupPrefix)
+	allFiles, err := r.storage.List(backupPrefix, true)
 	if err != nil {
 		return fmt.Errorf("failed to list files in storage with prefix %s: %w", backupPrefix, err)
 	}

@@ -650,21 +650,13 @@ func verifyDumpResults(t *testing.T, tempDir string, expectedFiles []string) err
 		}
 	}
 
-	// Recursively find all files in tempDir
-	var foundFiles []string
-	err := filepath.Walk(tempDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if !info.IsDir() {
-			relPath, err := filepath.Rel(tempDir, path)
-			if err != nil {
-				return err
-			}
-			foundFiles = append(foundFiles, relPath)
-		}
-		return nil
-	})
+	// Use the storage's List method to find files
+	storage, err := storage.NewFileStorage(tempDir, false)
+	if err != nil {
+		return fmt.Errorf("failed to create file storage: %w", err)
+	}
+
+	foundFiles, err := storage.List("", true)
 	if err != nil {
 		return fmt.Errorf("failed to walk dump directory: %w", err)
 	}
