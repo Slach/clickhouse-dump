@@ -35,25 +35,26 @@ func NewRestorer(config *Config) (*Restorer, error) {
 			config.StorageConfig["account"],
 			config.StorageConfig["key"],
 			config.StorageConfig["endpoint"],
+			config.Debug,
 		)
 	case "gcs":
-		s, err = storage.NewGCSStorage(config.StorageConfig["bucket"], config.StorageConfig["endpoint"], config.StorageConfig["key"])
+		s, err = storage.NewGCSStorage(config.StorageConfig["bucket"], config.StorageConfig["endpoint"], config.StorageConfig["key"], config.Debug)
 	case "azblob":
-		s, err = storage.NewAzBlobStorage(config.StorageConfig["account"], config.StorageConfig["key"], config.StorageConfig["container"])
+		s, err = storage.NewAzBlobStorage(config.StorageConfig["account"], config.StorageConfig["key"], config.StorageConfig["container"], config.Debug)
 	case "sftp":
 		// Ensure required SFTP config keys exist
 		host, u, pass := config.StorageConfig["host"], config.StorageConfig["user"], config.StorageConfig["password"]
 		if host == "" || u == "" {
 			return nil, fmt.Errorf("sftp storage requires 'host' and 'user' in storage config")
 		}
-		s, err = storage.NewSFTPStorage(host, u, pass)
+		s, err = storage.NewSFTPStorage(host, u, pass, config.Debug)
 	case "ftp":
 		// Ensure required FTP config keys exist
 		host, u, pass := config.StorageConfig["host"], config.StorageConfig["user"], config.StorageConfig["password"]
 		if host == "" || u == "" {
 			return nil, fmt.Errorf("ftp storage requires 'host' and 'user' in storage config")
 		}
-		s, err = storage.NewFTPStorage(host, u, pass)
+		s, err = storage.NewFTPStorage(host, u, pass, config.Debug)
 	case "": // Handle case where no storage type is specified (e.g., local testing?)
 		return nil, fmt.Errorf("storage type must be specified")
 	default:
