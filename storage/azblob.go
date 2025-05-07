@@ -122,17 +122,15 @@ func (a *AzBlobStorage) List(prefix string, recursive bool) ([]string, error) {
 	var blobNames []string
 
 	marker := azblob.Marker{}
-	options := azblob.ListBlobsSegmentOptions{
-		Prefix:    prefix,
-		Delimiter: "/",
-	}
-
+	delimiter := "/"
 	if recursive {
-		options.Delimiter = "" // Remove delimiter for recursive listing
+		delimiter = "" // Empty delimiter for recursive listing
 	}
 
 	for marker.NotDone() {
-		listBlob, err := a.containerURL.ListBlobsHierarchySegment(ctx, marker, options)
+		listBlob, err := a.containerURL.ListBlobsHierarchySegment(ctx, marker, delimiter, azblob.ListBlobsSegmentOptions{
+			Prefix: prefix,
+		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to list blobs in azure container %s with prefix %s: %w", a.containerURL.String(), prefix, err)
 		}
