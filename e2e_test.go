@@ -3,11 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/Slach/clickhouse-dump/storage"
 	"io"
 	"net/http"
 	"net/url"
-	"os"
-	"path/filepath"
 	"strconv"
 	"testing"
 
@@ -136,7 +135,7 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 			excludeTables:    "",
 			expectedFiles: []string{
 				fmt.Sprintf("%s/test_db1.database.sql", backupName),
-				fmt.Sprintf("%s/test_db2.database.sql", backupName), 
+				fmt.Sprintf("%s/test_db2.database.sql", backupName),
 				fmt.Sprintf("%s/test_db3.database.sql", backupName),
 				fmt.Sprintf("%s/logs_2023.database.sql", backupName),
 				fmt.Sprintf("%s/logs_2024.database.sql", backupName),
@@ -651,12 +650,12 @@ func verifyDumpResults(t *testing.T, tempDir string, expectedFiles []string) err
 	}
 
 	// Use the storage's List method to find files
-	storage, err := storage.NewFileStorage(tempDir, false)
+	remoteStorage, err := storage.NewFileStorage(tempDir, false)
 	if err != nil {
-		return fmt.Errorf("failed to create file storage: %w", err)
+		return fmt.Errorf("failed to create file remoteStorage: %w", err)
 	}
 
-	foundFiles, err := storage.List("", true)
+	foundFiles, err := remoteStorage.List("", true)
 	if err != nil {
 		return fmt.Errorf("failed to walk dump directory: %w", err)
 	}
