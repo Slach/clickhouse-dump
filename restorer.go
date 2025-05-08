@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/Slach/clickhouse-dump/storage"
@@ -23,10 +25,6 @@ func NewRestorer(config *Config) (*Restorer, error) {
 
 	// Initialize storage based on config
 	// Ensure StorageConfig is populated correctly from flags/env
-	if config.StorageConfig == nil {
-		return nil, fmt.Errorf("storage configuration is missing")
-	}
-
 	switch config.StorageType {
 	case "file":
 		s, err = storage.NewFileStorage(config.StorageConfig["path"], config.Debug)
@@ -44,27 +42,15 @@ func NewRestorer(config *Config) (*Restorer, error) {
 	case "azblob":
 		s, err = storage.NewAzBlobStorage(config.StorageConfig["account"], config.StorageConfig["key"], config.StorageConfig["container"])
 	case "sftp":
-		// Ensure required SFTP config keys exist
-		host, u, pass := config.StorageConfig["host"], config.StorageConfig["user"], config.StorageConfig["password"]
-		if host == "" || u == "" {
-			return nil, fmt.Errorf("sftp storage requires 'host' and 'user' in storage config")
-		}
-		s, err = storage.NewSFTPStorage(host, u, pass)
+		s, err = storage.NewSFTPStorage(config.StorageConfig["host"], config.StorageConfig["user"], config.StorageConfig["password"])
 	case "ftp":
-		// Ensure required FTP config keys exist
-		host, u, pass := config.StorageConfig["host"], config.StorageConfig["user"], config.StorageConfig["password"]
-		if host == "" || u == "" {
-			return nil, fmt.Errorf("ftp storage requires 'host' and 'user' in storage config")
-		}
-		s, err = storage.NewFTPStorage(host, u, pass)
-	case "": // Handle case where no storage type is specified (e.g., local testing?)
-		return nil, fmt.Errorf("storage type must be specified")
+		s, err = storage.NewFTPStorage(config.StorageConfig["host"], config.StorageConfig["user"], config.StorageConfig["password"])
 	default:
 		return nil, fmt.Errorf("unsupported storage type: %s", config.StorageType)
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize storage type %s: %w", config.StorageType, err)
+		return nil, err
 	}
 
 	return &Restorer{
@@ -91,19 +77,8 @@ func (r *Restorer) Restore() error {
 	basePath := strings.TrimRight(r.config.StorageConfig["path"], "/")
 	backupPrefix := fmt.Sprintf("%s/%s", basePath, r.config.BackupName)
 	log.Printf("Listing storage items with prefix: %s (recursive)", backupPrefix)
-	
-	// List files with the backup prefix
-	allFiles, err := r.storage.List(backupPrefix, true)
-	if err != nil {
-		return fmt.Errorf("failed to list files in storage with prefix %s: %w", backupPrefix, err)
-	}
 
-	// For file storage, we need to remove the base path prefix from the returned paths
-	if r.config.StorageType == "file" {
-		for i, file := range allFiles {
-			allFiles[i] = strings.TrimPrefix(file, basePath+"/")
-		}
-	}
+	files, err := r.storage.List(backupPrefix, true)
 	if err != nil {
 		return fmt.Errorf("failed to list files in storage with prefix %s: %w", backupPrefix, err)
 	}
@@ -111,92 +86,67 @@ func (r *Restorer) Restore() error {
 	// Filter for database files
 	var dbFiles []string
 	dbSuffix := ".database.sql"
-	for _, file := range allFiles {
+	for _, file := range files {
 		if strings.HasSuffix(file, dbSuffix) {
-			baseName := strings.TrimSuffix(file, storage.GetCompressionExtension(file))
-			if strings.HasSuffix(baseName, dbSuffix) {
-				dbFiles = append(dbFiles, baseName)
-			}
+			dbFiles = append(dbFiles, file)
 		}
 	}
 
 	log.Printf("Found %d database files to restore.", len(dbFiles))
-	for _, dbFileBase := range dbFiles {
-		log.Printf("Restoring database from %s...", dbFileBase)
-		reader, downloadErr := r.storage.Download(dbFileBase)
+	for _, dbFile := range dbFiles {
+		log.Printf("Restoring database from %s...", dbFile)
+		reader, downloadErr := r.storage.Download(dbFile)
 		if downloadErr != nil {
-			return fmt.Errorf("failed to download database file %s: %w", dbFileBase, downloadErr)
+			return fmt.Errorf("failed to download database file %s: %w", dbFile, downloadErr)
 		}
 		if restoreErr := r.restoreSchema(reader); restoreErr != nil {
-			return fmt.Errorf("failed to restore database from %s: %w", dbFileBase, restoreErr)
+			return fmt.Errorf("failed to restore database from %s: %w", dbFile, restoreErr)
 		}
-		log.Printf("Successfully restored database from %s.", dbFileBase)
+		log.Printf("Successfully restored database from %s.", dbFile)
 	}
 
 	// --- Restore Tables ---
-	schemaPrefix := fmt.Sprintf("%s/%s/", strings.TrimRight(r.config.StorageConfig["path"], "/"), r.config.BackupName)
-	schemaSuffix := ".schema.sql"
 	var schemaFiles []string
-	for _, file := range allFiles {
+	schemaSuffix := ".schema.sql"
+	for _, file := range files {
 		if strings.HasSuffix(file, schemaSuffix) {
-			// Basic check: ensure it looks like database.table.schema.sql[.compression_ext]
-			// We rely on Download handling the compression extension later.
-			baseName := strings.TrimSuffix(file, storage.GetCompressionExtension(file))
-			if strings.HasSuffix(baseName, schemaSuffix) {
-				// Extract db/table from path like "path/db/table.schema.sql"
-				parts := strings.Split(strings.TrimPrefix(baseName, schemaPrefix), "/")
-				if len(parts) == 3 && parts[2] != "" {
-					schemaFiles = append(schemaFiles, baseName)
-				}
-			}
+			schemaFiles = append(schemaFiles, file)
 		}
 	}
 
 	log.Printf("Found %d schema files to restore.", len(schemaFiles))
-	for _, schemaFileBase := range schemaFiles {
-		log.Printf("Restoring schema from %s...", schemaFileBase)
-		reader, downloadErr := r.storage.Download(schemaFileBase) // Download will handle finding .gz, .zstd etc.
+	for _, schemaFile := range schemaFiles {
+		log.Printf("Restoring schema from %s...", schemaFile)
+		reader, downloadErr := r.storage.Download(schemaFile)
 		if downloadErr != nil {
-			return fmt.Errorf("failed to download schema file %s: %w", schemaFileBase, downloadErr)
+			return fmt.Errorf("failed to download schema file %s: %w", schemaFile, downloadErr)
 		}
-		// Ensure the downloaded stream is closed
 		if restoreErr := r.restoreSchema(reader); restoreErr != nil {
-			// Wrap error with filename context
-			return fmt.Errorf("failed to restore schema from %s: %w", schemaFileBase, restoreErr)
+			return fmt.Errorf("failed to restore schema from %s: %w", schemaFile, restoreErr)
 		}
-		log.Printf("Successfully restored schema from %s.", schemaFileBase)
+		log.Printf("Successfully restored schema from %s.", schemaFile)
 	}
 
 	// --- Restore Data ---
-	dataSuffix := ".data.sql"
 	var dataFiles []string
-	for _, file := range allFiles {
+	dataSuffix := ".data.sql"
+	for _, file := range files {
 		if strings.HasSuffix(file, dataSuffix) {
-			baseName := strings.TrimSuffix(file, storage.GetCompressionExtension(file))
-			if strings.HasSuffix(baseName, dataSuffix) {
-				// Extract db/table from path like "path/db/table.data.sql"
-				parts := strings.Split(strings.TrimPrefix(baseName, schemaPrefix), "/")
-				if len(parts) == 3 && parts[2] != "" {
-					dataFiles = append(dataFiles, baseName)
-				}
-			}
+			dataFiles = append(dataFiles, file)
 		}
 	}
 
 	log.Printf("Found %d data files to restore.", len(dataFiles))
-	for _, dataFileBase := range dataFiles {
-		log.Printf("Restoring data from %s...", dataFileBase)
-		reader, downloadErr := r.storage.Download(dataFileBase)
+	for _, dataFile := range dataFiles {
+		log.Printf("Restoring data from %s...", dataFile)
+		reader, downloadErr := r.storage.Download(dataFile)
 		if downloadErr != nil {
-			return fmt.Errorf("failed to download data file %s: %w", dataFileBase, downloadErr)
+			return fmt.Errorf("failed to download data file %s: %w", dataFile, downloadErr)
 		}
-		// Process data stream
-		restoreErr := r.restoreData(reader) // restoreData now handles closing the reader
-		if restoreErr != nil {
-			// Wrap error with filename context
-			return fmt.Errorf("failed to restore data from %s: %w", dataFileBase, downloadErr)
+		if restoreErr := r.restoreData(reader); restoreErr != nil {
+			return fmt.Errorf("failed to restore data from %s: %w", dataFile, downloadErr)
 		}
-		log.Printf("Successfully restored data from %s.", dataFileBase)
+		log.Printf("Successfully restored data from %s.", dataFile)
 	}
 
 	log.Println("Restore completed successfully.")
@@ -210,7 +160,7 @@ func (r *Restorer) restoreSchema(reader io.ReadCloser) error {
 			log.Printf("Warning: failed to close schema reader: %v", closeErr)
 		}
 	}()
-	content, err := io.ReadAll(reader) // Schemas are usually small
+	content, err := io.ReadAll(reader)
 	if err != nil {
 		return fmt.Errorf("failed to read schema content: %w", err)
 	}
@@ -229,8 +179,7 @@ func (r *Restorer) restoreSchema(reader io.ReadCloser) error {
 	return nil
 }
 
-// restoreData reads data statements from the reader, parses them respecting quotes, and executes them.
-// It ensures the reader is closed.
+// restoreData reads data statements from the reader, parses respecting quotes, and executes them.
 func (r *Restorer) restoreData(reader io.ReadCloser) error {
 	defer func() {
 		if closeErr := reader.Close(); closeErr != nil {
@@ -240,8 +189,7 @@ func (r *Restorer) restoreData(reader io.ReadCloser) error {
 	return r.executeStatementsFromStream(reader)
 }
 
-// executeStatementsFromStream reads SQL statements separated by semicolons (respecting quotes)
-// from the reader and executes them.
+// executeStatementsFromStream reads SQL statements separated by semicolons respecting quotes from the reader.
 func (r *Restorer) executeStatementsFromStream(reader io.ReadCloser) error {
 	bufReader := bufio.NewReader(reader)
 	var statementBuilder strings.Builder
@@ -310,7 +258,8 @@ func (r *Restorer) executeStatementsFromStream(reader io.ReadCloser) error {
 func (r *Restorer) executeSingleStatement(query string) error {
 	// Optional: Add logging for the query being executed (be careful with sensitive data)
 	// log.Printf("Executing query: %s", query)
-	if _, err := r.client.ExecuteQuery(query); err != nil {
+	_, err := r.client.ExecuteQuery(query)
+	if err != nil {
 		return err
 	}
 	return nil
