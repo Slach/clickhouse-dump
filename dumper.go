@@ -64,7 +64,7 @@ func (d *Dumper) GetDatabases() ([]string, error) {
 		d.config.Databases,
 		d.config.ExcludeDatabases)
 
-	d.debugf(query)
+	d.debugf("Database query: %s", query)
 	resp, err := d.client.ExecuteQuery(query)
 	if err != nil {
 		return nil, err
@@ -173,9 +173,8 @@ func (d *Dumper) getTables() (map[string][]string, error) {
 }
 
 func (d *Dumper) dumpSchema(dbName, tableName string) error {
-
 	query := fmt.Sprintf("SELECT create_table_query FROM system.tables WHERE database='%s' AND name='%s' SETTINGS format_display_secrets_in_show_and_select=1 FORMAT TSVRaw", dbName, tableName)
-	d.debugf("%s", query)
+	d.debugf("Schema query: %s", query)
 	resp, err := d.client.ExecuteQuery(query)
 	if err != nil {
 		return err
@@ -187,7 +186,7 @@ func (d *Dumper) dumpSchema(dbName, tableName string) error {
 
 func (d *Dumper) dumpData(dbName, tableName string) error {
 	query := fmt.Sprintf("SELECT * FROM `%s`.`%s` FORMAT SQLInsert SETTINGS output_format_sql_insert_max_batch_size=%d, output_format_sql_insert_table_name='`%s`.`%s`'", dbName, tableName, d.config.BatchSize, dbName, tableName)
-	d.debugf("%s", query)
+	d.debugf("Data query: %s", query)
 	body, err := d.client.ExecuteQueryStreaming(query)
 	if err != nil {
 		return err
@@ -201,13 +200,8 @@ func (d *Dumper) dumpData(dbName, tableName string) error {
 	return d.storage.Upload(filename, body, d.config.CompressFormat, d.config.CompressLevel)
 }
 
-func (d *Dumper) debugf(msg string, args ...interface{}) {
-	log.Printf("SUKA2!!! d.config.Debug=%v", d.config.Debug)
+func (d *Dumper) debugf(format string, args ...interface{}) {
 	if d.config.Debug {
-		if len(args) > 0 {
-			log.Printf(msg, args...)
-		} else {
-			log.Println(msg)
-		}
+		log.Printf(format, args...)
 	}
 }
