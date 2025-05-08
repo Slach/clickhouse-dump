@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"strings"
+
 	"github.com/Slach/clickhouse-dump/storage"
 )
 
@@ -88,7 +89,7 @@ func (r *Restorer) Restore() error {
 	// --- Restore Databases ---
 	// Handle path joining properly - storage path may or may not end with /
 	basePath := strings.TrimRight(r.config.StorageConfig["path"], "/")
-	backupPrefix := r.config.BackupName // ✅ Fix: Use only the backup name
+	backupPrefix := fmt.Sprintf("%s/%s", basePath, r.config.BackupName)
 	log.Printf("Listing storage items with prefix: %s (recursive)", backupPrefix)
 	
 	// List files with the backup prefix
@@ -202,4 +203,115 @@ func (r *Restorer) Restore() error {
 	return nil
 }
 
-// ... (rest of the file remains unchanged)
+// restoreSchema reads schema definition from the reader and executes it.
+func (r *Restorer) restoreSchema(reader io.ReadCloser) error {
+	defer func() {
+		if closeErr := reader.Close(); closeErr != nil {
+			log.Printf("Warning: failed to close schema reader: %v", closeErr)
+		}
+	}()
+	content, err := io.ReadAll(reader) // Schemas are usually small
+	if err != nil {
+		return fmt.Errorf("failed to read schema content: %w", err)
+	}
+
+	query := string(content)
+	if strings.TrimSpace(query) == "" {
+		log.Println("Schema file is empty, skipping.")
+		return nil
+	}
+
+	log.Printf("Executing schema query: %s...", strings.Split(query, "\n")[0]) // Log first line
+	_, err = r.client.ExecuteQuery(query)
+	if err != nil {
+		return fmt.Errorf("failed to execute schema query: %w", err)
+	}
+	return nil
+}
+
+// restoreData reads data statements from the reader, parses them respecting quotes, and executes them.
+// It ensures the reader is closed.
+func (r *Restorer) restoreData(reader io.ReadCloser) error {
+	defer func() {
+		if closeErr := reader.Close(); closeErr != nil {
+			log.Printf("Warning: failed to close data reader: %v", closeErr)
+		}
+	}()
+	return r.executeStatementsFromStream(reader)
+}
+
+// executeStatementsFromStream reads SQL statements separated by semicolons (respecting quotes)
+// from the reader and executes them.
+func (r *Restorer) executeStatementsFromStream(reader io.ReadCloser) error {
+	bufReader := bufio.NewReader(reader)
+	var statementBuilder strings.Builder
+	var inSingleQuotes, inDoubleQuotes, inBackticks bool
+	var escaped bool
+	var statementCount int
+
+	for {
+		runeValue, _, err := bufReader.ReadRune()
+		if err != nil {
+			if err == io.EOF {
+				// End of file reached, process any remaining statement
+				finalStatement := strings.TrimSpace(statementBuilder.String())
+				if finalStatement != "" {
+					statementCount++
+					log.Printf("Executing final statement %d (EOF)...", statementCount)
+					if execErr := r.executeSingleStatement(finalStatement); execErr != nil {
+						return fmt.Errorf("failed executing final statement %d: %w", statementCount, execErr)
+					}
+				}
+				break // Exit loop successfully
+			}
+			return fmt.Errorf("error reading data stream: %w", err) // Return other read errors
+		}
+
+		// Append the rune regardless of state first
+		statementBuilder.WriteRune(runeValue)
+
+		// State machine logic
+		if escaped {
+			// Previous character was escape, so this character is literal
+			escaped = false
+		} else if runeValue == '\\' {
+			// Current character is escape, next one is literal
+			escaped = true
+		} else if runeValue == '\'' && !inDoubleQuotes && !inBackticks {
+			inSingleQuotes = !inSingleQuotes
+		} else if runeValue == '"' && !inSingleQuotes && !inBackticks {
+			inDoubleQuotes = !inDoubleQuotes
+		} else if runeValue == '`' && !inSingleQuotes && !inDoubleQuotes {
+			inBackticks = !inBackticks
+		} else if runeValue == ';' && !inSingleQuotes && !inDoubleQuotes && !inBackticks {
+			// Statement terminator found outside quotes
+			statement := strings.TrimSpace(statementBuilder.String())
+			if statement != "" {
+				statementCount++
+				log.Printf("Executing statement %d...", statementCount)
+				if execErr := r.executeSingleStatement(statement); execErr != nil {
+					return fmt.Errorf("failed executing statement %d: %w", statementCount, execErr)
+				}
+			}
+			// Reset for the next statement
+			statementBuilder.Reset()
+			escaped = false // Reset escaped state for new statement
+		} else {
+			// Regular character, reset escaped if it wasn't consumed by a quote
+			escaped = false
+		}
+	}
+
+	log.Printf("Finished processing stream, executed %d statements.", statementCount)
+	return nil
+}
+
+// executeSingleStatement executes a single SQL statement.
+func (r *Restorer) executeSingleStatement(query string) error {
+	// Optional: Add logging for the query being executed (be careful with sensitive data)
+	// log.Printf("Executing query: %s", query)
+	if _, err := r.client.ExecuteQuery(query); err != nil {
+		return err
+	}
+	return nil
+}
