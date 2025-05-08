@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/Slach/clickhouse-dump/storage"
