@@ -83,9 +83,9 @@ func (r *Restorer) Restore() error {
 
 	// Filter for database files
 	var dbFiles []string
-	dbSuffix := ".database.sql"
+	dbSuffix := "database.sql"
 	for _, file := range files {
-		if strings.HasSuffix(file, dbSuffix) {
+		if strings.Contains(file, dbSuffix) {
 			dbFiles = append(dbFiles, file)
 		}
 	}
@@ -107,7 +107,7 @@ func (r *Restorer) Restore() error {
 	var schemaFiles []string
 	schemaSuffix := ".schema.sql"
 	for _, file := range files {
-		if strings.HasSuffix(file, schemaSuffix) {
+		if strings.Contains(file, schemaSuffix) {
 			schemaFiles = append(schemaFiles, file)
 		}
 	}
@@ -129,7 +129,7 @@ func (r *Restorer) Restore() error {
 	var dataFiles []string
 	dataSuffix := ".data.sql"
 	for _, file := range files {
-		if strings.HasSuffix(file, dataSuffix) {
+		if strings.Contains(file, dataSuffix) {
 			dataFiles = append(dataFiles, file)
 		}
 	}
@@ -142,7 +142,7 @@ func (r *Restorer) Restore() error {
 			return fmt.Errorf("failed to download data file %s: %w", dataFile, downloadErr)
 		}
 		if restoreErr := r.restoreData(reader); restoreErr != nil {
-			return fmt.Errorf("failed to restore data from %s: %w", dataFile, downloadErr)
+			return fmt.Errorf("failed to restore data from %s: %w", dataFile, restoreErr)
 		}
 		log.Printf("Successfully restored data from %s.", dataFile)
 	}

@@ -65,46 +65,6 @@ func TestE2E(t *testing.T) {
 	}
 }
 
-func startClickHouseContainer(ctx context.Context) (testcontainers.Container, error) {
-	req := testcontainers.ContainerRequest{
-		Image:        "clickhouse/clickhouse-server:latest",
-		ExposedPorts: []string{"8123/tcp"},
-		Env: map[string]string{
-			"CLICKHOUSE_SKIP_USER_SETUP": "1",
-		},
-		WaitingFor: wait.ForHTTP("/").WithPort("8123/tcp"),
-	}
-	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
-	})
-}
-
-func testS3Storage(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container, testCase string) {
-	backupName := "test_backup_" + testCase
-	minioContainer, err := startMinioContainer(ctx)
-	require.NoError(t, err, "Failed to start Minio container")
-	defer func() {
-		require.NoError(t, minioContainer.Terminate(ctx))
-	}()
-
-	minioHost, err := minioContainer.Host(ctx)
-	require.NoError(t, err, "Failed to get Minio host")
-
-	minioPort, err := minioContainer.MappedPort(ctx, "9000")
-	require.NoError(t, err, "Failed to get Minio port")
-
-	runMainTestScenario(ctx, t, clickhouseContainer, map[string]string{
-		"storage-type":    "s3",
-		"storage-bucket":  "testbucket",
-		"storage-region":  "us-east-1",
-		"storage-path":    "",
-		"storage-host":    minioHost + ":" + minioPort.Port(),
-		"storage-account": "minioadmin",
-		"storage-key":     "minioadmin",
-	}, testCase, backupName)
-}
-
 func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container, storageFlags map[string]string, testCase string, backupName string) {
 	// Clear any existing tables first
 	require.NoError(t, clearTestTables(ctx, t, clickhouseContainer))
@@ -299,7 +259,7 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 	// Test 2: Restore
 	restoreArgs := append(args, "restore", backupName)
 	restoreErr := app.Run(restoreArgs)
-	require.NoError(t, restoreErr, "fail to execute dump command %v", restoreArgs)
+	require.NoError(t, restoreErr, "fail to execute restore command %v", restoreArgs)
 
 	for _, table := range tc.expectedRestored {
 		_, existsErr := executeTestQueryWithResult(ctx, t, clickhouseContainer, fmt.Sprintf("SELECT * FROM %s LIMIT 1", table))
@@ -337,6 +297,31 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 		_, err := executeTestQueryWithResult(ctx, t, clickhouseContainer, fmt.Sprintf("SELECT * FROM %s", table))
 		require.Error(t, err, "table %s should not exist after restore", table)
 	}
+}
+
+func testS3Storage(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container, testCase string) {
+	backupName := "test_backup_" + testCase
+	minioContainer, err := startMinioContainer(ctx)
+	require.NoError(t, err, "Failed to start Minio container")
+	defer func() {
+		require.NoError(t, minioContainer.Terminate(ctx))
+	}()
+
+	minioHost, err := minioContainer.Host(ctx)
+	require.NoError(t, err, "Failed to get Minio host")
+
+	minioPort, err := minioContainer.MappedPort(ctx, "9000")
+	require.NoError(t, err, "Failed to get Minio port")
+
+	runMainTestScenario(ctx, t, clickhouseContainer, map[string]string{
+		"storage-type":    "s3",
+		"storage-bucket":  "testbucket",
+		"storage-region":  "us-east-1",
+		"storage-path":    "",
+		"storage-host":    minioHost + ":" + minioPort.Port(),
+		"storage-account": "minioadmin",
+		"storage-key":     "minioadmin",
+	}, testCase, backupName)
 }
 
 func testGCSStorage(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container, testCase string) {
@@ -440,6 +425,21 @@ func testFileStorage(ctx context.Context, t *testing.T, clickhouseContainer test
 		"storage-type": "file",
 		"storage-path": tempDir,
 	}, testCase, "test_file_"+testCase)
+}
+
+func startClickHouseContainer(ctx context.Context) (testcontainers.Container, error) {
+	req := testcontainers.ContainerRequest{
+		Image:        "clickhouse/clickhouse-server:latest",
+		ExposedPorts: []string{"8123/tcp"},
+		Env: map[string]string{
+			"CLICKHOUSE_SKIP_USER_SETUP": "1",
+		},
+		WaitingFor: wait.ForHTTP("/").WithPort("8123/tcp"),
+	}
+	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: req,
+		Started:          true,
+	})
 }
 
 func startMinioContainer(ctx context.Context) (testcontainers.Container, error) {
@@ -607,13 +607,12 @@ func createTestTables(ctx context.Context, t *testing.T, container testcontainer
 
 func clearTestTables(ctx context.Context, t *testing.T, container testcontainers.Container) error {
 	queries := []string{
-		"DROP TABLE IF EXISTS test_db1.users",
-		"DROP TABLE IF EXISTS test_db1.logs",
-		"DROP TABLE IF EXISTS test_db2.products",
-		"DROP TABLE IF EXISTS test_db3.metrics",
-		"DROP DATABASE IF EXISTS test_db3",
-		"DROP DATABASE IF EXISTS test_db1",
-		"DROP DATABASE IF EXISTS test_db2",
+		"DROP DATABASE IF EXISTS test_db1 SYNC",
+		"DROP DATABASE IF EXISTS test_db2 SYNC",
+		"DROP DATABASE IF EXISTS test_db3 SYNC",
+		"DROP DATABASE IF EXISTS logs_2023 SYNC",
+		"DROP DATABASE IF EXISTS logs_2024 SYNC",
+		"DROP DATABASE IF EXISTS system_db SYNC",
 	}
 
 	for _, query := range queries {

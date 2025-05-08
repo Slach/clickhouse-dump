@@ -33,7 +33,6 @@ type RemoteStorage interface {
 
 	// Close terminates the connection to the storage backend, if applicable.
 	Close() error
-
 }
 
 // compressStream wraps the reader with a compression writer based on format and level.
@@ -114,18 +113,16 @@ func decompressStream(reader io.ReadCloser, filename string) io.ReadCloser {
 	case ".gz":
 		gr, err := gzip.NewReader(reader)
 		if err != nil {
-			// Log or handle error? For now, return reader as is maybe? Or close and return error?
-			// Let's return a reader that will error on read, and close the original.
-			_ = reader.Close()
-			return &errorReaderCloser{err: fmt.Errorf("failed to create gzip reader for %s: %w", filename, err)}
+			closeErr := reader.Close()
+			return &errorReaderCloser{err: fmt.Errorf("failed to create gzip reader for %s: %w, reader closed %w", filename, err, closeErr)}
 		}
 		// Gzip reader needs to be closed to close the underlying reader.
 		return gr // gr implements io.ReadCloser
 	case ".zstd":
 		zr, err := zstd.NewReader(reader)
 		if err != nil {
-			_ = reader.Close()
-			return &errorReaderCloser{err: fmt.Errorf("failed to create zstd reader for %s: %w", filename, err)}
+			closeErr := reader.Close()
+			return &errorReaderCloser{err: fmt.Errorf("failed to create zstd reader for %s: %w, reader closed %w", filename, err, closeErr)}
 		}
 		// Wrap the zstd.Decoder and the original reader in our custom closer.
 		return &zstdReaderCloser{Decoder: zr, underlyingReader: reader}

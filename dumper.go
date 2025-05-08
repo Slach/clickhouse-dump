@@ -81,7 +81,7 @@ func (d *Dumper) GetDatabases() ([]string, error) {
 }
 
 func (d *Dumper) dumpDatabaseSchema(dbName string) error {
-	query := fmt.Sprintf("SHOW CREATE DATABASE `%s` SETTINGS format_display_secrets_in_show_and_select=1 FORMAT TabSeparated", dbName)
+	query := fmt.Sprintf("SHOW CREATE DATABASE `%s` SETTINGS format_display_secrets_in_show_and_select=1 FORMAT TSVRaw", dbName)
 	resp, err := d.client.ExecuteQuery(query)
 	if err != nil {
 		return err
@@ -121,11 +121,10 @@ func (d *Dumper) Dump() error {
 
 	for db, tables := range dbTables {
 		for _, table := range tables {
-			fullTableName := fmt.Sprintf("%s.%s", db, table)
-			if err := d.dumpSchema(fullTableName); err != nil {
+			if err := d.dumpSchema(db, table); err != nil {
 				return err
 			}
-			if err := d.dumpData(fullTableName); err != nil {
+			if err := d.dumpData(db, table); err != nil {
 				return err
 			}
 		}
@@ -145,7 +144,7 @@ func (d *Dumper) getTables() (map[string][]string, error) {
 			NOT match(database, '%s') AND
 			match(name, '%s') AND
 			(NOT match(name, '%s') OR '%s' = '')
-		FORMAT TabSeparated`,
+		FORMAT TSVRaw`,
 		d.config.Databases,
 		d.config.ExcludeDatabases,
 		d.config.Tables,
@@ -172,14 +171,10 @@ func (d *Dumper) getTables() (map[string][]string, error) {
 	return tables, nil
 }
 
-func (d *Dumper) dumpSchema(table string) error {
-	parts := strings.SplitN(table, ".", 2)
-	if len(parts) != 2 {
-		return fmt.Errorf("invalid table name format: %s", table)
-	}
-	dbName, tableName := parts[0], parts[1]
+func (d *Dumper) dumpSchema(dbName, tableName string) error {
 
-	query := fmt.Sprintf("SELECT create_table_query FROM system.tables WHERE database='%s' AND name='%s' SETTINGS format_display_secrets_in_show_and_select=1 FORMAT TabSeparated", dbName, tableName)
+	query := fmt.Sprintf("SELECT create_table_query FROM system.tables WHERE database='%s' AND name='%s' SETTINGS format_display_secrets_in_show_and_select=1 FORMAT TSVRaw", dbName, tableName)
+	//schema size is small no
 	resp, err := d.client.ExecuteQuery(query)
 	if err != nil {
 		return err
@@ -189,20 +184,17 @@ func (d *Dumper) dumpSchema(table string) error {
 	return d.storage.Upload(filename, bytes.NewReader(resp), d.config.CompressFormat, d.config.CompressLevel)
 }
 
-func (d *Dumper) dumpData(table string) error {
-	parts := strings.SplitN(table, ".", 2)
-	if len(parts) != 2 {
-		return fmt.Errorf("invalid table name format: %s", table)
-	}
-	dbName, tableName := parts[0], parts[1]
-
-	query := fmt.Sprintf("SELECT * FROM %s FORMAT SQLInsert SETTINGS output_format_sql_insert_max_batch_size=%d", table, d.config.BatchSize)
+func (d *Dumper) dumpData(dbName, tableName string) error {
+	query := fmt.Sprintf("SELECT * FROM `%s`.`%s` FORMAT SQLInsert SETTINGS output_format_sql_insert_max_batch_size=%d, output_format_sql_insert_table_name='`%s`.`%s`'", dbName, tableName, d.config.BatchSize, dbName, tableName)
 	body, err := d.client.ExecuteQueryStreaming(query)
 	if err != nil {
 		return err
 	}
-	defer body.Close()
-
+	defer func() {
+		if closeErr := body.Close(); closeErr != nil {
+			log.Printf("can't close dumpData reader body: %v", closeErr)
+		}
+	}()
 	filename := fmt.Sprintf("%s/%s/%s/%s.data.sql", d.config.StorageConfig["path"], d.config.BackupName, dbName, tableName)
 	return d.storage.Upload(filename, body, d.config.CompressFormat, d.config.CompressLevel)
 }
