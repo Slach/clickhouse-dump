@@ -126,66 +126,46 @@ func (tfc *tempFileCloser) Close() error {
 }
 
 func (s *S3Storage) Download(filename string) (io.ReadCloser, error) {
-	trimmedFilename := strings.TrimPrefix(filename, "/")
-	existingExt := GetCompressionExtension(trimmedFilename) // GetCompressionExtension из storage.go
-	baseKeyForLoop := trimmedFilename
-	if existingExt != "" {
-		baseKeyForLoop = strings.TrimSuffix(trimmedFilename, existingExt)
+	s3Key := strings.TrimPrefix(filename, "/")
+
+	// Создаем временный файл для загрузки
+	tempFile, err := os.CreateTemp("", "s3-download-*")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create temporary file: %w", err)
 	}
 
-	extensionsToTry := []string{".gz", ".zstd", ""} // Сначала пробуем сжатые, потом сырой
-	var lastErr error
+	// Пытаемся загрузить
+	_, err = s.downloader.Download(context.Background(), tempFile, &s3.GetObjectInput{
+		Bucket: aws.String(s.bucket),
+		Key:    aws.String(s3Key),
+	})
 
-	for _, extToTry := range extensionsToTry {
-		s3Key := baseKeyForLoop + extToTry
-
-		// Создаем временный файл для загрузки
-		tempFile, err := os.CreateTemp("", "s3-download-*")
-		if err != nil {
-			return nil, fmt.Errorf("failed to create temporary file: %w", err)
+	if err == nil {
+		// Загрузка успешна
+		// Перемещаем указатель в начало файла для чтения его содержимого
+		if _, seekErr := tempFile.Seek(0, io.SeekStart); seekErr != nil {
+			_ = tempFile.Close()           // Пытаемся закрыть
+			_ = os.Remove(tempFile.Name()) // Пытаемся удалить
+			return nil, fmt.Errorf("failed to seek temporary file: %w", seekErr)
 		}
 
-		// Пытаемся загрузить
-		_, err = s.downloader.Download(context.Background(), tempFile, &s3.GetObjectInput{
-			Bucket: aws.String(s.bucket),
-			Key:    aws.String(s3Key),
-		})
-
-		if err == nil {
-			// Загрузка успешна
-			// Перемещаем указатель в начало файла для чтения его содержимого
-			if _, seekErr := tempFile.Seek(0, io.SeekStart); seekErr != nil {
-				_ = tempFile.Close()           // Пытаемся закрыть
-				_ = os.Remove(tempFile.Name()) // Пытаемся удалить
-				return nil, fmt.Errorf("failed to seek temporary file: %w", seekErr)
-			}
-
-			// Оборачиваем файл в декомпрессор и кастомный closer для удаления временного файла
-			decompressedStream := decompressStream(tempFile, s3Key) // tempFile это io.ReadCloser
-			return &tempFileCloser{ReadCloser: decompressedStream, name: tempFile.Name()}, nil
-		}
-
-		// Загрузка не удалась, очищаем текущий tempFile
-		_ = tempFile.Close()
-		_ = os.Remove(tempFile.Name()) // Удаляем (вероятно, пустой или частично записанный) временный файл
-
-		// Проверяем, является ли ошибка NoSuchKey (или эквивалентной)
-		var nsk *types.NoSuchKey
-		if errors.As(err, &nsk) {
-			lastErr = fmt.Errorf("object %s not found in S3: %w", s3Key, err)
-			continue // Пробуем следующее расширение
-		}
-
-		// Для других ошибок S3 возвращаем немедленно
-		return nil, fmt.Errorf("failed to download %s from S3: %w", s3Key, err)
+		// Оборачиваем файл в декомпрессор и кастомный closer для удаления временного файла
+		decompressedStream := decompressStream(tempFile, s3Key) // tempFile это io.ReadCloser
+		return &tempFileCloser{ReadCloser: decompressedStream, name: tempFile.Name()}, nil
 	}
 
-	// Если все попытки не увенчались успехом (вероятно, все были NoSuchKey)
-	if lastErr != nil {
-		return nil, lastErr
+	// Загрузка не удалась, очищаем текущий tempFile
+	_ = tempFile.Close()
+	_ = os.Remove(tempFile.Name()) // Удаляем (вероятно, пустой или частично записанный) временный файл
+
+	// Проверяем, является ли ошибка NoSuchKey (или эквивалентной)
+	var nsk *types.NoSuchKey
+	if errors.As(err, &nsk) {
+		return nil, fmt.Errorf("object %s not found in S3: %w", s3Key, err)
 	}
-	// Эта ветка не должна достигаться, если extensionsToTry не пуст, но как запасной вариант:
-	return nil, fmt.Errorf("object %s not found with any compression extension", baseKeyForLoop)
+
+	// Для других ошибок S3 возвращаем немедленно
+	return nil, fmt.Errorf("failed to download %s from S3: %w", s3Key, err)
 }
 
 func (s *S3Storage) List(prefix string, recursive bool) ([]string, error) {
