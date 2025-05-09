@@ -10,10 +10,41 @@ import (
 	"time"
 
 	"cloud.google.com/go/storage"
+	"github.com/rs/zerolog/log"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	googleHTTPTransport "google.golang.org/api/transport/http"
 )
+
+// debugGCSTransport wraps an http.RoundTripper to log GCS requests and responses.
+type debugGCSTransport struct {
+	base http.RoundTripper
+}
+
+// RoundTrip executes a single HTTP transaction, adding logging before and after.
+func (w debugGCSTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	logMsg := fmt.Sprintf(">>> [GCS_REQUEST] >>> %v %v\n", r.Method, r.URL.String())
+	for h, values := range r.Header {
+		for _, v := range values {
+			logMsg += fmt.Sprintf("%v: %v\n", h, v)
+		}
+	}
+	log.Info().Msg(logMsg)
+
+	resp, err := w.base.RoundTrip(r)
+	if err != nil {
+		log.Error().Msgf("GCS_ERROR: %v", err)
+		return resp, err
+	}
+	logMsg = fmt.Sprintf("<<< [GCS_RESPONSE: %s] <<< %v %v\n", resp.Status, r.Method, r.URL.String())
+	for h, values := range resp.Header {
+		for _, v := range values {
+			logMsg += fmt.Sprintf("%v: %v\n", h, v)
+		}
+	}
+	log.Info().Msg(logMsg)
+	return resp, err
+}
 
 // rewriteTransport forces requests to use HTTP if the original scheme was HTTPS.
 // This is useful for local test servers like fake-gcs-server that might be configured
@@ -45,17 +76,16 @@ func NewGCSStorage(bucketName, endpoint, credentialsFile string) (*GCSStorage, e
 	}
 	ctx := context.Background()
 
-	// Create client options
-	var opts []option.ClientOption
-
+	// Options for googleHTTPTransport.NewClient to get an initial http.Client
+	httpClientOpts := []option.ClientOption{}
 	if credentialsFile == "" {
-		opts = append(opts, option.WithoutAuthentication())
+		httpClientOpts = append(httpClientOpts, option.WithoutAuthentication())
 	} else {
-		opts = append(opts, option.WithCredentialsFile(credentialsFile))
+		httpClientOpts = append(httpClientOpts, option.WithCredentialsFile(credentialsFile))
 	}
 
 	if endpoint != "" {
-		opts = append(opts, option.WithEndpoint(endpoint))
+		httpClientOpts = append(httpClientOpts, option.WithEndpoint(endpoint))
 		// If endpoint starts with http://, configure a custom HTTP client
 		// to ensure communication happens over http, as fake-gcs-server expects.
 		if strings.HasPrefix(endpoint, "http://") {
@@ -82,22 +112,39 @@ func NewGCSStorage(bucketName, endpoint, credentialsFile string) (*GCSStorage, e
 			// Wrap with rewriteTransport to ensure http scheme
 			customRoundTripper := rewriteTransport{base: customTransport}
 
-			// Create an HTTP client using the custom transport, compatible with Google API client options.
-			// We need to use googleHTTPTransport.NewClient to correctly wrap our RoundTripper.
-			httpClient, _, err := googleHTTPTransport.NewClient(ctx, append(opts, option.WithHTTPClient(&http.Client{Transport: customRoundTripper}))...)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create GCS HTTP client with custom transport: %w", err)
-			}
-			// Clear existing opts and use the fully configured httpClient via option.WithHTTPClient
-			opts = []option.ClientOption{option.WithHTTPClient(httpClient)}
-			opts = append(opts, option.WithEndpoint(endpoint))
+			// Specify that googleHTTPTransport.NewClient should use this customRoundTripper
+			underlyingHttpClientForHttpScheme := &http.Client{Transport: customRoundTripper}
+			httpClientOpts = append(httpClientOpts, option.WithHTTPClient(underlyingHttpClientForHttpScheme))
 		}
 	}
 
-	// Creates a client with specified options
-	client, err := storage.NewClient(ctx, opts...)
+	// Get the base http.Client that the Google SDK would use, configured with above options
+	effectiveHttpClient, _, err := googleHTTPTransport.NewClient(ctx, httpClientOpts...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create gcs client: %w", err)
+		return nil, fmt.Errorf("failed to create intermediate GCS HTTP client: %w", err)
+	}
+
+	// Wrap its transport with the debug transport for logging
+	effectiveHttpClient.Transport = debugGCSTransport{base: effectiveHttpClient.Transport}
+
+	// Now, prepare options for storage.NewClient, telling it to use our modified http.Client
+	storageClientOpts := []option.ClientOption{}
+	// Propagate essential options that storage.NewClient might also need:
+	if credentialsFile == "" {
+		storageClientOpts = append(storageClientOpts, option.WithoutAuthentication())
+	} else {
+		storageClientOpts = append(storageClientOpts, option.WithCredentialsFile(credentialsFile))
+	}
+	if endpoint != "" {
+		storageClientOpts = append(storageClientOpts, option.WithEndpoint(endpoint))
+	}
+	// Crucially, add our debug-wrapped http client
+	storageClientOpts = append(storageClientOpts, option.WithHTTPClient(effectiveHttpClient))
+
+	// Creates the main storage client using the debug-wrapped http client
+	client, err := storage.NewClient(ctx, storageClientOpts...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create gcs client with debug transport: %w", err)
 	}
 
 	return &GCSStorage{
