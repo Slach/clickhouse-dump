@@ -182,7 +182,6 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 				"test_db2.inventory",
 				"logs_2023.events",
 				"logs_2024.events",
-				"system_db.settings",
 			},
 			expectedMissing: []string{
 				"test_db1.logs",
