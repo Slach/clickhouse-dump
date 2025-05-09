@@ -545,7 +545,7 @@ func startFakeGCSContainer(ctx context.Context) (testcontainers.Container, error
 		Image:        "fsouza/fake-gcs-server:latest",
 		ExposedPorts: []string{"4443/tcp"},
 		Cmd:          []string{"/bin/sh", "-c", "mkdir -p /data/testbucket && fake-gcs-server -data /data -scheme http -port 4443"},
-		WaitingFor: wait.ForHTTP("/").WithPort("4443/tcp").
+		WaitingFor: wait.ForExec([]string{"nc", "127.0.0.1", "4443", "-z"}).
 			WithStartupTimeout(30 * time.Second).
 			WithPollInterval(1 * time.Second),
 	}
