@@ -187,7 +187,6 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 			expectedMissing: []string{
 				"test_db1.logs",
 				"test_db3.metrics",
-				"system_db.settings", // Should be excluded by default
 			},
 		},
 		"complex_pattern": {
@@ -288,6 +287,8 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 			expectedData = "1\tevent1\n2\tevent2\n"
 		case "logs_2024.events":
 			expectedData = "1\tevent1\n2\tevent2\n"
+		case "system_db.settings":
+			expectedData = "1\tsetting1\n2\tsetting2\n"
 		default:
 			t.Fatalf("unexpected table in verification: %s", table)
 		}
@@ -298,8 +299,8 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 
 	// Verify excluded tables were NOT restored
 	for _, table := range tc.expectedMissing {
-		_, err := executeTestQueryWithResult(ctx, t, clickhouseContainer, fmt.Sprintf("SELECT * FROM %s", table))
-		require.Error(t, err, "table %s should not exist after restore", table)
+		_, notExistsErr := executeTestQueryWithResult(ctx, t, clickhouseContainer, fmt.Sprintf("SELECT * FROM %s", table))
+		require.Error(t, notExistsErr, "table %s should not exist after restore", table)
 	}
 }
 
@@ -528,7 +529,7 @@ func createTestTables(ctx context.Context, t *testing.T, container testcontainer
 		`CREATE DATABASE IF NOT EXISTS test_db3`,
 		`CREATE DATABASE IF NOT EXISTS logs_2023`,
 		`CREATE DATABASE IF NOT EXISTS logs_2024`,
-		`CREATE DATABASE IF NOT EXISTS system_db`, // Should be excluded by default
+		`CREATE DATABASE IF NOT EXISTS system_db`,
 
 		// Tables in test_db1
 		`CREATE TABLE test_db1.users (
@@ -582,7 +583,7 @@ func createTestTables(ctx context.Context, t *testing.T, container testcontainer
 		) ENGINE = MergeTree()
 		ORDER BY id`,
 
-		// System tables (should be excluded by default)
+		// preudo-System tables
 		`CREATE TABLE system_db.settings (
 			id UInt32,
 			name String
