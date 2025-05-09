@@ -44,11 +44,11 @@ func TestE2E(t *testing.T) {
 						require.NoError(t, clearTestTables(ctx, t, clickhouseContainer))
 						require.NoError(t, clickhouseContainer.Terminate(ctx))
 					} else {
-						t.Logf("Тест не пройден, таблицы не очищаются и ClickHouse контейнер не останавливается.")
+						t.Logf("Test failed, tables are not cleared and ClickHouse container is not stopped.")
 						host, hostErr := clickhouseContainer.Host(ctx)
 						port, portErr := clickhouseContainer.MappedPort(ctx, "8123")
 						if hostErr == nil && portErr == nil {
-							t.Logf("ClickHouse контейнер %s доступен по адресу %s:%s", clickhouseContainer.GetContainerID(), host, port.Port())
+							t.Logf("ClickHouse container %s is available at %s:%s", clickhouseContainer.GetContainerID(), host, port.Port())
 						}
 					}
 				}()
@@ -322,11 +322,11 @@ func testS3Storage(ctx context.Context, t *testing.T, clickhouseContainer testco
 		if !t.Failed() {
 			require.NoError(t, minioContainer.Terminate(ctx))
 		} else {
-			t.Logf("Тест не пройден, Minio контейнер не останавливается.")
+			t.Logf("Test failed, Minio container is not stopped.")
 			host, hostErr := minioContainer.Host(ctx)
 			port, portErr := minioContainer.MappedPort(ctx, "9000")
 			if hostErr == nil && portErr == nil {
-				t.Logf("Minio контейнер %s доступен по адресу http://%s:%s (MINIO_ROOT_USER: minioadmin, MINIO_ROOT_PASSWORD: minioadmin)", minioContainer.GetContainerID(), host, port.Port())
+				t.Logf("Minio container %s is available at http://%s:%s (MINIO_ROOT_USER: minioadmin, MINIO_ROOT_PASSWORD: minioadmin)", minioContainer.GetContainerID(), host, port.Port())
 			}
 		}
 	}()
@@ -356,11 +356,11 @@ func testGCSStorage(ctx context.Context, t *testing.T, clickhouseContainer testc
 		if !t.Failed() {
 			require.NoError(t, gcsContainer.Terminate(ctx))
 		} else {
-			t.Logf("Тест не пройден, fake GCS контейнер не останавливается.")
+			t.Logf("Test failed, fake GCS container is not stopped.")
 			host, hostErr := gcsContainer.Host(ctx)
 			port, portErr := gcsContainer.MappedPort(ctx, "4443")
 			if hostErr == nil && portErr == nil {
-				t.Logf("Fake GCS контейнер %s доступен по адресу http://%s:%s", gcsContainer.GetContainerID(), host, port.Port())
+				t.Logf("Fake GCS container %s is available at http://%s:%s", gcsContainer.GetContainerID(), host, port.Port())
 			}
 		}
 	}()
@@ -387,11 +387,11 @@ func testAzureBlobStorage(ctx context.Context, t *testing.T, clickhouseContainer
 		if !t.Failed() {
 			require.NoError(t, azuriteContainer.Terminate(ctx))
 		} else {
-			t.Logf("Тест не пройден, Azurite контейнер не останавливается.")
+			t.Logf("Test failed, Azurite container is not stopped.")
 			host, hostErr := azuriteContainer.Host(ctx)
 			port, portErr := azuriteContainer.MappedPort(ctx, "10000")
 			if hostErr == nil && portErr == nil {
-				t.Logf("Azurite контейнер %s доступен. Blob endpoint: http://%s:%s/devstoreaccount1", azuriteContainer.GetContainerID(), host, port.Port())
+				t.Logf("Azurite container %s is available. Blob endpoint: http://%s:%s/devstoreaccount1", azuriteContainer.GetContainerID(), host, port.Port())
 			}
 		}
 	}()
@@ -421,11 +421,11 @@ func testFTPStorage(ctx context.Context, t *testing.T, clickhouseContainer testc
 		if !t.Failed() {
 			require.NoError(t, ftpContainer.Terminate(ctx))
 		} else {
-			t.Logf("Тест не пройден, FTP контейнер не останавливается.")
+			t.Logf("Test failed, FTP container is not stopped.")
 			host, hostErr := ftpContainer.Host(ctx)
 			port, portErr := ftpContainer.MappedPort(ctx, "21")
 			if hostErr == nil && portErr == nil {
-				t.Logf("FTP контейнер %s доступен по адресу ftp://%s:%s (user: testuser, pass: testpass)", ftpContainer.GetContainerID(), host, port.Port())
+				t.Logf("FTP container %s is available at ftp://%s:%s (user: testuser, pass: testpass)", ftpContainer.GetContainerID(), host, port.Port())
 			}
 		}
 	}()
@@ -453,11 +453,11 @@ func testSFTPStorage(ctx context.Context, t *testing.T, clickhouseContainer test
 		if !t.Failed() {
 			require.NoError(t, sftpContainer.Terminate(ctx))
 		} else {
-			t.Logf("Тест не пройден, SFTP контейнер не останавливается.")
+			t.Logf("Test failed, SFTP container is not stopped.")
 			host, hostErr := sftpContainer.Host(ctx)
 			port, portErr := sftpContainer.MappedPort(ctx, "22")
 			if hostErr == nil && portErr == nil {
-				t.Logf("SFTP контейнер %s доступен по адресу sftp://%s:%s (user: testuser, pass: testpass)", sftpContainer.GetContainerID(), host, port.Port())
+				t.Logf("SFTP container %s is available at sftp://%s:%s (user: testuser, pass: testpass)", sftpContainer.GetContainerID(), host, port.Port())
 			}
 		}
 	}()
@@ -485,7 +485,7 @@ func testFileStorage(ctx context.Context, t *testing.T, clickhouseContainer test
 		if !t.Failed() {
 			require.NoError(t, os.RemoveAll(tempDir))
 		} else {
-			t.Logf("Тест не пройден, временная директория не удаляется: %s", tempDir)
+			t.Logf("Test failed, temporary directory is not removed: %s", tempDir)
 		}
 	}()
 
