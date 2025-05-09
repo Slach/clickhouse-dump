@@ -91,9 +91,10 @@ func NewS3Storage(bucket, region, accessKey, secretKey, endpoint string, debug b
 
 func (s *S3Storage) Upload(filename string, reader io.Reader, format string, level int) error {
 	compressedReader, ext := compressStream(reader, format, level)
+	s3Key := strings.TrimPrefix(filename, "/") + ext
 	_, err := s.uploader.Upload(context.Background(), &s3.PutObjectInput{
 		Bucket: aws.String(s.bucket),
-		Key:    aws.String(filename + ext),
+		Key:    aws.String(s3Key),
 		Body:   compressedReader,
 	})
 	return err
@@ -104,9 +105,10 @@ func (s *S3Storage) Download(filename string) (io.ReadCloser, error) {
 	if err != nil {
 		return nil, err
 	}
+	s3Key := strings.TrimPrefix(filename, "/")
 	_, err = s.downloader.Download(context.TODO(), writer, &s3.GetObjectInput{
 		Bucket: aws.String(s.bucket),
-		Key:    aws.String(filename),
+		Key:    aws.String(s3Key),
 	})
 	if err != nil {
 		return nil, err
@@ -118,9 +120,10 @@ func (s *S3Storage) List(prefix string, recursive bool) ([]string, error) {
 	ctx := context.Background()
 	var objectNames []string
 
+	s3Prefix := strings.TrimPrefix(prefix, "/")
 	input := &s3.ListObjectsV2Input{
 		Bucket:    aws.String(s.bucket),
-		Prefix:    aws.String(prefix),
+		Prefix:    aws.String(s3Prefix),
 		Delimiter: aws.String("/"),
 	}
 
