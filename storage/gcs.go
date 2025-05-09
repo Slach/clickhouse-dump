@@ -102,18 +102,10 @@ func NewGCSStorage(bucketName, endpoint, credentialsFile string) (*GCSStorage, e
 		return nil, fmt.Errorf("gcs bucket name cannot be empty")
 	}
 	ctx := context.Background()
-
+	log.Printf("SUKA1!!! endpoint=%s", endpoint)
 	// Base transport, starts similar to http.DefaultTransport
 	var transport http.RoundTripper = &http.Transport{
-		Proxy: http.ProxyFromEnvironment,
-		DialContext: (&http.Transport{ // Re-use default dialer settings from http.DefaultTransport
-			Proxy:                 http.ProxyFromEnvironment,
-			ForceAttemptHTTP2:     true,
-			MaxIdleConns:          100,
-			IdleConnTimeout:       90 * time.Second,
-			TLSHandshakeTimeout:   10 * time.Second,
-			ExpectContinueTimeout: 1 * time.Second,
-		}).DialContext,
+		Proxy:                 http.ProxyFromEnvironment,
 		MaxIdleConns:          100,
 		IdleConnTimeout:       90 * time.Second,
 		TLSHandshakeTimeout:   10 * time.Second,
@@ -134,24 +126,13 @@ func NewGCSStorage(bucketName, endpoint, credentialsFile string) (*GCSStorage, e
 		if ueScheme == "" || ueHost == "" {
 			return nil, fmt.Errorf("custom endpoint URL '%s' must include scheme and host", endpoint)
 		}
-	}
-
-	if endpoint != "" {
 		if strings.HasPrefix(endpoint, "http://") {
 			// For plain HTTP endpoints (like fake-gcs-server):
 			// - Disable HTTP/2 (some emulators don't support it well)
 			// - Skip TLS verification (not strictly needed for HTTP, but InsecureSkipVerify is for HTTPS with self-signed certs)
 			// - Wrap with rewriteTransport to ensure HTTP scheme if SDK tries HTTPS.
 			plainHttpTransport := &http.Transport{
-				Proxy: http.ProxyFromEnvironment,
-				DialContext: (&http.Transport{
-					Proxy:                 http.ProxyFromEnvironment,
-					ForceAttemptHTTP2:     false, // Adjusted
-					MaxIdleConns:          100,
-					IdleConnTimeout:       90 * time.Second,
-					TLSHandshakeTimeout:   10 * time.Second,
-					ExpectContinueTimeout: 1 * time.Second,
-				}).DialContext,
+				Proxy:                 http.ProxyFromEnvironment,
 				MaxIdleConns:          100,
 				IdleConnTimeout:       90 * time.Second,
 				TLSHandshakeTimeout:   10 * time.Second,
@@ -163,15 +144,7 @@ func NewGCSStorage(bucketName, endpoint, credentialsFile string) (*GCSStorage, e
 		} else if strings.HasPrefix(endpoint, "https://") {
 			// For HTTPS custom endpoints that might use self-signed certs
 			customHttpsTransport := &http.Transport{
-				Proxy: http.ProxyFromEnvironment,
-				DialContext: (&http.Transport{
-					Proxy:                 http.ProxyFromEnvironment,
-					ForceAttemptHTTP2:     true,
-					MaxIdleConns:          100,
-					IdleConnTimeout:       90 * time.Second,
-					TLSHandshakeTimeout:   10 * time.Second,
-					ExpectContinueTimeout: 1 * time.Second,
-				}).DialContext,
+				Proxy:                 http.ProxyFromEnvironment,
 				MaxIdleConns:          100,
 				IdleConnTimeout:       90 * time.Second,
 				TLSHandshakeTimeout:   10 * time.Second,
@@ -192,7 +165,6 @@ func NewGCSStorage(bucketName, endpoint, credentialsFile string) (*GCSStorage, e
 	}
 	httpClient := &http.Client{Transport: transport}
 
-	// Prepare options for storage.NewClient
 	storageClientOpts := []option.ClientOption{option.WithHTTPClient(httpClient)}
 
 	if credentialsFile == "" {
@@ -202,8 +174,6 @@ func NewGCSStorage(bucketName, endpoint, credentialsFile string) (*GCSStorage, e
 	}
 
 	if endpoint != "" {
-		// Use the user-provided endpoint directly. The GCS SDK should handle appending
-		// necessary paths like /storage/v1/ or /upload/storage/v1/ itself.
 		log.Printf("Using user-provided GCS endpoint for storage.NewClient: %s", endpoint)
 		storageClientOpts = append(storageClientOpts, option.WithEndpoint(endpoint))
 	}
