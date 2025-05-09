@@ -449,13 +449,15 @@ func startClickHouseContainer(ctx context.Context) (testcontainers.Container, er
 
 func startMinioContainer(ctx context.Context) (testcontainers.Container, error) {
 	req := testcontainers.ContainerRequest{
-		Image:        "minio/minio:latest",
+		Image:        "bitnami/minio:latest",
 		ExposedPorts: []string{"9000/tcp"},
 		Env: map[string]string{
-			"MINIO_ACCESS_KEY": "minioadmin",
-			"MINIO_SECRET_KEY": "minioadmin",
+			"MINIO_DEFAULT_BUCKETS": "clickhouse",
+			"MINIO_ROOT_USER":       "minioadmin",
+			"MINIO_ROOT_PASSWORD":   "minioadmin",
+			"MINIO_SCHEME":          "http",
+			"BITNAMI_DEBUG":         "true",
 		},
-		Cmd:        []string{"server", "/data"},
 		WaitingFor: wait.ForHTTP("/minio/health/ready").WithPort("9000/tcp"),
 	}
 	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
