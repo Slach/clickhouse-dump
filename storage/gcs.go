@@ -10,10 +10,10 @@ import (
 	"time"
 
 	"cloud.google.com/go/storage"
-	"github.com/rs/zerolog/log"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	googleHTTPTransport "google.golang.org/api/transport/http"
+	"log"
 )
 
 // debugGCSTransport wraps an http.RoundTripper to log GCS requests and responses.
@@ -29,11 +29,11 @@ func (w debugGCSTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 			logMsg += fmt.Sprintf("%v: %v\n", h, v)
 		}
 	}
-	log.Info().Msg(logMsg)
+	log.Println(logMsg)
 
 	resp, err := w.base.RoundTrip(r)
 	if err != nil {
-		log.Error().Msgf("GCS_ERROR: %v", err)
+		log.Printf("GCS_ERROR: %v", err)
 		return resp, err
 	}
 	logMsg = fmt.Sprintf("<<< [GCS_RESPONSE: %s] <<< %v %v\n", resp.Status, r.Method, r.URL.String())
@@ -42,7 +42,7 @@ func (w debugGCSTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 			logMsg += fmt.Sprintf("%v: %v\n", h, v)
 		}
 	}
-	log.Info().Msg(logMsg)
+	log.Println(logMsg)
 	return resp, err
 }
 
