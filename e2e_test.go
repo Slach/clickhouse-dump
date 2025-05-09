@@ -521,7 +521,6 @@ func startMinioContainer(ctx context.Context) (testcontainers.Container, error) 
 			"MINIO_DEFAULT_BUCKETS": "testbucket",
 			"MINIO_ROOT_USER":       "minioadmin",
 			"MINIO_ROOT_PASSWORD":   "minioadmin",
-			"MINIO_SCHEME":          "http",
 			"BITNAMI_DEBUG":         "true",
 		},
 		WaitingFor: wait.ForHTTP("/minio/health/ready").WithPort("9000/tcp").WithStartupTimeout(2 * time.Minute),
