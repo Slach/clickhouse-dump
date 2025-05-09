@@ -508,7 +508,7 @@ func startClickHouseContainer(ctx context.Context) (testcontainers.Container, er
 	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
 		Reuse:            true,
-		Started:          true,
+		SkipReaper:       true,
 	})
 }
 
@@ -529,7 +529,7 @@ func startMinioContainer(ctx context.Context) (testcontainers.Container, error) 
 	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
 		Reuse:            true,
-		Started:          true,
+		SkipReaper:       true,
 	})
 }
 
@@ -544,7 +544,7 @@ func startFakeGCSContainer(ctx context.Context) (testcontainers.Container, error
 	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
 		Reuse:            true,
-		Started:          true,
+		SkipReaper:       true,
 	})
 }
 
@@ -559,7 +559,7 @@ func startAzuriteContainer(ctx context.Context) (testcontainers.Container, error
 	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
 		Reuse:            true,
-		Started:          true,
+		SkipReaper:       true,
 	})
 }
 
@@ -578,7 +578,7 @@ func startFTPContainer(ctx context.Context) (testcontainers.Container, error) {
 	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
 		Reuse:            true,
-		Started:          true,
+		SkipReaper:       true,
 	})
 }
 
@@ -595,7 +595,7 @@ func startSFTPContainer(ctx context.Context) (testcontainers.Container, error) {
 	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
 		Reuse:            true,
-		Started:          true,
+		SkipReaper:       true,
 	})
 }
 
