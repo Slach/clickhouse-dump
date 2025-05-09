@@ -506,17 +506,11 @@ func startClickHouseContainer(ctx context.Context) (testcontainers.Container, er
 		},
 		WaitingFor: wait.ForHTTP("/").WithPort("8123/tcp"),
 	}
-	c, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
+		Started:          true,
 		Reuse:            false,
 	})
-	if err != nil {
-		return nil, err
-	}
-	if err := c.Start(ctx); err != nil {
-		return nil, err
-	}
-	return c, nil
 }
 
 func startMinioContainer(ctx context.Context) (testcontainers.Container, error) {
@@ -533,17 +527,11 @@ func startMinioContainer(ctx context.Context) (testcontainers.Container, error) 
 		},
 		WaitingFor: wait.ForHTTP("/minio/health/ready").WithPort("9000/tcp").WithStartupTimeout(2 * time.Minute),
 	}
-	c, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
+		Started:          true,
 		Reuse:            false,
 	})
-	if err != nil {
-		return nil, err
-	}
-	if err := c.Start(ctx); err != nil {
-		return nil, err
-	}
-	return c, nil
 }
 
 func startFakeGCSContainer(ctx context.Context) (testcontainers.Container, error) {
@@ -554,17 +542,11 @@ func startFakeGCSContainer(ctx context.Context) (testcontainers.Container, error
 		Cmd:          []string{"-scheme", "http"},
 		WaitingFor:   wait.ForHTTP("/").WithPort("4443/tcp"),
 	}
-	c, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
+		Started:          true,
 		Reuse:            false,
 	})
-	if err != nil {
-		return nil, err
-	}
-	if err := c.Start(ctx); err != nil {
-		return nil, err
-	}
-	return c, nil
 }
 
 func startAzuriteContainer(ctx context.Context) (testcontainers.Container, error) {
@@ -575,17 +557,11 @@ func startAzuriteContainer(ctx context.Context) (testcontainers.Container, error
 		Cmd:          []string{"azurite-blob", "--blobHost", "0.0.0.0"},
 		WaitingFor:   wait.ForListeningPort("10000/tcp"),
 	}
-	c, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
+		Started:          true,
 		Reuse:            false,
 	})
-	if err != nil {
-		return nil, err
-	}
-	if err := c.Start(ctx); err != nil {
-		return nil, err
-	}
-	return c, nil
 }
 
 func startFTPContainer(ctx context.Context) (testcontainers.Container, error) {
@@ -600,17 +576,11 @@ func startFTPContainer(ctx context.Context) (testcontainers.Container, error) {
 		},
 		WaitingFor: wait.ForListeningPort("21/tcp"),
 	}
-	c, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
+		Started:          true,
 		Reuse:            false,
 	})
-	if err != nil {
-		return nil, err
-	}
-	if err := c.Start(ctx); err != nil {
-		return nil, err
-	}
-	return c, nil
 }
 
 func startSFTPContainer(ctx context.Context) (testcontainers.Container, error) {
@@ -623,17 +593,11 @@ func startSFTPContainer(ctx context.Context) (testcontainers.Container, error) {
 		},
 		WaitingFor: wait.ForListeningPort("22/tcp"),
 	}
-	c, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
+		Started:          true,
 		Reuse:            false,
 	})
-	if err != nil {
-		return nil, err
-	}
-	if err := c.Start(ctx); err != nil {
-		return nil, err
-	}
-	return c, nil
 }
 
 func createTestTables(ctx context.Context, t *testing.T, container testcontainers.Container) error {
