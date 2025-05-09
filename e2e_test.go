@@ -552,7 +552,8 @@ func startFakeGCSContainer(ctx context.Context) (testcontainers.Container, error
 		Name:         "clickhouse-dump-test-gcs",
 		Image:        "fsouza/fake-gcs-server:latest",
 		ExposedPorts: []string{"4443/tcp"},
-		Cmd:          []string{"/bin/sh", "-c", "mkdir -p /data/testbucket && fake-gcs-server -data /data -scheme http -port 4443"},
+		Entrypoint:   []string{"/bin/sh"},
+		Cmd:          []string{"-c", "mkdir -p /data/testbucket && fake-gcs-server -data /data -scheme http -port 4443"},
 		WaitingFor: wait.ForExec([]string{"nc", "127.0.0.1", "4443", "-z"}).
 			WithStartupTimeout(30 * time.Second).
 			WithPollInterval(1 * time.Second),
