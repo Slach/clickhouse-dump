@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
 	"cloud.google.com/go/storage"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
-	googleHTTPTransport "google.golang.org/api/transport/http"
 	"log"
 )
 
