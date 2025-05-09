@@ -530,7 +530,7 @@ func startMinioContainer(ctx context.Context) (testcontainers.Container, error) 
 				"sh", "-c",
 				"ls -la /bitnami/minio/data/testbucket/ && curl -f http://localhost:9000/minio/health/live",
 			},
-		).WithStartupTimeout(2 * time.Minute).WithPollInterval(2 * time.Second),
+		).WithStartupTimeout(30 * time.Second).WithPollInterval(1 * time.Second),
 	}
 	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
@@ -544,8 +544,10 @@ func startFakeGCSContainer(ctx context.Context) (testcontainers.Container, error
 		Name:         "clickhouse-dump-test-gcs",
 		Image:        "fsouza/fake-gcs-server:latest",
 		ExposedPorts: []string{"4443/tcp"},
-		Cmd:          []string{"-scheme", "http"},
-		WaitingFor:   wait.ForHTTP("/").WithPort("4443/tcp"),
+		Cmd:          []string{"/bin/sh", "-c", "mkdir -p /data/testbucket && fake-gcs-server -data /data -scheme http -port 4443"},
+		WaitingFor: wait.ForHTTP("/").WithPort("4443/tcp").
+			WithStartupTimeout(30 * time.Second).
+			WithPollInterval(1 * time.Second),
 	}
 	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
