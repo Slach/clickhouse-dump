@@ -202,24 +202,10 @@ func NewGCSStorage(bucketName, endpoint, credentialsFile string) (*GCSStorage, e
 	}
 
 	if endpoint != "" {
-		// Adjust endpoint to include /storage/v1/ path for GCS, as SDK might need it
-		// for resolving all API paths correctly, especially MediaBasePath.
-		gcsEndpointForClient := endpoint // Default to original
-		parsedURL, parseErr := url.Parse(endpoint)
-		if parseErr == nil {
-			// Only adjust if the path is empty or just "/"
-			// This means endpoint was like "http://host:port" or "http://host:port/"
-			if parsedURL.Path == "" || parsedURL.Path == "/" {
-				base := strings.TrimSuffix(endpoint, "/")
-				gcsEndpointForClient = base + "/storage/v1/"
-				log.Printf("Adjusted GCS endpoint for storage.NewClient: %s (original: %s)", gcsEndpointForClient, endpoint)
-			} else {
-				log.Printf("Using GCS endpoint as is (already has a path component): %s", endpoint)
-			}
-		} else {
-			log.Printf("Warning: Could not parse GCS endpoint '%s' to adjust path: %v. Using it as is.", endpoint, parseErr)
-		}
-		storageClientOpts = append(storageClientOpts, option.WithEndpoint(gcsEndpointForClient))
+		// Use the user-provided endpoint directly. The GCS SDK should handle appending
+		// necessary paths like /storage/v1/ or /upload/storage/v1/ itself.
+		log.Printf("Using user-provided GCS endpoint for storage.NewClient: %s", endpoint)
+		storageClientOpts = append(storageClientOpts, option.WithEndpoint(endpoint))
 	}
 
 	client, err := storage.NewClient(ctx, storageClientOpts...)
