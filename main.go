@@ -246,7 +246,16 @@ func getConfig(c *cli.Context) (*Config, error) {
 		CompressLevel:    c.Int("compress-level"),     // Used by dumper
 		StorageType:      strings.ToLower(c.String("storage-type")),
 		StorageConfig: map[string]string{
-			"path": c.String("storage-path"),
+			"host":      c.String("storage-host"),
+			"user":      c.String("storage-user"),
+			"password":  c.String("storage-password"),
+			"path":      c.String("storage-path"),
+			"bucket":    c.String("storage-bucket"),
+			"region":    c.String("storage-region"),
+			"account":   c.String("storage-account"),
+			"key":       c.String("storage-key"),
+			"endpoint":  c.String("storage-endpoint"),
+			"container": c.String("storage-container"),
 		},
 		Debug: c.Bool("debug"),
 	}
@@ -261,30 +270,18 @@ func getConfig(c *cli.Context) (*Config, error) {
 			return nil, fmt.Errorf("storage-path is required for file storage type")
 		}
 	case "s3":
-		config.StorageConfig["bucket"] = c.String("storage-bucket")
-		config.StorageConfig["region"] = c.String("storage-region")
-		config.StorageConfig["account"] = c.String("storage-account")
-		config.StorageConfig["key"] = c.String("storage-key")
-		config.StorageConfig["endpoint"] = c.String("storage-endpoint")
 		if config.StorageConfig["bucket"] == "" {
 			return nil, fmt.Errorf("storage-bucket is required for s3 storage type")
 		}
 	case "gcs":
-		config.StorageConfig["bucket"] = c.String("storage-bucket")
 		if config.StorageConfig["bucket"] == "" {
 			return nil, fmt.Errorf("storage-bucket is required for gcs storage type")
 		}
 	case "azblob":
-		config.StorageConfig["account"] = c.String("storage-account")
-		config.StorageConfig["key"] = c.String("storage-key")
-		config.StorageConfig["container"] = c.String("storage-container")
 		if config.StorageConfig["account"] == "" || config.StorageConfig["key"] == "" || config.StorageConfig["container"] == "" {
 			return nil, fmt.Errorf("storage-account, storage-key, and storage-container are required for azblob storage type")
 		}
 	case "sftp", "ftp":
-		config.StorageConfig["host"] = c.String("storage-host")
-		config.StorageConfig["user"] = c.String("storage-user")
-		config.StorageConfig["password"] = c.String("storage-password") // Password might be optional for anonymous FTP or key-based SFTP (not implemented)
 		if config.StorageConfig["host"] == "" || config.StorageConfig["user"] == "" {
 			return nil, fmt.Errorf("storage-host and storage-user are required for %s storage type", config.StorageType)
 		}

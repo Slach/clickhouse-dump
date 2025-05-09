@@ -160,11 +160,13 @@ func NewGCSStorage(bucketName, endpoint, credentialsFile string, debug bool) (*G
 	}
 
 	// Wrap with debug transport for logging and URL rewriting
-	transport = debugGCSTransport{
-		base:                 transport,
-		isCustomEndpoint:     ueIsSet,
-		customEndpointScheme: ueScheme,
-		customEndpointHost:   ueHost,
+	if debug {
+		transport = debugGCSTransport{
+			base:                 transport,
+			isCustomEndpoint:     ueIsSet,
+			customEndpointScheme: ueScheme,
+			customEndpointHost:   ueHost,
+		}
 	}
 	httpClient := &http.Client{Transport: transport}
 
