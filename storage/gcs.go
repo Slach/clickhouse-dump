@@ -75,7 +75,7 @@ func NewGCSStorage(bucketName, endpoint, credentialsFile string) (*GCSStorage, e
 				IdleConnTimeout:       90 * time.Second,
 				TLSHandshakeTimeout:   10 * time.Second,
 				ExpectContinueTimeout: 1 * time.Second,
-				ForceAttemptHTTP2:     false, // Important: Disable HTTP/2 for http endpoints
+				ForceAttemptHTTP2:     false,                                 // Important: Disable HTTP/2 for http endpoints
 				TLSClientConfig:       &tls.Config{InsecureSkipVerify: true}, // Allow self-signed certs for local http
 			}
 
@@ -84,19 +84,13 @@ func NewGCSStorage(bucketName, endpoint, credentialsFile string) (*GCSStorage, e
 
 			// Create an HTTP client using the custom transport, compatible with Google API client options.
 			// We need to use googleHTTPTransport.NewClient to correctly wrap our RoundTripper.
-			httpClient, err := googleHTTPTransport.NewClient(ctx, append(opts, option.WithHTTPClient(&http.Client{Transport: customRoundTripper}))...)
+			httpClient, _, err := googleHTTPTransport.NewClient(ctx, append(opts, option.WithHTTPClient(&http.Client{Transport: customRoundTripper}))...)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create GCS HTTP client with custom transport: %w", err)
 			}
 			// Clear existing opts and use the fully configured httpClient via option.WithHTTPClient
 			opts = []option.ClientOption{option.WithHTTPClient(httpClient)}
-			// The endpoint is already part of httpClient's transport configuration indirectly
-			// or directly if googleHTTPTransport.NewClient considers it.
-			// If WithEndpoint is still needed, it should be compatible.
-			// Let's ensure WithEndpoint is added back if it was cleared.
-			if endpoint != "" {
-				opts = append(opts, option.WithEndpoint(endpoint))
-			}
+			opts = append(opts, option.WithEndpoint(endpoint))
 		}
 	}
 
@@ -110,7 +104,7 @@ func NewGCSStorage(bucketName, endpoint, credentialsFile string) (*GCSStorage, e
 		bucket:     client.Bucket(bucketName),
 		bucketName: bucketName,
 		client:     client,
-		endpoint:   endpoint, // Store endpoint for reference
+		endpoint:   endpoint,
 	}, nil
 }
 
