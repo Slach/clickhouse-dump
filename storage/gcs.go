@@ -94,15 +94,18 @@ type GCSStorage struct {
 	bucketName string          // Store bucket name for logging
 	client     *storage.Client // Store client to close it later
 	endpoint   string          // Custom endpoint URL
+	debug      bool            // Debug logging flag
 }
 
 // NewGCSStorage creates a new Google Cloud Storage client.
-func NewGCSStorage(bucketName, endpoint, credentialsFile string) (*GCSStorage, error) {
+func NewGCSStorage(bucketName, endpoint, credentialsFile string, debug bool) (*GCSStorage, error) {
 	if bucketName == "" {
 		return nil, fmt.Errorf("gcs bucket name cannot be empty")
 	}
 	ctx := context.Background()
-	log.Printf("SUKA1!!! endpoint=%s", endpoint)
+	if debug {
+		log.Printf("Initializing GCS storage with bucketName=%s, endpoint=%s, debug=%t", bucketName, endpoint, debug)
+	}
 	// Base transport, starts similar to http.DefaultTransport
 	var transport http.RoundTripper = &http.Transport{
 		Proxy:                 http.ProxyFromEnvironment,
