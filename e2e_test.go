@@ -508,7 +508,7 @@ func startClickHouseContainer(ctx context.Context) (testcontainers.Container, er
 	}
 	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
-		Reuse:            true,
+		Reuse:            false,
 	})
 }
 
@@ -528,7 +528,7 @@ func startMinioContainer(ctx context.Context) (testcontainers.Container, error) 
 	}
 	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
-		Reuse:            true,
+		Reuse:            false,
 	})
 }
 
@@ -542,7 +542,7 @@ func startFakeGCSContainer(ctx context.Context) (testcontainers.Container, error
 	}
 	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
-		Reuse:            true,
+		Reuse:            false,
 	})
 }
 
@@ -556,7 +556,7 @@ func startAzuriteContainer(ctx context.Context) (testcontainers.Container, error
 	}
 	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
-		Reuse:            true,
+		Reuse:            false,
 	})
 }
 
@@ -574,7 +574,7 @@ func startFTPContainer(ctx context.Context) (testcontainers.Container, error) {
 	}
 	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
-		Reuse:            true,
+		Reuse:            false,
 	})
 }
 
@@ -590,7 +590,7 @@ func startSFTPContainer(ctx context.Context) (testcontainers.Container, error) {
 	}
 	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
-		Reuse:            true,
+		Reuse:            false,
 	})
 }
 
