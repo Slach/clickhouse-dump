@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/docker/docker/api/types/container"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -526,9 +525,11 @@ func startMinioContainer(ctx context.Context) (testcontainers.Container, error) 
 			"MINIO_SCHEME":          "http",
 			"BITNAMI_DEBUG":         "true",
 		},
-		WaitingFor: wait.ForHealthCheckCmd(
-			"sh", "-c",
-			"mc alias set myminio http://localhost:9000 minioadmin minioadmin && mc stat myminio/testbucket && curl -f http://localhost:9000/minio/health/live",
+		WaitingFor: wait.ForExec(
+			[]string{
+				"sh", "-c",
+				"ls -la /bitnami/minio/data/testbucket/ && curl -f http://localhost:9000/minio/health/live",
+			},
 		).WithStartupTimeout(2 * time.Minute).WithPollInterval(2 * time.Second),
 	}
 	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
