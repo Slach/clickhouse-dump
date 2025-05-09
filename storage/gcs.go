@@ -16,14 +16,35 @@ import (
 	"log"
 )
 
-// debugGCSTransport wraps an http.RoundTripper to log GCS requests and responses.
+// debugGCSTransport wraps an http.RoundTripper to log GCS requests and responses,
+// and to rewrite media upload URLs to a custom endpoint if specified.
 type debugGCSTransport struct {
-	base http.RoundTripper
+	base                 http.RoundTripper
+	isCustomEndpoint     bool
+	customEndpointScheme string
+	customEndpointHost   string // host:port
 }
 
-// RoundTrip executes a single HTTP transaction, adding logging before and after.
-func (w debugGCSTransport) RoundTrip(r *http.Request) (*http.Response, error) {
-	logMsg := fmt.Sprintf(">>> [GCS_REQUEST] >>> %v %v\n", r.Method, r.URL.String())
+// RoundTrip executes a single HTTP transaction, adding logging before and after,
+// and potentially rewriting the URL for media uploads to a custom endpoint.
+func (dgt debugGCSTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	originalURLStringForLog := r.URL.String() // Capture before potential modification
+
+	if dgt.isCustomEndpoint && r.URL.Host == "storage.googleapis.com" && strings.HasPrefix(r.URL.Path, "/upload/") {
+		// Log intent to rewrite
+		log.Printf("[GCS_REWRITE] Attempting to rewrite media upload URL from: %s", r.URL.String())
+		r.URL.Scheme = dgt.customEndpointScheme
+		r.URL.Host = dgt.customEndpointHost
+		// The path (e.g., /upload/storage/v1/b/bucket/o/object) should remain unchanged.
+		log.Printf("[GCS_REWRITE] Rewritten media upload URL to: %s", r.URL.String())
+	}
+
+	logMsg := fmt.Sprintf(">>> [GCS_REQUEST] >>> %v %v", r.Method, r.URL.String())
+	if originalURLStringForLog != r.URL.String() {
+		logMsg += fmt.Sprintf(" (original: %s)", originalURLStringForLog)
+	}
+	logMsg += "\n"
+
 	for h, values := range r.Header {
 		for _, v := range values {
 			logMsg += fmt.Sprintf("%v: %v\n", h, v)
@@ -31,12 +52,18 @@ func (w debugGCSTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 	log.Println(logMsg)
 
-	resp, err := w.base.RoundTrip(r)
+	resp, err := dgt.base.RoundTrip(r)
 	if err != nil {
 		log.Printf("GCS_ERROR: %v", err)
 		return resp, err
 	}
+
 	logMsg = fmt.Sprintf("<<< [GCS_RESPONSE: %s] <<< %v %v\n", resp.Status, r.Method, r.URL.String())
+	if originalURLStringForLog != r.URL.String() && resp != nil && resp.Request != nil && originalURLStringForLog != resp.Request.URL.String() {
+		// If the request URL was rewritten, also log the original URL context for the response
+		logMsg = fmt.Sprintf("<<< [GCS_RESPONSE: %s] <<< %v %v (original request URL: %s)\n", resp.Status, r.Method, r.URL.String(), originalURLStringForLog)
+	}
+
 	for h, values := range resp.Header {
 		for _, v := range values {
 			logMsg += fmt.Sprintf("%v: %v\n", h, v)
@@ -94,6 +121,21 @@ func NewGCSStorage(bucketName, endpoint, credentialsFile string) (*GCSStorage, e
 		ForceAttemptHTTP2:     true,
 	}
 
+	var ueScheme, ueHost string
+	var ueIsSet bool
+	if endpoint != "" { // endpoint is the original user-provided one
+		ueIsSet = true
+		parsedUserEndpoint, parseErr := url.Parse(endpoint)
+		if parseErr != nil {
+			return nil, fmt.Errorf("failed to parse custom endpoint URL '%s': %w", endpoint, parseErr)
+		}
+		ueScheme = parsedUserEndpoint.Scheme
+		ueHost = parsedUserEndpoint.Host
+		if ueScheme == "" || ueHost == "" {
+			return nil, fmt.Errorf("custom endpoint URL '%s' must include scheme and host", endpoint)
+		}
+	}
+
 	if endpoint != "" {
 		if strings.HasPrefix(endpoint, "http://") {
 			// For plain HTTP endpoints (like fake-gcs-server):
@@ -141,8 +183,13 @@ func NewGCSStorage(bucketName, endpoint, credentialsFile string) (*GCSStorage, e
 		}
 	}
 
-	// Wrap with debug transport for logging
-	transport = debugGCSTransport{base: transport}
+	// Wrap with debug transport for logging and URL rewriting
+	transport = debugGCSTransport{
+		base:                 transport,
+		isCustomEndpoint:     ueIsSet,
+		customEndpointScheme: ueScheme,
+		customEndpointHost:   ueHost,
+	}
 	httpClient := &http.Client{Transport: transport}
 
 	// Prepare options for storage.NewClient
