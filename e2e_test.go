@@ -16,15 +16,12 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
-func logFailMessage(t *testing.T, baseMessage string) {
+func logFailMessage(msg string) string {
 	ryukDisabled := os.Getenv("TESTCONTAINERS_RYUK_DISABLED") == "true"
-	fullMessage := baseMessage
-	if ryukDisabled {
-		fullMessage += " It will NOT be automatically destroyed by Ryuk because TESTCONTAINERS_RYUK_DISABLED=true. Unset this variable to allow Ryuk to manage container lifecycle."
-	} else {
-		fullMessage += " It will be automatically destroyed by Ryuk (testcontainers-go). To prevent this and keep the container running for inspection, set the environment variable TESTCONTAINERS_RYUK_DISABLED=true."
+	if ryukDisabled == false {
+		msg += " But it will be automatically destroyed by testcontainers-go. To prevent this and keep the container running for inspection, set the environment variable TESTCONTAINERS_RYUK_DISABLED=true."
 	}
-	t.Logf(fullMessage)
+	return msg
 }
 
 func TestE2E(t *testing.T) {
@@ -56,7 +53,7 @@ func TestE2E(t *testing.T) {
 						require.NoError(t, clearTestTables(ctx, t, clickhouseContainer))
 						require.NoError(t, clickhouseContainer.Terminate(ctx))
 					} else {
-						logFailMessage(t, "Test failed, tables are not cleared and ClickHouse container is not stopped.")
+						t.Log(logFailMessage("Test failed, tables are not cleared and ClickHouse container continue running."))
 						host, hostErr := clickhouseContainer.Host(ctx)
 						port, portErr := clickhouseContainer.MappedPort(ctx, "8123/tcp")
 						if hostErr == nil && portErr == nil {
@@ -334,7 +331,7 @@ func testS3Storage(ctx context.Context, t *testing.T, clickhouseContainer testco
 		if !t.Failed() {
 			require.NoError(t, minioContainer.Terminate(ctx))
 		} else {
-			logFailMessage(t, "Test failed, Minio container is not stopped.")
+			t.Log(logFailMessage("Test failed, Minio container continue running."))
 			host, hostErr := minioContainer.Host(ctx)
 			port, portErr := minioContainer.MappedPort(ctx, "9000/tcp")
 			if hostErr == nil && portErr == nil {
@@ -368,7 +365,7 @@ func testGCSStorage(ctx context.Context, t *testing.T, clickhouseContainer testc
 		if !t.Failed() {
 			require.NoError(t, gcsContainer.Terminate(ctx))
 		} else {
-			logFailMessage(t, "Test failed, fake GCS container is not stopped.")
+			t.Log(logFailMessage("Test failed, fake GCS container continue running."))
 			host, hostErr := gcsContainer.Host(ctx)
 			port, portErr := gcsContainer.MappedPort(ctx, "4443/tcp")
 			if hostErr == nil && portErr == nil {
@@ -399,7 +396,7 @@ func testAzureBlobStorage(ctx context.Context, t *testing.T, clickhouseContainer
 		if !t.Failed() {
 			require.NoError(t, azuriteContainer.Terminate(ctx))
 		} else {
-			logFailMessage(t, "Test failed, Azurite container is not stopped.")
+			t.Log(logFailMessage("Test failed, Azurite container continue running."))
 			host, hostErr := azuriteContainer.Host(ctx)
 			port, portErr := azuriteContainer.MappedPort(ctx, "10000/tcp")
 			if hostErr == nil && portErr == nil {
@@ -433,7 +430,7 @@ func testFTPStorage(ctx context.Context, t *testing.T, clickhouseContainer testc
 		if !t.Failed() {
 			require.NoError(t, ftpContainer.Terminate(ctx))
 		} else {
-			logFailMessage(t, "Test failed, FTP container is not stopped.")
+			t.Log(logFailMessage("Test failed, FTP container continue running."))
 			host, hostErr := ftpContainer.Host(ctx)
 			port, portErr := ftpContainer.MappedPort(ctx, "21/tcp")
 			if hostErr == nil && portErr == nil {
@@ -465,7 +462,7 @@ func testSFTPStorage(ctx context.Context, t *testing.T, clickhouseContainer test
 		if !t.Failed() {
 			require.NoError(t, sftpContainer.Terminate(ctx))
 		} else {
-			logFailMessage(t, "Test failed, SFTP container is not stopped.")
+			t.Log(logFailMessage("Test failed, SFTP container continue running."))
 			host, hostErr := sftpContainer.Host(ctx)
 			port, portErr := sftpContainer.MappedPort(ctx, "22/tcp")
 			if hostErr == nil && portErr == nil {
