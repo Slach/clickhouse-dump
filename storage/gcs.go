@@ -76,23 +76,53 @@ func NewGCSStorage(bucketName, endpoint, credentialsFile string) (*GCSStorage, e
 	}
 	ctx := context.Background()
 
-	// Options for googleHTTPTransport.NewClient to get an initial http.Client
-	httpClientOpts := []option.ClientOption{}
-	if credentialsFile == "" {
-		httpClientOpts = append(httpClientOpts, option.WithoutAuthentication())
-	} else {
-		httpClientOpts = append(httpClientOpts, option.WithCredentialsFile(credentialsFile))
+	// Base transport, starts similar to http.DefaultTransport
+	var transport http.RoundTripper = &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&http.Transport{ // Re-use default dialer settings from http.DefaultTransport
+			Proxy:                 http.ProxyFromEnvironment,
+			ForceAttemptHTTP2:     true,
+			MaxIdleConns:          100,
+			IdleConnTimeout:       90 * time.Second,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+		}).DialContext,
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		ForceAttemptHTTP2:     true,
 	}
 
 	if endpoint != "" {
-		httpClientOpts = append(httpClientOpts, option.WithEndpoint(endpoint))
-		// If endpoint starts with http://, configure a custom HTTP client
-		// to ensure communication happens over http, as fake-gcs-server expects.
 		if strings.HasPrefix(endpoint, "http://") {
-			// Base transport with typical production-like settings, but adjusted for local testing.
-			customTransport := &http.Transport{
+			// For plain HTTP endpoints (like fake-gcs-server):
+			// - Disable HTTP/2 (some emulators don't support it well)
+			// - Skip TLS verification (not strictly needed for HTTP, but InsecureSkipVerify is for HTTPS with self-signed certs)
+			// - Wrap with rewriteTransport to ensure HTTP scheme if SDK tries HTTPS.
+			plainHttpTransport := &http.Transport{
 				Proxy: http.ProxyFromEnvironment,
-				DialContext: (&http.Transport{ // Re-use default dialer settings from http.DefaultTransport
+				DialContext: (&http.Transport{
+					Proxy:                 http.ProxyFromEnvironment,
+					ForceAttemptHTTP2:     false, // Adjusted
+					MaxIdleConns:          100,
+					IdleConnTimeout:       90 * time.Second,
+					TLSHandshakeTimeout:   10 * time.Second,
+					ExpectContinueTimeout: 1 * time.Second,
+				}).DialContext,
+				MaxIdleConns:          100,
+				IdleConnTimeout:       90 * time.Second,
+				TLSHandshakeTimeout:   10 * time.Second,
+				ExpectContinueTimeout: 1 * time.Second,
+				ForceAttemptHTTP2:     false,                                 // Important: Disable HTTP/2 for http endpoints
+				TLSClientConfig:       &tls.Config{InsecureSkipVerify: true}, // For "https" URLs to "http" server
+			}
+			transport = rewriteTransport{base: plainHttpTransport}
+		} else if strings.HasPrefix(endpoint, "https://") {
+			// For HTTPS custom endpoints that might use self-signed certs
+			customHttpsTransport := &http.Transport{
+				Proxy: http.ProxyFromEnvironment,
+				DialContext: (&http.Transport{
 					Proxy:                 http.ProxyFromEnvironment,
 					ForceAttemptHTTP2:     true,
 					MaxIdleConns:          100,
@@ -100,51 +130,54 @@ func NewGCSStorage(bucketName, endpoint, credentialsFile string) (*GCSStorage, e
 					TLSHandshakeTimeout:   10 * time.Second,
 					ExpectContinueTimeout: 1 * time.Second,
 				}).DialContext,
-				MaxIdleConns:          10, // Reduced for local testing
-				MaxIdleConnsPerHost:   10, // Reduced for local testing
+				MaxIdleConns:          100,
 				IdleConnTimeout:       90 * time.Second,
 				TLSHandshakeTimeout:   10 * time.Second,
 				ExpectContinueTimeout: 1 * time.Second,
-				ForceAttemptHTTP2:     false,                                 // Important: Disable HTTP/2 for http endpoints
-				TLSClientConfig:       &tls.Config{InsecureSkipVerify: true}, // Allow self-signed certs for local http
+				ForceAttemptHTTP2:     true,
+				TLSClientConfig:       &tls.Config{InsecureSkipVerify: true}, // Allow self-signed
 			}
-
-			// Wrap with rewriteTransport to ensure http scheme
-			customRoundTripper := rewriteTransport{base: customTransport}
-
-			// Specify that googleHTTPTransport.NewClient should use this customRoundTripper
-			underlyingHttpClientForHttpScheme := &http.Client{Transport: customRoundTripper}
-			httpClientOpts = append(httpClientOpts, option.WithHTTPClient(underlyingHttpClientForHttpScheme))
+			transport = customHttpsTransport
 		}
 	}
 
-	// Get the base http.Client that the Google SDK would use, configured with above options
-	effectiveHttpClient, _, err := googleHTTPTransport.NewClient(ctx, httpClientOpts...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create intermediate GCS HTTP client: %w", err)
-	}
+	// Wrap with debug transport for logging
+	transport = debugGCSTransport{base: transport}
+	httpClient := &http.Client{Transport: transport}
 
-	// Wrap its transport with the debug transport for logging
-	effectiveHttpClient.Transport = debugGCSTransport{base: effectiveHttpClient.Transport}
+	// Prepare options for storage.NewClient
+	storageClientOpts := []option.ClientOption{option.WithHTTPClient(httpClient)}
 
-	// Now, prepare options for storage.NewClient, telling it to use our modified http.Client
-	storageClientOpts := []option.ClientOption{}
-	// Propagate essential options that storage.NewClient might also need:
 	if credentialsFile == "" {
 		storageClientOpts = append(storageClientOpts, option.WithoutAuthentication())
 	} else {
 		storageClientOpts = append(storageClientOpts, option.WithCredentialsFile(credentialsFile))
 	}
-	if endpoint != "" {
-		storageClientOpts = append(storageClientOpts, option.WithEndpoint(endpoint))
-	}
-	// Crucially, add our debug-wrapped http client
-	storageClientOpts = append(storageClientOpts, option.WithHTTPClient(effectiveHttpClient))
 
-	// Creates the main storage client using the debug-wrapped http client
+	if endpoint != "" {
+		// Adjust endpoint to include /storage/v1/ path for GCS, as SDK might need it
+		// for resolving all API paths correctly, especially MediaBasePath.
+		gcsEndpointForClient := endpoint // Default to original
+		parsedURL, parseErr := url.Parse(endpoint)
+		if parseErr == nil {
+			// Only adjust if the path is empty or just "/"
+			// This means endpoint was like "http://host:port" or "http://host:port/"
+			if parsedURL.Path == "" || parsedURL.Path == "/" {
+				base := strings.TrimSuffix(endpoint, "/")
+				gcsEndpointForClient = base + "/storage/v1/"
+				log.Printf("Adjusted GCS endpoint for storage.NewClient: %s (original: %s)", gcsEndpointForClient, endpoint)
+			} else {
+				log.Printf("Using GCS endpoint as is (already has a path component): %s", endpoint)
+			}
+		} else {
+			log.Printf("Warning: Could not parse GCS endpoint '%s' to adjust path: %v. Using it as is.", endpoint, parseErr)
+		}
+		storageClientOpts = append(storageClientOpts, option.WithEndpoint(gcsEndpointForClient))
+	}
+
 	client, err := storage.NewClient(ctx, storageClientOpts...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create gcs client with debug transport: %w", err)
+		return nil, fmt.Errorf("failed to create gcs client: %w", err)
 	}
 
 	return &GCSStorage{
