@@ -45,7 +45,14 @@ func TestE2E(t *testing.T) {
 						require.NoError(t, clearTestTables(ctx, t, clickhouseContainer))
 						require.NoError(t, clickhouseContainer.Terminate(ctx))
 					} else {
-						t.Logf("Test failed, tables are not cleared and ClickHouse container is not stopped.")
+						ryukDisabled := os.Getenv("TESTCONTAINERS_RYUK_DISABLED") == "true"
+						var logMessage string
+						if ryukDisabled {
+							logMessage = "Test failed, tables are not cleared and ClickHouse container is not stopped. It will NOT be automatically destroyed by Ryuk because TESTCONTAINERS_RYUK_DISABLED=true. Unset this variable to allow Ryuk to manage container lifecycle."
+						} else {
+							logMessage = "Test failed, tables are not cleared and ClickHouse container is not stopped. It will be automatically destroyed by Ryuk (testcontainers-go). To prevent this and keep the container running for inspection, set the environment variable TESTCONTAINERS_RYUK_DISABLED=true."
+						}
+						t.Logf(logMessage)
 						host, hostErr := clickhouseContainer.Host(ctx)
 						port, portErr := clickhouseContainer.MappedPort(ctx, "8123/tcp")
 						if hostErr == nil && portErr == nil {
@@ -323,7 +330,14 @@ func testS3Storage(ctx context.Context, t *testing.T, clickhouseContainer testco
 		if !t.Failed() {
 			require.NoError(t, minioContainer.Terminate(ctx))
 		} else {
-			t.Logf("Test failed, Minio container is not stopped.")
+			ryukDisabled := os.Getenv("TESTCONTAINERS_RYUK_DISABLED") == "true"
+			var logMessage string
+			if ryukDisabled {
+				logMessage = "Test failed, Minio container is not stopped. It will NOT be automatically destroyed by Ryuk because TESTCONTAINERS_RYUK_DISABLED=true. Unset this variable to allow Ryuk to manage container lifecycle."
+			} else {
+				logMessage = "Test failed, Minio container is not stopped. It will be automatically destroyed by Ryuk (testcontainers-go). To prevent this and keep the container running for inspection, set the environment variable TESTCONTAINERS_RYUK_DISABLED=true."
+			}
+			t.Logf(logMessage)
 			host, hostErr := minioContainer.Host(ctx)
 			port, portErr := minioContainer.MappedPort(ctx, "9000/tcp")
 			if hostErr == nil && portErr == nil {
@@ -357,7 +371,14 @@ func testGCSStorage(ctx context.Context, t *testing.T, clickhouseContainer testc
 		if !t.Failed() {
 			require.NoError(t, gcsContainer.Terminate(ctx))
 		} else {
-			t.Logf("Test failed, fake GCS container is not stopped.")
+			ryukDisabled := os.Getenv("TESTCONTAINERS_RYUK_DISABLED") == "true"
+			var logMessage string
+			if ryukDisabled {
+				logMessage = "Test failed, fake GCS container is not stopped. It will NOT be automatically destroyed by Ryuk because TESTCONTAINERS_RYUK_DISABLED=true. Unset this variable to allow Ryuk to manage container lifecycle."
+			} else {
+				logMessage = "Test failed, fake GCS container is not stopped. It will be automatically destroyed by Ryuk (testcontainers-go). To prevent this and keep the container running for inspection, set the environment variable TESTCONTAINERS_RYUK_DISABLED=true."
+			}
+			t.Logf(logMessage)
 			host, hostErr := gcsContainer.Host(ctx)
 			port, portErr := gcsContainer.MappedPort(ctx, "4443/tcp")
 			if hostErr == nil && portErr == nil {
@@ -388,7 +409,14 @@ func testAzureBlobStorage(ctx context.Context, t *testing.T, clickhouseContainer
 		if !t.Failed() {
 			require.NoError(t, azuriteContainer.Terminate(ctx))
 		} else {
-			t.Logf("Test failed, Azurite container is not stopped.")
+			ryukDisabled := os.Getenv("TESTCONTAINERS_RYUK_DISABLED") == "true"
+			var logMessage string
+			if ryukDisabled {
+				logMessage = "Test failed, Azurite container is not stopped. It will NOT be automatically destroyed by Ryuk because TESTCONTAINERS_RYUK_DISABLED=true. Unset this variable to allow Ryuk to manage container lifecycle."
+			} else {
+				logMessage = "Test failed, Azurite container is not stopped. It will be automatically destroyed by Ryuk (testcontainers-go). To prevent this and keep the container running for inspection, set the environment variable TESTCONTAINERS_RYUK_DISABLED=true."
+			}
+			t.Logf(logMessage)
 			host, hostErr := azuriteContainer.Host(ctx)
 			port, portErr := azuriteContainer.MappedPort(ctx, "10000/tcp")
 			if hostErr == nil && portErr == nil {
@@ -422,7 +450,14 @@ func testFTPStorage(ctx context.Context, t *testing.T, clickhouseContainer testc
 		if !t.Failed() {
 			require.NoError(t, ftpContainer.Terminate(ctx))
 		} else {
-			t.Logf("Test failed, FTP container is not stopped.")
+			ryukDisabled := os.Getenv("TESTCONTAINERS_RYUK_DISABLED") == "true"
+			var logMessage string
+			if ryukDisabled {
+				logMessage = "Test failed, FTP container is not stopped. It will NOT be automatically destroyed by Ryuk because TESTCONTAINERS_RYUK_DISABLED=true. Unset this variable to allow Ryuk to manage container lifecycle."
+			} else {
+				logMessage = "Test failed, FTP container is not stopped. It will be automatically destroyed by Ryuk (testcontainers-go). To prevent this and keep the container running for inspection, set the environment variable TESTCONTAINERS_RYUK_DISABLED=true."
+			}
+			t.Logf(logMessage)
 			host, hostErr := ftpContainer.Host(ctx)
 			port, portErr := ftpContainer.MappedPort(ctx, "21/tcp")
 			if hostErr == nil && portErr == nil {
@@ -454,7 +489,14 @@ func testSFTPStorage(ctx context.Context, t *testing.T, clickhouseContainer test
 		if !t.Failed() {
 			require.NoError(t, sftpContainer.Terminate(ctx))
 		} else {
-			t.Logf("Test failed, SFTP container is not stopped.")
+			ryukDisabled := os.Getenv("TESTCONTAINERS_RYUK_DISABLED") == "true"
+			var logMessage string
+			if ryukDisabled {
+				logMessage = "Test failed, SFTP container is not stopped. It will NOT be automatically destroyed by Ryuk because TESTCONTAINERS_RYUK_DISABLED=true. Unset this variable to allow Ryuk to manage container lifecycle."
+			} else {
+				logMessage = "Test failed, SFTP container is not stopped. It will be automatically destroyed by Ryuk (testcontainers-go). To prevent this and keep the container running for inspection, set the environment variable TESTCONTAINERS_RYUK_DISABLED=true."
+			}
+			t.Logf(logMessage)
 			host, hostErr := sftpContainer.Host(ctx)
 			port, portErr := sftpContainer.MappedPort(ctx, "22/tcp")
 			if hostErr == nil && portErr == nil {
