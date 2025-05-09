@@ -3,12 +3,16 @@ package storage
 import (
 	"context"
 	"fmt"
+	"context"
+	"errors"
+	"fmt"
 	"io"
 	"log"
 	"os"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -92,7 +96,7 @@ func NewS3Storage(bucket, region, accessKey, secretKey, endpoint string, debug b
 func (s *S3Storage) Upload(filename string, reader io.Reader, format string, level int) error {
 	compressedReader, ext := compressStream(reader, format, level)
 	s3Key := strings.TrimPrefix(filename, "/") + ext
-	_, err := s.uploader.Upload(context.Background(), &s3.PutObjectInput{
+	_, err := s.uploader.Upload(context.TODO(), &s3.PutObjectInput{
 		Bucket: aws.String(s.bucket),
 		Key:    aws.String(s3Key),
 		Body:   compressedReader,
@@ -100,24 +104,88 @@ func (s *S3Storage) Upload(filename string, reader io.Reader, format string, lev
 	return err
 }
 
+// tempFileCloser оборачивает io.ReadCloser (обычно *os.File)
+// и гарантирует удаление временного файла при вызове Close.
+type tempFileCloser struct {
+	io.ReadCloser
+	name string // Путь к временному файлу
+}
+
+// Close закрывает нижележащий ReadCloser, а затем удаляет временный файл.
+func (tfc *tempFileCloser) Close() error {
+	closeErr := tfc.ReadCloser.Close()
+	removeErr := os.Remove(tfc.name)
+	if closeErr != nil {
+		// Если закрытие ридера не удалось, возвращаем эту ошибку.
+		// Логгируем ошибку удаления, если она также произошла.
+		if removeErr != nil {
+			log.Printf("also failed to remove temporary file %s: %v", tfc.name, removeErr)
+		}
+		return closeErr
+	}
+	// Если закрытие прошло успешно, возвращаем ошибку удаления (если есть).
+	return removeErr
+}
+
 func (s *S3Storage) Download(filename string) (io.ReadCloser, error) {
-	writer, err := os.CreateTemp(filename, strings.ReplaceAll(filename, "/", "_"))
-	if err != nil {
-		return nil, err
+	extensionsToTry := []string{".gz", ".zstd", ""} // Сначала пробуем сжатые, потом сырой
+	baseS3Key := strings.TrimPrefix(filename, "/")
+	var lastErr error
+
+	for _, ext := range extensionsToTry {
+		s3Key := baseS3Key + ext
+
+		// Создаем временный файл для загрузки
+		tempFile, err := os.CreateTemp("", "s3-download-*")
+		if err != nil {
+			return nil, fmt.Errorf("failed to create temporary file: %w", err)
+		}
+
+		// Пытаемся загрузить
+		_, err = s.downloader.Download(context.TODO(), tempFile, &s3.GetObjectInput{
+			Bucket: aws.String(s.bucket),
+			Key:    aws.String(s3Key),
+		})
+
+		if err == nil {
+			// Загрузка успешна
+			// Перемещаем указатель в начало файла для чтения его содержимого
+			if _, seekErr := tempFile.Seek(0, io.SeekStart); seekErr != nil {
+				_ = tempFile.Close()           // Пытаемся закрыть
+				_ = os.Remove(tempFile.Name()) // Пытаемся удалить
+				return nil, fmt.Errorf("failed to seek temporary file: %w", seekErr)
+			}
+
+			// Оборачиваем файл в декомпрессор и кастомный closer для удаления временного файла
+			decompressedStream := decompressStream(tempFile, s3Key) // tempFile это io.ReadCloser
+			return &tempFileCloser{ReadCloser: decompressedStream, name: tempFile.Name()}, nil
+		}
+
+		// Загрузка не удалась, очищаем текущий tempFile
+		_ = tempFile.Close()
+		_ = os.Remove(tempFile.Name()) // Удаляем (вероятно, пустой или частично записанный) временный файл
+
+		// Проверяем, является ли ошибка NoSuchKey (или эквивалентной)
+		var nsk *types.NoSuchKey
+		if errors.As(err, &nsk) {
+			lastErr = fmt.Errorf("object %s not found in S3: %w", s3Key, err)
+			continue // Пробуем следующее расширение
+		}
+
+		// Для других ошибок S3 возвращаем немедленно
+		return nil, fmt.Errorf("failed to download %s from S3: %w", s3Key, err)
 	}
-	s3Key := strings.TrimPrefix(filename, "/")
-	_, err = s.downloader.Download(context.TODO(), writer, &s3.GetObjectInput{
-		Bucket: aws.String(s.bucket),
-		Key:    aws.String(s3Key),
-	})
-	if err != nil {
-		return nil, err
+
+	// Если все попытки не увенчались успехом (вероятно, все были NoSuchKey)
+	if lastErr != nil {
+		return nil, lastErr
 	}
-	return io.NopCloser(decompressStream(writer, filename)), nil
+	// Эта ветка не должна достигаться, если extensionsToTry не пуст, но как запасной вариант:
+	return nil, fmt.Errorf("object %s not found with any compression extension", baseS3Key)
 }
 
 func (s *S3Storage) List(prefix string, recursive bool) ([]string, error) {
-	ctx := context.Background()
+	ctx := context.TODO()
 	var objectNames []string
 
 	s3Prefix := strings.TrimPrefix(prefix, "/")
