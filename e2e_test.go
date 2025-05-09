@@ -497,6 +497,7 @@ func testFileStorage(ctx context.Context, t *testing.T, clickhouseContainer test
 
 func startClickHouseContainer(ctx context.Context) (testcontainers.Container, error) {
 	req := testcontainers.ContainerRequest{
+		Name:         "clickhouse-dump-test-clickhouse",
 		Image:        "clickhouse/clickhouse-server:latest",
 		ExposedPorts: []string{"8123/tcp"},
 		Env: map[string]string{
@@ -513,6 +514,7 @@ func startClickHouseContainer(ctx context.Context) (testcontainers.Container, er
 
 func startMinioContainer(ctx context.Context) (testcontainers.Container, error) {
 	req := testcontainers.ContainerRequest{
+		Name:         "clickhouse-dump-test-minio",
 		Image:        "bitnami/minio:latest",
 		ExposedPorts: []string{"9000/tcp"},
 		Env: map[string]string{
@@ -533,6 +535,7 @@ func startMinioContainer(ctx context.Context) (testcontainers.Container, error) 
 
 func startFakeGCSContainer(ctx context.Context) (testcontainers.Container, error) {
 	req := testcontainers.ContainerRequest{
+		Name:         "clickhouse-dump-test-gcs",
 		Image:        "fsouza/fake-gcs-server:latest",
 		ExposedPorts: []string{"4443/tcp"},
 		Cmd:          []string{"-scheme", "http"},
@@ -547,6 +550,7 @@ func startFakeGCSContainer(ctx context.Context) (testcontainers.Container, error
 
 func startAzuriteContainer(ctx context.Context) (testcontainers.Container, error) {
 	req := testcontainers.ContainerRequest{
+		Name:         "clickhouse-dump-test-azurite",
 		Image:        "mcr.microsoft.com/azure-storage/azurite:latest",
 		ExposedPorts: []string{"10000/tcp"},
 		Cmd:          []string{"azurite-blob", "--blobHost", "0.0.0.0"},
@@ -561,6 +565,7 @@ func startAzuriteContainer(ctx context.Context) (testcontainers.Container, error
 
 func startFTPContainer(ctx context.Context) (testcontainers.Container, error) {
 	req := testcontainers.ContainerRequest{
+		Name:         "clickhouse-dump-test-ftp",
 		Image:        "fauria/vsftpd:latest",
 		ExposedPorts: []string{"21/tcp"},
 		Env: map[string]string{
@@ -579,6 +584,7 @@ func startFTPContainer(ctx context.Context) (testcontainers.Container, error) {
 
 func startSFTPContainer(ctx context.Context) (testcontainers.Container, error) {
 	req := testcontainers.ContainerRequest{
+		Name:         "clickhouse-dump-test-sftp",
 		Image:        "panubo/sshd:latest",
 		ExposedPorts: []string{"22/tcp"},
 		Env: map[string]string{
