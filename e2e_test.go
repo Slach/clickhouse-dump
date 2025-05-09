@@ -182,10 +182,12 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 				"test_db2.inventory",
 				"logs_2023.events",
 				"logs_2024.events",
+				"system_db.settings", // Verify this is NOT restored despite being in backup
 			},
 			expectedMissing: []string{
 				"test_db1.logs",
 				"test_db3.metrics",
+				"system_db.settings", // Should be excluded by default
 			},
 		},
 		"complex_pattern": {
