@@ -527,9 +527,9 @@ func startMinioContainer(ctx context.Context) (testcontainers.Container, error) 
 		},
 		Healthcheck: &testcontainers.HealthCheck{
 			Test:     []string{"CMD-SHELL", "ls -la /bitnami/minio/data/testbucket/ || exit 1 && curl -skL http://localhost:9000/minio/health/live"},
-			Interval: 5 * time.Second,
+			Interval: 1 * time.Second,
 			Timeout:  3 * time.Second,
-			Retries:  3,
+			Retries:  60,
 		},
 		WaitingFor: wait.ForHTTP("/minio/health/ready").WithPort("9000/tcp").WithStartupTimeout(2 * time.Minute),
 	}
