@@ -54,17 +54,21 @@ func NewDumper(config *Config) (*Dumper, error) {
 }
 
 func (d *Dumper) GetDatabases() ([]string, error) {
+	where := make([]string, 0, 2)
+	if d.config.Databases != "" {
+		where = append(where, fmt.Sprintf("match(name, '%s')", d.config.Databases))
+	}
+	if d.config.ExcludeDatabases != "" {
+		where = append(where, fmt.Sprintf("NOT match(name, '%s')", d.config.ExcludeDatabases))
+	}
 	query := fmt.Sprintf(`
 		SELECT name 
 		FROM system.databases 
-		WHERE 
-			match(name, '%s') AND 
-			NOT match(name, '%s')
-		FORMAT TabSeparated`,
-		d.config.Databases,
-		d.config.ExcludeDatabases)
+		WHERE %s 
+		FORMAT TSVRaw`,
+		strings.Join(where, " AND "),
+	)
 
-	d.debugf("Database query: %s", query)
 	resp, err := d.client.ExecuteQuery(query)
 	if err != nil {
 		return nil, err
@@ -135,22 +139,25 @@ func (d *Dumper) Dump() error {
 }
 
 func (d *Dumper) getTables() (map[string][]string, error) {
+	where := make([]string, 0, 4)
+	if d.config.Databases != "" {
+		where = append(where, fmt.Sprintf("match(database, '%s')", d.config.Databases))
+	}
+	if d.config.ExcludeDatabases != "" {
+		where = append(where, fmt.Sprintf("NOT match(database, '%s')", d.config.ExcludeDatabases))
+	}
+	if d.config.Tables != "" {
+		where = append(where, fmt.Sprintf("match(name, '%s')", d.config.Tables))
+	}
+	if d.config.ExcludeTables != "" {
+		where = append(where, fmt.Sprintf("NOT match(name, '%s')", d.config.ExcludeTables))
+	}
 	query := fmt.Sprintf(`
 		SELECT 
 			database, 
 			name 
 		FROM system.tables 
-		WHERE 
-			match(database, '%s') AND 
-			NOT match(database, '%s') AND
-			match(name, '%s') AND
-			(NOT match(name, '%s') OR '%s' = '')
-		FORMAT TSVRaw`,
-		d.config.Databases,
-		d.config.ExcludeDatabases,
-		d.config.Tables,
-		d.config.ExcludeTables,
-		d.config.ExcludeTables)
+		WHERE %s`, strings.Join(where, " AND "))
 
 	resp, err := d.client.ExecuteQuery(query)
 	if err != nil {
@@ -200,8 +207,12 @@ func (d *Dumper) dumpData(dbName, tableName string) error {
 	return d.storage.Upload(filename, body, d.config.CompressFormat, d.config.CompressLevel)
 }
 
-func (d *Dumper) debugf(format string, args ...interface{}) {
+func (d *Dumper) debugf(msg string, args ...interface{}) {
 	if d.config.Debug {
-		log.Printf(format, args...)
+		if len(args) > 0 {
+			log.Printf(msg, args...)
+		} else {
+			log.Println(msg)
+		}
 	}
 }

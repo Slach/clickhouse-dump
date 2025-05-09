@@ -54,7 +54,7 @@ var app = &cli.App{
 		},
 		&cli.StringFlag{
 			Name:    "exclude-databases",
-			Value:   "system|INFORMATION_SCHEMA|information_schema",
+			Value:   "^system$|^INFORMATION_SCHEMA$|^information_schema$",
 			Usage:   "Regexp pattern for databases to exclude",
 			EnvVars: []string{"EXCLUDE_DATABASES"},
 		},
@@ -248,9 +248,11 @@ func getConfig(c *cli.Context) (*Config, error) {
 		StorageConfig: map[string]string{
 			"path": c.String("storage-path"),
 		},
-		Debug:           c.Bool("debug"),
+		Debug: c.Bool("debug"),
 	}
-
+	if config.ExcludeDatabases == "" {
+		config.ExcludeDatabases = "^system$|^INFORMATION_SCHEMA$|^information_schema$"
+	}
 	// Populate StorageConfig based on StorageType
 	switch config.StorageType {
 	case "file":

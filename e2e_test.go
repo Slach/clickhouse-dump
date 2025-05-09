@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -142,8 +141,8 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 				fmt.Sprintf("%s/test_db1/logs.data.sql", backupName),
 				fmt.Sprintf("%s/test_db1/audit_log.schema.sql", backupName),
 				fmt.Sprintf("%s/test_db1/audit_log.data.sql", backupName),
-				fmt.Sprintf("%s/test_db1/events.schema.sql", backupName),
-				fmt.Sprintf("%s/test_db1/events.data.sql", backupName),
+				fmt.Sprintf("%s/logs_2024/events.schema.sql", backupName),
+				fmt.Sprintf("%s/logs_2024/events.data.sql", backupName),
 			},
 			expectedRestored: []string{
 				"test_db1.users",
@@ -161,7 +160,7 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 		},
 		"exclude_tables": {
 			databases:        ".*",
-			excludeDatabases: "system_db",
+			excludeDatabases: "",
 			tables:           ".*",
 			excludeTables:    "logs|metrics",
 			expectedFiles: []string{
@@ -173,19 +172,21 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 				fmt.Sprintf("%s/test_db2/products.data.sql", backupName),
 				fmt.Sprintf("%s/test_db2/inventory.schema.sql", backupName),
 				fmt.Sprintf("%s/test_db2/inventory.data.sql", backupName),
+				fmt.Sprintf("%s/system_db/settings.schema.sql", backupName),
+				fmt.Sprintf("%s/system_db/settings.data.sql", backupName),
 			},
 			expectedRestored: []string{
 				"test_db1.users",
 				"test_db1.audit_log",
 				"test_db2.products",
 				"test_db2.inventory",
+				"logs_2023.events",
+				"logs_2024.events",
+				"system_db.settings",
 			},
 			expectedMissing: []string{
 				"test_db1.logs",
 				"test_db3.metrics",
-				"logs_2023.events",
-				"logs_2024.events",
-				"system_db.settings",
 			},
 		},
 		"complex_pattern": {
@@ -194,12 +195,12 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 			tables:           "users|products|events",
 			excludeTables:    "",
 			expectedFiles: []string{
-				"test_db1.users.schema.sql",
-				"test_db1.users.data.sql",
-				"test_db2.products.schema.sql",
-				"test_db2.products.data.sql",
-				"logs_2024.events.schema.sql",
-				"logs_2024.events.data.sql",
+				fmt.Sprintf("%s/test_db1/users.schema.sql", backupName),
+				fmt.Sprintf("%s/test_db1/users.data.sql", backupName),
+				fmt.Sprintf("%s/test_db2/products.schema.sql", backupName),
+				fmt.Sprintf("%s/test_db2/products.data.sql", backupName),
+				fmt.Sprintf("%s/logs_2024/events.schema.sql", backupName),
+				fmt.Sprintf("%s/logs_2024/events.data.sql", backupName),
 			},
 			expectedRestored: []string{
 				"test_db1.users",
@@ -226,7 +227,7 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 	args := []string{
 		"clickhouse-dump",
 		"--host=" + host,
-		"--port=" + strconv.Itoa(port.Int()),
+		"--port=" + port.Port(),
 		"--user=default",
 		"--databases=" + tc.databases,
 		"--exclude-databases=" + tc.excludeDatabases,
@@ -246,6 +247,7 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 
 	// Test 1: Dump
 	dumpArgs := append(args, "dump", backupName)
+	t.Logf("dumpArgs=%#v", dumpArgs)
 	dumpErr := app.Run(dumpArgs)
 	require.NoError(t, dumpErr, "fail to execute dump command %v", dumpArgs)
 	// Verify dump files were created
@@ -259,6 +261,7 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 	// Test 2: Restore
 	restoreArgs := append(args, "restore", backupName)
 	restoreErr := app.Run(restoreArgs)
+	t.Logf("restoreArgs=%#v", restoreArgs)
 	require.NoError(t, restoreErr, "fail to execute restore command %v", restoreArgs)
 
 	for _, table := range tc.expectedRestored {
