@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
@@ -523,7 +524,7 @@ func startMinioContainer(ctx context.Context) (testcontainers.Container, error) 
 			"MINIO_SCHEME":          "http",
 			"BITNAMI_DEBUG":         "true",
 		},
-		WaitingFor: wait.ForHTTP("/minio/health/ready").WithPort("9000/tcp"),
+		WaitingFor: wait.ForHTTP("/minio/health/ready").WithPort("9000/tcp").WithStartupTimeout(2 * time.Minute),
 	}
 	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
