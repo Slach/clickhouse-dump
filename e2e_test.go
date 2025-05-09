@@ -47,7 +47,7 @@ func TestE2E(t *testing.T) {
 					} else {
 						t.Logf("Test failed, tables are not cleared and ClickHouse container is not stopped.")
 						host, hostErr := clickhouseContainer.Host(ctx)
-						port, portErr := clickhouseContainer.MappedPort(ctx, "8123")
+						port, portErr := clickhouseContainer.MappedPort(ctx, "8123/tcp")
 						if hostErr == nil && portErr == nil {
 							t.Logf("ClickHouse container %s is available at %s:%s", clickhouseContainer.GetContainerID(), host, port.Port())
 						}
@@ -85,7 +85,7 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 	// Get ClickHouse connection details
 	host, err := clickhouseContainer.Host(ctx)
 	require.NoError(t, err)
-	port, err := clickhouseContainer.MappedPort(ctx, "8123")
+	port, err := clickhouseContainer.MappedPort(ctx, "8123/tcp")
 	require.NoError(t, err)
 
 	// Define test cases
@@ -325,7 +325,7 @@ func testS3Storage(ctx context.Context, t *testing.T, clickhouseContainer testco
 		} else {
 			t.Logf("Test failed, Minio container is not stopped.")
 			host, hostErr := minioContainer.Host(ctx)
-			port, portErr := minioContainer.MappedPort(ctx, "9000")
+			port, portErr := minioContainer.MappedPort(ctx, "9000/tcp")
 			if hostErr == nil && portErr == nil {
 				t.Logf("Minio container %s is available at http://%s:%s (MINIO_ROOT_USER: minioadmin, MINIO_ROOT_PASSWORD: minioadmin)", minioContainer.GetContainerID(), host, port.Port())
 			}
@@ -335,7 +335,7 @@ func testS3Storage(ctx context.Context, t *testing.T, clickhouseContainer testco
 	minioHost, err := minioContainer.Host(ctx)
 	require.NoError(t, err, "Failed to get Minio host")
 
-	minioPort, err := minioContainer.MappedPort(ctx, "9000")
+	minioPort, err := minioContainer.MappedPort(ctx, "9000/tcp")
 	require.NoError(t, err, "Failed to get Minio port")
 
 	runMainTestScenario(ctx, t, clickhouseContainer, map[string]string{
@@ -359,7 +359,7 @@ func testGCSStorage(ctx context.Context, t *testing.T, clickhouseContainer testc
 		} else {
 			t.Logf("Test failed, fake GCS container is not stopped.")
 			host, hostErr := gcsContainer.Host(ctx)
-			port, portErr := gcsContainer.MappedPort(ctx, "4443")
+			port, portErr := gcsContainer.MappedPort(ctx, "4443/tcp")
 			if hostErr == nil && portErr == nil {
 				t.Logf("Fake GCS container %s is available at http://%s:%s", gcsContainer.GetContainerID(), host, port.Port())
 			}
@@ -369,7 +369,7 @@ func testGCSStorage(ctx context.Context, t *testing.T, clickhouseContainer testc
 	gcsHost, err := gcsContainer.Host(ctx)
 	require.NoError(t, err, "Failed to get GCS host")
 
-	gcsPort, err := gcsContainer.MappedPort(ctx, "4443")
+	gcsPort, err := gcsContainer.MappedPort(ctx, "4443/tcp")
 	require.NoError(t, err, "Failed to get GCS port")
 
 	runMainTestScenario(ctx, t, clickhouseContainer, map[string]string{
@@ -390,7 +390,7 @@ func testAzureBlobStorage(ctx context.Context, t *testing.T, clickhouseContainer
 		} else {
 			t.Logf("Test failed, Azurite container is not stopped.")
 			host, hostErr := azuriteContainer.Host(ctx)
-			port, portErr := azuriteContainer.MappedPort(ctx, "10000")
+			port, portErr := azuriteContainer.MappedPort(ctx, "10000/tcp")
 			if hostErr == nil && portErr == nil {
 				t.Logf("Azurite container %s is available. Blob endpoint: http://%s:%s/devstoreaccount1", azuriteContainer.GetContainerID(), host, port.Port())
 			}
@@ -400,7 +400,7 @@ func testAzureBlobStorage(ctx context.Context, t *testing.T, clickhouseContainer
 	azuriteHost, err := azuriteContainer.Host(ctx)
 	require.NoError(t, err, "Failed to get Azurite host")
 
-	azuritePort, err := azuriteContainer.MappedPort(ctx, "10000")
+	azuritePort, err := azuriteContainer.MappedPort(ctx, "10000/tcp")
 	require.NoError(t, err, "Failed to get Azurite port")
 
 	// For Azurite (local testing), we need to use special credentials and endpoint
@@ -424,7 +424,7 @@ func testFTPStorage(ctx context.Context, t *testing.T, clickhouseContainer testc
 		} else {
 			t.Logf("Test failed, FTP container is not stopped.")
 			host, hostErr := ftpContainer.Host(ctx)
-			port, portErr := ftpContainer.MappedPort(ctx, "21")
+			port, portErr := ftpContainer.MappedPort(ctx, "21/tcp")
 			if hostErr == nil && portErr == nil {
 				t.Logf("FTP container %s is available at ftp://%s:%s (user: testuser, pass: testpass)", ftpContainer.GetContainerID(), host, port.Port())
 			}
@@ -434,7 +434,7 @@ func testFTPStorage(ctx context.Context, t *testing.T, clickhouseContainer testc
 	ftpHost, err := ftpContainer.Host(ctx)
 	require.NoError(t, err, "Failed to get FTP host")
 
-	ftpPort, err := ftpContainer.MappedPort(ctx, "21")
+	ftpPort, err := ftpContainer.MappedPort(ctx, "21/tcp")
 	require.NoError(t, err, "Failed to get FTP port")
 
 	runMainTestScenario(ctx, t, clickhouseContainer, map[string]string{
@@ -456,7 +456,7 @@ func testSFTPStorage(ctx context.Context, t *testing.T, clickhouseContainer test
 		} else {
 			t.Logf("Test failed, SFTP container is not stopped.")
 			host, hostErr := sftpContainer.Host(ctx)
-			port, portErr := sftpContainer.MappedPort(ctx, "22")
+			port, portErr := sftpContainer.MappedPort(ctx, "22/tcp")
 			if hostErr == nil && portErr == nil {
 				t.Logf("SFTP container %s is available at sftp://%s:%s (user: testuser, pass: testpass)", sftpContainer.GetContainerID(), host, port.Port())
 			}
@@ -466,7 +466,7 @@ func testSFTPStorage(ctx context.Context, t *testing.T, clickhouseContainer test
 	sftpHost, err := sftpContainer.Host(ctx)
 	require.NoError(t, err, "Failed to get SFTP host")
 
-	sftpPort, err := sftpContainer.MappedPort(ctx, "22")
+	sftpPort, err := sftpContainer.MappedPort(ctx, "22/tcp")
 	require.NoError(t, err, "Failed to get SFTP port")
 
 	runMainTestScenario(ctx, t, clickhouseContainer, map[string]string{
@@ -758,7 +758,7 @@ func executeTestQuery(ctx context.Context, t *testing.T, container testcontainer
 		return err
 	}
 
-	port, err := container.MappedPort(ctx, "8123")
+	port, err := container.MappedPort(ctx, "8123/tcp")
 	if err != nil {
 		return err
 	}
@@ -786,7 +786,7 @@ func executeTestQueryWithResult(ctx context.Context, t *testing.T, container tes
 		return "", err
 	}
 
-	port, err := container.MappedPort(ctx, "8123")
+	port, err := container.MappedPort(ctx, "8123/tcp")
 	if err != nil {
 		return "", err
 	}
