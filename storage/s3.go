@@ -2,8 +2,6 @@ package storage
 
 import (
 	"context"
-	"fmt"
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -58,7 +56,7 @@ func NewS3Storage(bucket, region, accessKey, secretKey, endpoint string, debug b
 			})))
 	}
 
-	cfg, err := config.LoadDefaultConfig(context.TODO(), opts...)
+	cfg, err := config.LoadDefaultConfig(context.Background(), opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +94,7 @@ func NewS3Storage(bucket, region, accessKey, secretKey, endpoint string, debug b
 func (s *S3Storage) Upload(filename string, reader io.Reader, format string, level int) error {
 	compressedReader, ext := compressStream(reader, format, level)
 	s3Key := strings.TrimPrefix(filename, "/") + ext
-	_, err := s.uploader.Upload(context.TODO(), &s3.PutObjectInput{
+	_, err := s.uploader.Upload(context.Background(), &s3.PutObjectInput{
 		Bucket: aws.String(s.bucket),
 		Key:    aws.String(s3Key),
 		Body:   compressedReader,
@@ -128,12 +126,18 @@ func (tfc *tempFileCloser) Close() error {
 }
 
 func (s *S3Storage) Download(filename string) (io.ReadCloser, error) {
+	trimmedFilename := strings.TrimPrefix(filename, "/")
+	existingExt := GetCompressionExtension(trimmedFilename) // GetCompressionExtension из storage.go
+	baseKeyForLoop := trimmedFilename
+	if existingExt != "" {
+		baseKeyForLoop = strings.TrimSuffix(trimmedFilename, existingExt)
+	}
+
 	extensionsToTry := []string{".gz", ".zstd", ""} // Сначала пробуем сжатые, потом сырой
-	baseS3Key := strings.TrimPrefix(filename, "/")
 	var lastErr error
 
-	for _, ext := range extensionsToTry {
-		s3Key := baseS3Key + ext
+	for _, extToTry := range extensionsToTry {
+		s3Key := baseKeyForLoop + extToTry
 
 		// Создаем временный файл для загрузки
 		tempFile, err := os.CreateTemp("", "s3-download-*")
@@ -142,7 +146,7 @@ func (s *S3Storage) Download(filename string) (io.ReadCloser, error) {
 		}
 
 		// Пытаемся загрузить
-		_, err = s.downloader.Download(context.TODO(), tempFile, &s3.GetObjectInput{
+		_, err = s.downloader.Download(context.Background(), tempFile, &s3.GetObjectInput{
 			Bucket: aws.String(s.bucket),
 			Key:    aws.String(s3Key),
 		})
@@ -181,11 +185,11 @@ func (s *S3Storage) Download(filename string) (io.ReadCloser, error) {
 		return nil, lastErr
 	}
 	// Эта ветка не должна достигаться, если extensionsToTry не пуст, но как запасной вариант:
-	return nil, fmt.Errorf("object %s not found with any compression extension", baseS3Key)
+	return nil, fmt.Errorf("object %s not found with any compression extension", baseKeyForLoop)
 }
 
 func (s *S3Storage) List(prefix string, recursive bool) ([]string, error) {
-	ctx := context.TODO()
+	ctx := context.Background()
 	var objectNames []string
 
 	s3Prefix := strings.TrimPrefix(prefix, "/")
