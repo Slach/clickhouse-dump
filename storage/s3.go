@@ -62,7 +62,7 @@ func NewS3Storage(bucket, region, accessKey, secretKey, endpoint string, debug b
 	// Configure debug logging if enabled
 	if debug {
 		cfg.Logger = newS3Logger()
-		cfg.ClientLogMode = aws.LogRequestWithBody | aws.LogResponseWithBody | aws.LogRetries
+		cfg.ClientLogMode = aws.LogRequest | aws.LogResponse | aws.LogRetries
 	}
 
 	clientOpts := []func(*s3.Options){}
