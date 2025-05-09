@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -59,7 +60,7 @@ func (dgt debugGCSTransport) RoundTrip(r *http.Request) (*http.Response, error) 
 	}
 
 	logMsg = fmt.Sprintf("<<< [GCS_RESPONSE: %s] <<< %v %v\n", resp.Status, r.Method, r.URL.String())
-	if originalURLStringForLog != r.URL.String() && resp != nil && resp.Request != nil && originalURLStringForLog != resp.Request.URL.String() {
+	if originalURLStringForLog != r.URL.String() && resp.Request != nil && originalURLStringForLog != resp.Request.URL.String() {
 		// If the request URL was rewritten, also log the original URL context for the response
 		logMsg = fmt.Sprintf("<<< [GCS_RESPONSE: %s] <<< %v %v (original request URL: %s)\n", resp.Status, r.Method, r.URL.String(), originalURLStringForLog)
 	}
@@ -140,8 +141,10 @@ func NewGCSStorage(bucketName, endpoint, credentialsFile string, debug bool) (*G
 				IdleConnTimeout:       90 * time.Second,
 				TLSHandshakeTimeout:   10 * time.Second,
 				ExpectContinueTimeout: 1 * time.Second,
-				ForceAttemptHTTP2:     false,                                 // Important: Disable HTTP/2 for http endpoints
-				TLSClientConfig:       &tls.Config{InsecureSkipVerify: true}, // For "https" URLs to "http" server
+				ForceAttemptHTTP2:     false,
+				TLSClientConfig: &tls.Config{
+					NextProtos: []string{"http/1.1"},
+				},
 			}
 			transport = rewriteTransport{base: plainHttpTransport}
 		} else if strings.HasPrefix(endpoint, "https://") {
@@ -246,7 +249,7 @@ func (g *GCSStorage) Download(filename string) (io.ReadCloser, error) {
 		lastErr = fmt.Errorf("failed attempt to download %s from gcs bucket %s: %w", objectName, g.bucketName, err)
 
 		// Check if the error is storage.ErrObjectNotExist
-		if err == storage.ErrObjectNotExist {
+		if errors.Is(err, storage.ErrObjectNotExist) {
 			// Object not found, continue to try the next extension
 			continue
 		}
