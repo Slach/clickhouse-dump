@@ -503,6 +503,7 @@ func startClickHouseContainer(ctx context.Context) (testcontainers.Container, er
 			"CLICKHOUSE_SKIP_USER_SETUP": "1",
 		},
 		WaitingFor: wait.ForHTTP("/").WithPort("8123/tcp"),
+		Reuse:      true,
 	}
 	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
@@ -522,6 +523,7 @@ func startMinioContainer(ctx context.Context) (testcontainers.Container, error) 
 			"BITNAMI_DEBUG":         "true",
 		},
 		WaitingFor: wait.ForHTTP("/minio/health/ready").WithPort("9000/tcp"),
+		Reuse:      true,
 	}
 	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
@@ -535,6 +537,7 @@ func startFakeGCSContainer(ctx context.Context) (testcontainers.Container, error
 		ExposedPorts: []string{"4443/tcp"},
 		Cmd:          []string{"-scheme", "http"},
 		WaitingFor:   wait.ForHTTP("/").WithPort("4443/tcp"),
+		Reuse:        true,
 	}
 	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
@@ -548,6 +551,7 @@ func startAzuriteContainer(ctx context.Context) (testcontainers.Container, error
 		ExposedPorts: []string{"10000/tcp"},
 		Cmd:          []string{"azurite-blob", "--blobHost", "0.0.0.0"},
 		WaitingFor:   wait.ForListeningPort("10000/tcp"),
+		Reuse:        true,
 	}
 	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
@@ -565,6 +569,7 @@ func startFTPContainer(ctx context.Context) (testcontainers.Container, error) {
 			"PASV_ADDRESS": "127.0.0.1",
 		},
 		WaitingFor: wait.ForListeningPort("21/tcp"),
+		Reuse:      true,
 	}
 	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
@@ -580,6 +585,7 @@ func startSFTPContainer(ctx context.Context) (testcontainers.Container, error) {
 			"SSH_USERS": "testuser:1001:testpass",
 		},
 		WaitingFor: wait.ForListeningPort("22/tcp"),
+		Reuse:      true,
 	}
 	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
