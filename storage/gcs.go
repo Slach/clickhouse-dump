@@ -2,13 +2,34 @@ package storage
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
+	"net/http"
+	"strings"
+	"time"
 
 	"cloud.google.com/go/storage"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
+	googleHTTPTransport "google.golang.org/api/transport/http"
 )
+
+// rewriteTransport forces requests to use HTTP if the original scheme was HTTPS.
+// This is useful for local test servers like fake-gcs-server that might be configured
+// to listen on HTTP but SDKs might default to HTTPS.
+type rewriteTransport struct {
+	base http.RoundTripper
+}
+
+// RoundTrip modifies the request URL scheme to HTTP if it's HTTPS and then
+// proceeds with the base RoundTripper.
+func (r rewriteTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if req.URL.Scheme == "https" {
+		req.URL.Scheme = "http"
+	}
+	return r.base.RoundTrip(req)
+}
 
 type GCSStorage struct {
 	bucket     *storage.BucketHandle
@@ -23,19 +44,63 @@ func NewGCSStorage(bucketName, endpoint, credentialsFile string) (*GCSStorage, e
 		return nil, fmt.Errorf("gcs bucket name cannot be empty")
 	}
 	ctx := context.Background()
-	
+
 	// Create client options
-	opts := []option.ClientOption{}
-	if endpoint != "" {
-		opts = append(opts, option.WithEndpoint(endpoint))
-	}
-	
-	// Use credentials file if specified
-	if credentialsFile != "" {
+	var opts []option.ClientOption
+
+	if credentialsFile == "" {
+		opts = append(opts, option.WithoutAuthentication())
+	} else {
 		opts = append(opts, option.WithCredentialsFile(credentialsFile))
 	}
-	
-	// Creates a client with specified credentials or default credentials from environment
+
+	if endpoint != "" {
+		opts = append(opts, option.WithEndpoint(endpoint))
+		// If endpoint starts with http://, configure a custom HTTP client
+		// to ensure communication happens over http, as fake-gcs-server expects.
+		if strings.HasPrefix(endpoint, "http://") {
+			// Base transport with typical production-like settings, but adjusted for local testing.
+			customTransport := &http.Transport{
+				Proxy: http.ProxyFromEnvironment,
+				DialContext: (&http.Transport{ // Re-use default dialer settings from http.DefaultTransport
+					Proxy:                 http.ProxyFromEnvironment,
+					ForceAttemptHTTP2:     true,
+					MaxIdleConns:          100,
+					IdleConnTimeout:       90 * time.Second,
+					TLSHandshakeTimeout:   10 * time.Second,
+					ExpectContinueTimeout: 1 * time.Second,
+				}).DialContext,
+				MaxIdleConns:          10, // Reduced for local testing
+				MaxIdleConnsPerHost:   10, // Reduced for local testing
+				IdleConnTimeout:       90 * time.Second,
+				TLSHandshakeTimeout:   10 * time.Second,
+				ExpectContinueTimeout: 1 * time.Second,
+				ForceAttemptHTTP2:     false, // Important: Disable HTTP/2 for http endpoints
+				TLSClientConfig:       &tls.Config{InsecureSkipVerify: true}, // Allow self-signed certs for local http
+			}
+
+			// Wrap with rewriteTransport to ensure http scheme
+			customRoundTripper := rewriteTransport{base: customTransport}
+
+			// Create an HTTP client using the custom transport, compatible with Google API client options.
+			// We need to use googleHTTPTransport.NewClient to correctly wrap our RoundTripper.
+			httpClient, err := googleHTTPTransport.NewClient(ctx, append(opts, option.WithHTTPClient(&http.Client{Transport: customRoundTripper}))...)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create GCS HTTP client with custom transport: %w", err)
+			}
+			// Clear existing opts and use the fully configured httpClient via option.WithHTTPClient
+			opts = []option.ClientOption{option.WithHTTPClient(httpClient)}
+			// The endpoint is already part of httpClient's transport configuration indirectly
+			// or directly if googleHTTPTransport.NewClient considers it.
+			// If WithEndpoint is still needed, it should be compatible.
+			// Let's ensure WithEndpoint is added back if it was cleared.
+			if endpoint != "" {
+				opts = append(opts, option.WithEndpoint(endpoint))
+			}
+		}
+	}
+
+	// Creates a client with specified options
 	client, err := storage.NewClient(ctx, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create gcs client: %w", err)
@@ -45,6 +110,7 @@ func NewGCSStorage(bucketName, endpoint, credentialsFile string) (*GCSStorage, e
 		bucket:     client.Bucket(bucketName),
 		bucketName: bucketName,
 		client:     client,
+		endpoint:   endpoint, // Store endpoint for reference
 	}, nil
 }
 

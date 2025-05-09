@@ -373,10 +373,10 @@ func testGCSStorage(ctx context.Context, t *testing.T, clickhouseContainer testc
 	require.NoError(t, err, "Failed to get GCS port")
 
 	runMainTestScenario(ctx, t, clickhouseContainer, map[string]string{
-		"storage-type":   "gcs",
-		"storage-bucket": "testbucket",
-		"storage-path":   "",
-		"storage-host":   gcsHost + ":" + gcsPort.Port(),
+		"storage-type":     "gcs",
+		"storage-bucket":   "testbucket",
+		"storage-path":     "",
+		"storage-endpoint": "http://" + gcsHost + ":" + gcsPort.Port(), // fake-gcs-server uses http
 	}, testCase, backupName)
 }
 
