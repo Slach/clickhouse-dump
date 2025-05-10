@@ -98,7 +98,7 @@ clickhouse-dump --storage-type file --storage-path /backups dump my_backup
 
 ```bash
 clickhouse-dump --storage-type s3 --storage-bucket my-bucket --storage-region us-east-1 \
-  --storage-account AKIAIOSFODNN7EXAMPLE --storage-key wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY \
+  --storage-account <access_key_id> --storage-key <secret_key> \
   dump my_backup
 ```
 
@@ -106,7 +106,7 @@ clickhouse-dump --storage-type s3 --storage-bucket my-bucket --storage-region us
 
 ```bash
 clickhouse-dump --storage-type s3 --storage-bucket my-bucket --storage-region us-east-1 \
-  --storage-account AKIAIOSFODNN7EXAMPLE --storage-key wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY \
+  --storage-account <access_key_id> --storage-key <secret_key> \
   restore my_backup
 ```
 
