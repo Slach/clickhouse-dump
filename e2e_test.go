@@ -486,7 +486,7 @@ func testSFTPStorage(ctx context.Context, t *testing.T, clickhouseContainer test
 		"storage-host":     sftpHost + ":" + sftpPort.Port(),
 		"storage-user":     "testuser",
 		"storage-password": "testpass",
-		"storage-path":     "",
+		"storage-path":     "upload",
 	}, testCase, backupName)
 }
 

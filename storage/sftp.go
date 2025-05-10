@@ -18,10 +18,22 @@ type SFTPStorage struct {
 	conn   *ssh.Client // Keep SSH connection to close it
 	host   string      // Store host for logging
 	user   string
+	debug  bool        // Debug flag
+}
+
+func (s *SFTPStorage) debugf(format string, args ...interface{}) {
+	if s.debug {
+		log.Printf("[sftp:debug] "+format, args...)
+	}
 }
 
 // NewSFTPStorage creates a new SFTP storage client.
 func NewSFTPStorage(host, user, password string) (*SFTPStorage, error) {
+	return NewSFTPStorageWithDebug(host, user, password, false)
+}
+
+// NewSFTPStorageWithDebug creates a new SFTP storage client with debug logging.
+func NewSFTPStorageWithDebug(host, user, password string, debug bool) (*SFTPStorage, error) {
 	if host == "" || user == "" { // Password might be empty if using key auth (not implemented here)
 		return nil, fmt.Errorf("sftp host and user cannot be empty")
 	}
@@ -56,12 +68,19 @@ func NewSFTPStorage(host, user, password string) (*SFTPStorage, error) {
 		return nil, fmt.Errorf("failed to create sftp client for host %s: %w", host, err)
 	}
 
-	return &SFTPStorage{
+	s := &SFTPStorage{
 		client: client,
 		conn:   conn,
 		host:   host,
 		user:   user,
-	}, nil
+		debug:  debug,
+	}
+	
+	if debug {
+		log.Printf("[sftp:debug] Connected to SFTP server %s as user %s", host, user)
+	}
+	
+	return s, nil
 }
 
 // Upload compresses and uploads data to the specified filename (filename + compression extension) via SFTP.
@@ -77,11 +96,33 @@ func (s *SFTPStorage) Upload(filename string, reader io.Reader, format string, l
 			// Attempt to create parent directory
 			parentDir := filepath.Dir(remoteFilename)
 			if parentDir != "." && parentDir != "/" {
+				// Ensure parent directory exists
+				log.Printf("Creating SFTP directory: %s", parentDir)
 				if mkdirErr := s.client.MkdirAll(parentDir); mkdirErr != nil {
-					return fmt.Errorf("failed to create remote directory %s for sftp upload on %s: %w", parentDir, s.host, mkdirErr)
+					// Try to create each directory in the path separately
+					// This helps with some SFTP servers that have permission restrictions
+					dirs := strings.Split(strings.Trim(parentDir, "/"), "/")
+					currentPath := ""
+					for _, dir := range dirs {
+						if dir == "" {
+							continue
+						}
+						if currentPath != "" {
+							currentPath += "/"
+						}
+						currentPath += dir
+						// Try to create, ignore errors if directory already exists
+						_ = s.client.Mkdir(currentPath)
+					}
+					// Try again after attempting to create directories
+					dstFile, err = s.client.Create(remoteFilename)
+					if err != nil {
+						return fmt.Errorf("failed to create remote directory %s for sftp upload on %s: %w", parentDir, s.host, mkdirErr)
+					}
+				} else {
+					// Retry creating the file
+					dstFile, err = s.client.Create(remoteFilename)
 				}
-				// Retry creating the file
-				dstFile, err = s.client.Create(remoteFilename)
 			}
 		}
 		// If still error after potential mkdir
