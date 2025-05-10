@@ -1,8 +1,9 @@
 # ClickHouse Dump [![Coverage Status](https://coveralls.io/repos/github/Slach/clickhouse-dump/badge.svg?branch=main)](https://coveralls.io/github/Slach/clickhouse-dump?branch=main)
 
-A simple tool for sql dumping and restoring ClickHouse databases to/from various storage backends. 
-Main motivation is create simple tool for export/import small (less 10Gb) data via different clickhouse-servers, without direct access to disk.
-Use https://github.com/Altinity/clickhouse-backup for production backup.
+A simple tool for SQL dumping and restoring ClickHouse databases which support various storage backends. 
+Main motivation is creating simple tool for export/import small (less 10Gb) data via different clickhouse-servers, without direct access to disk in portable SQL format
+
+## Use https://github.com/Altinity/clickhouse-backup for production backup.
 
 ## Features
 
