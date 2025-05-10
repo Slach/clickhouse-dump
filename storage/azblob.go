@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/Azure/azure-storage-blob-go/azblob"
 	"io"
+	"log"
 	"net/url"
 )
 
@@ -58,11 +59,11 @@ func NewAzBlobStorage(accountName, accountKey, containerName, endpoint string, d
 		accountName:  accountName,
 		debug:        debug,
 	}
-	
+
 	if debug {
 		log.Printf("[azblob:debug] Successfully initialized Azure Blob Storage client for account %s, container %s", accountName, containerName)
 	}
-	
+
 	return storage, nil
 }
 
