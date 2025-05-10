@@ -27,12 +27,7 @@ func (f *FTPStorage) debugf(format string, args ...interface{}) {
 }
 
 // NewFTPStorage creates a new FTP storage client.
-func NewFTPStorage(host, user, password string) (*FTPStorage, error) {
-	return NewFTPStorageWithDebug(host, user, password, false)
-}
-
-// NewFTPStorageWithDebug creates a new FTP storage client with debug logging enabled.
-func NewFTPStorageWithDebug(host, user, password string, debug bool) (*FTPStorage, error) {
+func NewFTPStorage(host, user, password string, debug bool) (*FTPStorage, error) {
 	if host == "" || user == "" { // Password can potentially be empty for anonymous
 		return nil, fmt.Errorf("ftp host and user cannot be empty")
 	}

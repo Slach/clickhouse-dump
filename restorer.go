@@ -42,7 +42,7 @@ func NewRestorer(config *Config) (*Restorer, error) {
 	case "sftp":
 		s, err = storage.NewSFTPStorage(config.StorageConfig["host"], config.StorageConfig["user"], config.StorageConfig["password"])
 	case "ftp":
-		s, err = storage.NewFTPStorageWithDebug(config.StorageConfig["host"], config.StorageConfig["user"], config.StorageConfig["password"], config.Debug)
+		s, err = storage.NewFTPStorage(config.StorageConfig["host"], config.StorageConfig["user"], config.StorageConfig["password"], config.Debug)
 	default:
 		return nil, fmt.Errorf("unsupported storage type: %s", config.StorageType)
 	}
