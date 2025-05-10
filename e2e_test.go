@@ -593,7 +593,7 @@ func startFTPContainer(ctx context.Context) (testcontainers.Container, error) {
 			"FTP_USER":      "testuser",
 			"FTP_PASS":      "testpass",
 			"PASV_ENABLE":   "YES",
-			"PASV_ADDRESS":  "127.0.0.1",
+			"PASV_ADDRESS":  "0.0.0.0", // Use 0.0.0.0 to allow connections from any IP
 			"PASV_MIN_PORT": "20000",
 			"PASV_MAX_PORT": "20001",
 		},
