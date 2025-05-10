@@ -3,11 +3,9 @@ package storage
 import (
 	"context"
 	"fmt"
+	"github.com/Azure/azure-storage-blob-go/azblob"
 	"io"
 	"net/url"
-	"os"
-
-	"github.com/Azure/azure-storage-blob-go/azblob"
 )
 
 type AzBlobStorage struct {
