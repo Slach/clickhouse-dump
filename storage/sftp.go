@@ -16,10 +16,10 @@ import (
 
 type SFTPStorage struct {
 	client *sftp.Client
-	conn   *ssh.Client // Keep SSH connection to close it
-	host   string      // Store host for logging
+	conn   *ssh.Client
+	host   string
 	user   string
-	debug  bool // Debug flag
+	debug  bool
 }
 
 func (s *SFTPStorage) debugf(format string, args ...interface{}) {
@@ -35,9 +35,9 @@ func NewSFTPStorage(host, user, password string, debug bool) (*SFTPStorage, erro
 		user:  user,
 		debug: debug,
 	}
-	
+
 	s.debugf("Initializing SFTP storage with host=%s, user=%s", host, user)
-	
+
 	if host == "" || user == "" { // Password might be empty if using key auth (not implemented here)
 		return nil, fmt.Errorf("sftp host and user cannot be empty")
 	}
@@ -97,7 +97,7 @@ func NewSFTPStorage(host, user, password string, debug bool) (*SFTPStorage, erro
 func (s *SFTPStorage) Upload(filename string, reader io.Reader, format string, level int) error {
 	compressedReader, ext := compressStream(reader, format, level)
 	remoteFilename := filename + ext
-	
+
 	s.debugf("Uploading file to %s (compression: %s, level: %d)", remoteFilename, format, level)
 	s.debugf("Full remote path: %s", remoteFilename)
 
@@ -182,7 +182,7 @@ func (s *SFTPStorage) Upload(filename string, reader io.Reader, format string, l
 // Download retrieves a file from SFTP and returns a reader for its decompressed content.
 func (s *SFTPStorage) Download(filename string) (io.ReadCloser, error) {
 	s.debugf("Attempting to download file: %s", filename)
-	
+
 	file, err := s.client.Open(filename)
 	if err != nil {
 		s.debugf("Failed to open file for download: %v", err)
@@ -200,7 +200,7 @@ func (s *SFTPStorage) Download(filename string) (io.ReadCloser, error) {
 // If recursive is true, it will list all files under the prefix recursively.
 func (s *SFTPStorage) List(prefix string, recursive bool) ([]string, error) {
 	s.debugf("Listing files with prefix: %s (recursive: %v)", prefix, recursive)
-	
+
 	var matchingFiles []string
 
 	// Определяем начальный путь для обхода
@@ -212,9 +212,9 @@ func (s *SFTPStorage) List(prefix string, recursive bool) ([]string, error) {
 			startPath = prefixDir
 		}
 	}
-	
+
 	s.debugf("Starting SFTP walk from directory: %s", startPath)
-	
+
 	// Проверяем существование начального пути
 	_, err := s.client.Stat(startPath)
 	if err != nil {
@@ -222,7 +222,7 @@ func (s *SFTPStorage) List(prefix string, recursive bool) ([]string, error) {
 		// Если путь не существует, возвращаем пустой список
 		return []string{}, nil
 	}
-	
+
 	// Начинаем обход с указанного пути
 	walker := s.client.Walk(startPath)
 	for walker.Step() {
@@ -233,7 +233,7 @@ func (s *SFTPStorage) List(prefix string, recursive bool) ([]string, error) {
 
 		path := walker.Path()
 		s.debugf("Examining path: %s", path)
-		
+
 		// Проверяем, соответствует ли путь префиксу
 		if prefix != "" && !strings.HasPrefix(path, prefix) {
 			if walker.Stat().IsDir() {
@@ -267,7 +267,7 @@ func (s *SFTPStorage) List(prefix string, recursive bool) ([]string, error) {
 // Close closes the SFTP client and the underlying SSH connection.
 func (s *SFTPStorage) Close() error {
 	s.debugf("Closing SFTP storage connections")
-	
+
 	var firstErr error
 	if s.client != nil {
 		s.debugf("Closing SFTP client")
@@ -281,7 +281,7 @@ func (s *SFTPStorage) Close() error {
 	} else {
 		s.debugf("SFTP client was nil, nothing to close")
 	}
-	
+
 	if s.conn != nil {
 		s.debugf("Closing SSH connection")
 		err := s.conn.Close()
@@ -296,6 +296,6 @@ func (s *SFTPStorage) Close() error {
 	} else {
 		s.debugf("SSH connection was nil, nothing to close")
 	}
-	
+
 	return firstErr
 }
