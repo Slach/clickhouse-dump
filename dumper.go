@@ -88,30 +88,15 @@ func (d *Dumper) GetDatabases() ([]string, error) {
 
 func (d *Dumper) dumpDatabaseSchema(dbName string) error {
 	query := fmt.Sprintf("SHOW CREATE DATABASE `%s` SETTINGS format_display_secrets_in_show_and_select=1 FORMAT TSVRaw", dbName)
-	body, contentEncoding, err := d.client.ExecuteQueryStreaming(query, d.config.CompressFormat)
+	respBytes, err := d.client.ExecuteQuery(query)
 	if err != nil {
 		return err
 	}
-
-	// Read the response content
-	respBytes, err := io.ReadAll(body)
-	if err != nil {
-		body.Close()
-		return err
-	}
-	body.Close()
 
 	// Replace CREATE DATABASE with CREATE DATABASE IF NOT EXISTS
 	createStmt := strings.Replace(string(respBytes), "CREATE DATABASE", "CREATE DATABASE IF NOT EXISTS", 1)
 
 	filename := fmt.Sprintf("%s/%s/%s.database.sql", d.config.StorageConfig["path"], d.config.BackupName, dbName)
-
-	// If ClickHouse returned compressed data in the required format, use it directly
-	if contentEncoding != "" && strings.ToLower(contentEncoding) == strings.ToLower(d.config.CompressFormat) {
-		// Data is already compressed in the required format, but we modified the content,
-		// so we still use manual compression
-		d.debugf("Modified database schema data will be compressed using %s", d.config.CompressFormat)
-	}
 	
 	// For database schema, always use manual compression since we modified the content
 	return d.storage.Upload(filename, strings.NewReader(createStmt), d.config.CompressFormat, d.config.CompressLevel)
