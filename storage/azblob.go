@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net/url"
+	"strings"
 )
 
 type AzBlobStorage struct {
@@ -107,7 +108,7 @@ func (a *AzBlobStorage) Upload(filename string, reader io.Reader, format string,
 // UploadWithExtension uploads pre-compressed data to Azure Blob Storage with the appropriate extension
 func (a *AzBlobStorage) UploadWithExtension(filename string, reader io.Reader, contentEncoding string) error {
 	ctx := context.Background()
-	
+
 	var ext string
 	switch strings.ToLower(contentEncoding) {
 	case "gzip":
@@ -115,7 +116,7 @@ func (a *AzBlobStorage) UploadWithExtension(filename string, reader io.Reader, c
 	case "zstd":
 		ext = ".zstd"
 	}
-	
+
 	blobName := filename + ext
 	blobURL := a.containerURL.NewBlockBlobURL(blobName)
 

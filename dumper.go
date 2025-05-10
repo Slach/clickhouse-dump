@@ -4,7 +4,6 @@ import (
 	_ "bytes"
 	"fmt"
 	"github.com/Slach/clickhouse-dump/storage"
-	io "io"
 	"log"
 	"strings"
 )
@@ -97,7 +96,7 @@ func (d *Dumper) dumpDatabaseSchema(dbName string) error {
 	createStmt := strings.Replace(string(respBytes), "CREATE DATABASE", "CREATE DATABASE IF NOT EXISTS", 1)
 
 	filename := fmt.Sprintf("%s/%s/%s.database.sql", d.config.StorageConfig["path"], d.config.BackupName, dbName)
-	
+
 	// For database schema, always use manual compression since we modified the content
 	return d.storage.Upload(filename, strings.NewReader(createStmt), d.config.CompressFormat, d.config.CompressLevel)
 }
