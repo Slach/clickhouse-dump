@@ -296,10 +296,10 @@ func (s *SFTPStorage) List(prefix string, recursive bool) ([]string, error) {
 
 	var matchingFiles []string
 
-	// Определяем начальный путь для обхода
+	// Define the starting path for traversal
 	startPath := "."
 	if prefix != "" {
-		// Если префикс указан, начинаем с его директории
+		// If prefix is specified, start from its directory
 		prefixDir := filepath.Dir(prefix)
 		if prefixDir != "." {
 			startPath = prefixDir
@@ -308,15 +308,15 @@ func (s *SFTPStorage) List(prefix string, recursive bool) ([]string, error) {
 
 	s.debugf("Starting SFTP walk from directory: %s", startPath)
 
-	// Проверяем существование начального пути
+	// Check if the starting path exists
 	_, err := s.client.Stat(startPath)
 	if err != nil {
 		s.debugf("Start path does not exist: %s, error: %v", startPath, err)
-		// Если путь не существует, возвращаем пустой список
+		// If the path doesn't exist, return an empty list
 		return []string{}, nil
 	}
 
-	// Начинаем обход с указанного пути
+	// Start traversal from the specified path
 	walker := s.client.Walk(startPath)
 	for walker.Step() {
 		if err := walker.Err(); err != nil {
@@ -327,11 +327,11 @@ func (s *SFTPStorage) List(prefix string, recursive bool) ([]string, error) {
 		path := walker.Path()
 		s.debugf("Examining path: %s", path)
 
-		// Проверяем, соответствует ли путь префиксу
+		// Check if the path matches the prefix
 		if prefix != "" && !strings.HasPrefix(path, prefix) {
 			if walker.Stat().IsDir() {
-				// Если это директория и она не соответствует префиксу,
-				// проверяем, может ли она содержать файлы с нужным префиксом
+				// If this is a directory and it doesn't match the prefix,
+				// check if it might contain files with the needed prefix
 				if !strings.HasPrefix(prefix, path+"/") {
 					s.debugf("Skipping directory that doesn't match prefix: %s", path)
 					walker.SkipDir()
@@ -343,7 +343,7 @@ func (s *SFTPStorage) List(prefix string, recursive bool) ([]string, error) {
 		}
 
 		if !walker.Stat().IsDir() {
-			// Для файлов проверяем, соответствуют ли они условиям рекурсии
+			// For files, check if they match the recursion conditions
 			if recursive || filepath.Dir(path) == filepath.Dir(prefix) || prefix == "" {
 				s.debugf("Found matching file: %s", path)
 				matchingFiles = append(matchingFiles, path)

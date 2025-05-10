@@ -93,7 +93,7 @@ func (d *Dumper) dumpDatabaseSchema(dbName string) error {
 		return err
 	}
 
-	// Читаем содержимое ответа
+	// Read the response content
 	respBytes, err := io.ReadAll(body)
 	if err != nil {
 		body.Close()
@@ -106,14 +106,14 @@ func (d *Dumper) dumpDatabaseSchema(dbName string) error {
 
 	filename := fmt.Sprintf("%s/%s/%s.database.sql", d.config.StorageConfig["path"], d.config.BackupName, dbName)
 
-	// Если ClickHouse вернул сжатые данные в нужном формате, используем их напрямую
+	// If ClickHouse returned compressed data in the required format, use it directly
 	if contentEncoding != "" && strings.ToLower(contentEncoding) == strings.ToLower(d.config.CompressFormat) {
-		// Данные уже сжаты в требуемом формате, но мы модифицировали содержимое,
-		// поэтому всё равно используем ручное сжатие
-		d.debugf("Модифицированные данные схемы базы данных будут сжаты с использованием %s", d.config.CompressFormat)
+		// Data is already compressed in the required format, but we modified the content,
+		// so we still use manual compression
+		d.debugf("Modified database schema data will be compressed using %s", d.config.CompressFormat)
 	}
 	
-	// Для схемы базы данных всегда используем ручное сжатие, так как мы модифицировали содержимое
+	// For database schema, always use manual compression since we modified the content
 	return d.storage.Upload(filename, strings.NewReader(createStmt), d.config.CompressFormat, d.config.CompressLevel)
 }
 
@@ -245,7 +245,7 @@ func (d *Dumper) dumpData(dbName, tableName string) error {
 		return d.storage.UploadWithExtension(filename, body, contentEncoding)
 	}
 
-	// Иначе сжимаем данные самостоятельно
+	// Otherwise compress the data ourselves
 	return d.storage.Upload(filename, body, d.config.CompressFormat, d.config.CompressLevel)
 }
 
