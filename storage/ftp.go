@@ -186,90 +186,121 @@ func (f *FTPStorage) List(prefix string, recursive bool) ([]string, error) {
 	}
 	f.debugf("Current directory: %s", cwd)
 
-	// Change to prefix directory if it's a path
-	prefixDir := filepath.Dir(prefix)
-	if prefixDir != "." {
-		f.debugf("Changing to directory: %s", prefixDir)
-		if err := f.client.ChangeDir(prefixDir); err != nil {
-			f.debugf("Failed to change to directory %s: %v", prefixDir, err)
-			// Try to create the directory structure if it doesn't exist
-			if strings.Contains(err.Error(), "550") {
-				f.debugf("Directory %s not found, attempting to create", prefixDir)
-				// Create directory structure
-				parts := strings.Split(strings.TrimPrefix(prefixDir, "/"), "/")
-				currentPath := ""
-
-				for _, part := range parts {
-					if part == "" {
-						continue
-					}
-
-					if currentPath != "" {
-						currentPath += "/"
-					}
-					currentPath += part
-
-					f.debugf("Checking directory: %s", currentPath)
-					entries, listErr := f.client.List(currentPath)
-					if listErr != nil || len(entries) == 0 {
-						f.debugf("Creating directory: %s", currentPath)
-						mkdirErr := f.client.MakeDir(currentPath)
-						if mkdirErr != nil {
-							f.debugf("Failed to create directory %s: %v", currentPath, mkdirErr)
-						}
-					}
+	// Normalize prefix - remove leading slash for FTP paths
+	prefix = strings.TrimPrefix(prefix, "/")
+	
+	// If prefix is empty, list from root
+	if prefix == "" {
+		entries, err := f.client.List("/")
+		if err != nil {
+			f.debugf("Failed to list root directory: %v", err)
+			return nil, fmt.Errorf("failed to list root directory: %w", err)
+		}
+		
+		for _, entry := range entries {
+			if entry.Type == ftp.EntryTypeFile {
+				matchingFiles = append(matchingFiles, entry.Name)
+			} else if recursive && entry.Type == ftp.EntryTypeFolder && entry.Name != "." && entry.Name != ".." {
+				// For directories, list recursively
+				subFiles, err := f.listDirectory(entry.Name, "", recursive)
+				if err != nil {
+					f.debugf("Error listing subdirectory %s: %v", entry.Name, err)
+					continue // Continue with other directories instead of failing completely
 				}
-
-				// Try changing to the directory again
-				if err := f.client.ChangeDir(prefixDir); err != nil {
-					f.debugf("Still failed to change to directory %s after creation attempt: %v", prefixDir, err)
-					return nil, fmt.Errorf("failed to change to directory %s: %w", prefixDir, err)
-				}
-			} else {
-				return nil, fmt.Errorf("failed to change to directory %s: %w", prefixDir, err)
+				matchingFiles = append(matchingFiles, subFiles...)
 			}
 		}
-		defer func() {
+		
+		return matchingFiles, nil
+	}
+	
+	// For non-empty prefix, determine the directory to list
+	dirToList := filepath.Dir(prefix)
+	if dirToList == "." {
+		dirToList = ""
+	}
+	
+	// Get the base name to filter results
+	baseName := filepath.Base(prefix)
+	
+	return f.listDirectory(dirToList, baseName, recursive)
+}
+
+// listDirectory is a helper function that lists a specific directory and filters by prefix
+func (f *FTPStorage) listDirectory(dir string, filterPrefix string, recursive bool) ([]string, error) {
+	var matchingFiles []string
+	
+	// Get current directory to restore later
+	cwd, err := f.client.CurrentDir()
+	if err != nil {
+		f.debugf("Failed to get current directory: %v", err)
+		return nil, fmt.Errorf("failed to get current directory: %w", err)
+	}
+	
+	// Change to target directory if it's not empty
+	if dir != "" {
+		f.debugf("Changing to directory: %s", dir)
+		if err := f.client.ChangeDir(dir); err != nil {
+			f.debugf("Failed to change to directory %s: %v", dir, err)
+			return nil, fmt.Errorf("failed to change to directory %s: %w", dir, err)
+		}
+	}
+	
+	// Ensure we restore the original directory when done
+	defer func() {
+		if cwd != "" {
 			f.debugf("Restoring original directory: %s", cwd)
 			if err := f.client.ChangeDir(cwd); err != nil {
 				f.debugf("Failed to restore original directory %s: %v", cwd, err)
 			}
-		}()
-	}
-
-	f.debugf("Listing entries in current directory")
+		}
+	}()
+	
+	// List current directory
+	f.debugf("Listing entries in directory: %s", dir)
 	entries, err := f.client.List(".")
 	if err != nil {
-		f.debugf("Failed to list files: %v", err)
-		return nil, fmt.Errorf("failed to list files: %w", err)
+		f.debugf("Failed to list directory %s: %v", dir, err)
+		return nil, fmt.Errorf("failed to list directory %s: %w", dir, err)
 	}
-	f.debugf("Found %d entries", len(entries))
-
+	f.debugf("Found %d entries in directory %s", len(entries), dir)
+	
+	// Process entries
 	for _, entry := range entries {
+		// Skip special directories
+		if entry.Name == "." || entry.Name == ".." {
+			continue
+		}
+		
+		// Construct the full path relative to the FTP root
+		var fullPath string
+		if dir == "" {
+			fullPath = entry.Name
+		} else {
+			fullPath = filepath.Join(dir, entry.Name)
+		}
+		
+		// For files, check if they match the filter
 		if entry.Type == ftp.EntryTypeFile {
-			fullPath := filepath.Join(prefixDir, entry.Name)
-			f.debugf("Checking file: %s against prefix: %s", fullPath, prefix)
-			if strings.HasPrefix(fullPath, prefix) {
+			f.debugf("Checking file: %s with filter: %s", fullPath, filterPrefix)
+			if filterPrefix == "" || strings.HasPrefix(entry.Name, filterPrefix) {
 				f.debugf("Adding matching file: %s", fullPath)
 				matchingFiles = append(matchingFiles, fullPath)
 			}
-		} else if recursive && entry.Type == ftp.EntryTypeFolder && entry.Name != "." && entry.Name != ".." {
+		} else if recursive && entry.Type == ftp.EntryTypeFolder {
+			// For directories, recurse if requested
 			f.debugf("Recursively listing subdirectory: %s", entry.Name)
-			subPrefix := filepath.Join(prefixDir, entry.Name)
-			if prefix != "" {
-				subPrefix = filepath.Join(prefix, entry.Name)
-			}
-			subFiles, err := f.List(subPrefix, true)
+			subFiles, err := f.listDirectory(fullPath, "", recursive)
 			if err != nil {
-				f.debugf("Error listing subdirectory %s: %v", entry.Name, err)
-				return nil, err
+				f.debugf("Error listing subdirectory %s: %v", fullPath, err)
+				continue // Continue with other directories instead of failing completely
 			}
-			f.debugf("Adding %d files from subdirectory %s", len(subFiles), entry.Name)
+			f.debugf("Adding %d files from subdirectory %s", len(subFiles), fullPath)
 			matchingFiles = append(matchingFiles, subFiles...)
 		}
 	}
-
-	f.debugf("Found %d matching files for prefix: %s", len(matchingFiles), prefix)
+	
+	f.debugf("Found %d matching files in directory %s", len(matchingFiles), dir)
 	return matchingFiles, nil
 }
 
