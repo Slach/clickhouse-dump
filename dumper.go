@@ -1,9 +1,10 @@
 package main
 
 import (
-	"bytes"
+	_ "bytes"
 	"fmt"
 	"github.com/Slach/clickhouse-dump/storage"
+	io "io"
 	"log"
 	"strings"
 )
@@ -91,7 +92,7 @@ func (d *Dumper) dumpDatabaseSchema(dbName string) error {
 	if err != nil {
 		return err
 	}
-	
+
 	// Читаем содержимое ответа
 	respBytes, err := io.ReadAll(body)
 	if err != nil {
@@ -99,12 +100,12 @@ func (d *Dumper) dumpDatabaseSchema(dbName string) error {
 		return err
 	}
 	body.Close()
-	
+
 	// Replace CREATE DATABASE with CREATE DATABASE IF NOT EXISTS
 	createStmt := strings.Replace(string(respBytes), "CREATE DATABASE", "CREATE DATABASE IF NOT EXISTS", 1)
 
 	filename := fmt.Sprintf("%s/%s/%s.database.sql", d.config.StorageConfig["path"], d.config.BackupName, dbName)
-	
+
 	// Для схемы базы данных всегда используем ручное сжатие, так как мы модифицировали содержимое
 	return d.storage.Upload(filename, strings.NewReader(createStmt), d.config.CompressFormat, d.config.CompressLevel)
 }
@@ -203,14 +204,14 @@ func (d *Dumper) dumpSchema(dbName, tableName string) error {
 	}()
 
 	filename := fmt.Sprintf("%s/%s/%s/%s.schema.sql", d.config.StorageConfig["path"], d.config.BackupName, dbName, tableName)
-	
+
 	// If ClickHouse already returned compressed data, pass it directly
 	if contentEncoding != "" && strings.ToLower(contentEncoding) == strings.ToLower(d.config.CompressFormat) {
 		// Data is already compressed in the required format, pass it directly
 		d.debugf("Using pre-compressed schema data from ClickHouse with %s encoding", contentEncoding)
 		return d.storage.UploadWithExtension(filename, body, contentEncoding)
 	}
-	
+
 	// Otherwise compress the data ourselves
 	return d.storage.Upload(filename, body, d.config.CompressFormat, d.config.CompressLevel)
 }
@@ -227,16 +228,16 @@ func (d *Dumper) dumpData(dbName, tableName string) error {
 			log.Printf("can't close dumpData reader body: %v", closeErr)
 		}
 	}()
-	
+
 	filename := fmt.Sprintf("%s/%s/%s/%s.data.sql", d.config.StorageConfig["path"], d.config.BackupName, dbName, tableName)
-	
+
 	// If ClickHouse already returned compressed data, pass it directly
 	if contentEncoding != "" && strings.ToLower(contentEncoding) == strings.ToLower(d.config.CompressFormat) {
 		// Data is already compressed in the required format, pass it directly
 		d.debugf("Using pre-compressed data from ClickHouse with %s encoding", contentEncoding)
 		return d.storage.UploadWithExtension(filename, body, contentEncoding)
 	}
-	
+
 	// Иначе сжимаем данные самостоятельно
 	return d.storage.Upload(filename, body, d.config.CompressFormat, d.config.CompressLevel)
 }
