@@ -61,7 +61,9 @@ func NewFTPStorage(host, user, password string, debug bool) (*FTPStorage, error)
 		if debug {
 			log.Printf("[ftp:debug] Failed to login to FTP host %s with user %s: %v", host, user, err)
 		}
-		c.Quit() // Attempt to close connection on login failure
+		if quitErr := c.Quit(); quitErr != nil {
+			log.Printf("can't ftp quit error: %v", quitErr)
+		}
 		return nil, fmt.Errorf("failed to login to ftp host %s with user %s: %w", host, user, err)
 	}
 
@@ -188,7 +190,7 @@ func (f *FTPStorage) List(prefix string, recursive bool) ([]string, error) {
 
 	// Normalize prefix - remove leading slash for FTP paths
 	prefix = strings.TrimPrefix(prefix, "/")
-	
+
 	// If prefix is empty, list from root
 	if prefix == "" {
 		entries, err := f.client.List("/")
@@ -196,7 +198,7 @@ func (f *FTPStorage) List(prefix string, recursive bool) ([]string, error) {
 			f.debugf("Failed to list root directory: %v", err)
 			return nil, fmt.Errorf("failed to list root directory: %w", err)
 		}
-		
+
 		for _, entry := range entries {
 			if entry.Type == ftp.EntryTypeFile {
 				matchingFiles = append(matchingFiles, entry.Name)
@@ -210,33 +212,33 @@ func (f *FTPStorage) List(prefix string, recursive bool) ([]string, error) {
 				matchingFiles = append(matchingFiles, subFiles...)
 			}
 		}
-		
+
 		return matchingFiles, nil
 	}
-	
+
 	// For non-empty prefix, determine the directory to list
 	dirToList := filepath.Dir(prefix)
 	if dirToList == "." {
 		dirToList = ""
 	}
-	
+
 	// Get the base name to filter results
 	baseName := filepath.Base(prefix)
-	
+
 	return f.listDirectory(dirToList, baseName, recursive)
 }
 
 // listDirectory is a helper function that lists a specific directory and filters by prefix
 func (f *FTPStorage) listDirectory(dir string, filterPrefix string, recursive bool) ([]string, error) {
 	var matchingFiles []string
-	
+
 	// Get current directory to restore later
 	cwd, err := f.client.CurrentDir()
 	if err != nil {
 		f.debugf("Failed to get current directory: %v", err)
 		return nil, fmt.Errorf("failed to get current directory: %w", err)
 	}
-	
+
 	// Change to target directory if it's not empty
 	if dir != "" {
 		f.debugf("Changing to directory: %s", dir)
@@ -245,7 +247,7 @@ func (f *FTPStorage) listDirectory(dir string, filterPrefix string, recursive bo
 			return nil, fmt.Errorf("failed to change to directory %s: %w", dir, err)
 		}
 	}
-	
+
 	// Ensure we restore the original directory when done
 	defer func() {
 		if cwd != "" {
@@ -255,7 +257,7 @@ func (f *FTPStorage) listDirectory(dir string, filterPrefix string, recursive bo
 			}
 		}
 	}()
-	
+
 	// List current directory
 	f.debugf("Listing entries in directory: %s", dir)
 	entries, err := f.client.List(".")
@@ -264,14 +266,14 @@ func (f *FTPStorage) listDirectory(dir string, filterPrefix string, recursive bo
 		return nil, fmt.Errorf("failed to list directory %s: %w", dir, err)
 	}
 	f.debugf("Found %d entries in directory %s", len(entries), dir)
-	
+
 	// Process entries
 	for _, entry := range entries {
 		// Skip special directories
 		if entry.Name == "." || entry.Name == ".." {
 			continue
 		}
-		
+
 		// Construct the full path relative to the FTP root
 		var fullPath string
 		if dir == "" {
@@ -279,7 +281,7 @@ func (f *FTPStorage) listDirectory(dir string, filterPrefix string, recursive bo
 		} else {
 			fullPath = filepath.Join(dir, entry.Name)
 		}
-		
+
 		// For files, check if they match the filter
 		if entry.Type == ftp.EntryTypeFile {
 			f.debugf("Checking file: %s with filter: %s", fullPath, filterPrefix)
@@ -299,7 +301,7 @@ func (f *FTPStorage) listDirectory(dir string, filterPrefix string, recursive bo
 			matchingFiles = append(matchingFiles, subFiles...)
 		}
 	}
-	
+
 	f.debugf("Found %d matching files in directory %s", len(matchingFiles), dir)
 	return matchingFiles, nil
 }
