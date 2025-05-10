@@ -9,9 +9,16 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+)
+
 var app = &cli.App{
-	Name:  "clickhouse-dump",
-	Usage: "Dump and restore ClickHouse tables to/from remote storage",
+	Name:    "clickhouse-dump",
+	Usage:   "Dump and restore ClickHouse tables to/from remote storage",
+	Version: fmt.Sprintf("%s (commit %s, built at %s)", version, commit, date),
 	Flags: []cli.Flag{
 		// ClickHouse Connection Flags
 		&cli.StringFlag{

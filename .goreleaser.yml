@@ -1,0 +1,54 @@
+before:
+  hooks:
+    - go mod download
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
+
+archives:
+  - format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+
+nfpms:
+  - vendor: "ClickHousePro"
+    homepage: "https://github.com/Slach/clickhouse-dump"
+    maintainer: "Eugene Klimov <bloodjazman@gmail.com>"
+    description: "Simple SQL dump and restore tool for ClickHouse®"
+    license: "MIT"
+    formats:
+      - deb
+      - rpm
+    bindir: /usr/bin
+    contents:
+      - src: "clickhouse-dump"
+        dst: /usr/bin/clickhouse-dump
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+
+release:
+  github:
+    owner: Slach
+    name: clickhouse-dump
+  draft: true
+  prerelease: no
