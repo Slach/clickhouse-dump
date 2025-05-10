@@ -16,7 +16,7 @@ type AzBlobStorage struct {
 }
 
 // NewAzBlobStorage creates a new Azure Blob Storage client.
-func NewAzBlobStorage(accountName, accountKey, containerName string) (*AzBlobStorage, error) {
+func NewAzBlobStorage(accountName, accountKey, containerName, endpoint string) (*AzBlobStorage, error) {
 	if accountName == "" || accountKey == "" || containerName == "" {
 		return nil, fmt.Errorf("azure storage account name, key, and container name cannot be empty")
 	}
@@ -30,12 +30,12 @@ func NewAzBlobStorage(accountName, accountKey, containerName string) (*AzBlobSto
 
 	// Construct the container URL
 	// For Azurite (local testing), use the custom endpoint if provided
-	endpoint := fmt.Sprintf("https://%s.blob.core.windows.net", accountName)
-	if customEndpoint := os.Getenv("AZURITE_ENDPOINT"); customEndpoint != "" {
-		endpoint = customEndpoint
+	serviceURL := fmt.Sprintf("https://%s.blob.core.windows.net", accountName)
+	if endpoint != "" {
+		serviceURL = endpoint
 	}
 
-	u, err := url.Parse(fmt.Sprintf("%s/%s", endpoint, containerName))
+	u, err := url.Parse(fmt.Sprintf("%s/%s", serviceURL, containerName))
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse azure container URL: %w", err)
 	}

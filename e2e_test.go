@@ -411,14 +411,26 @@ func testAzureBlobStorage(ctx context.Context, t *testing.T, clickhouseContainer
 	azuritePort, err := azuriteContainer.MappedPort(ctx, "10000/tcp")
 	require.NoError(t, err, "Failed to get Azurite port")
 
-	// For Azurite (local testing), we need to use special credentials and endpoint
+	// Создаем контейнер в Azurite перед тестом
+	endpoint := fmt.Sprintf("http://%s:%s/devstoreaccount1", azuriteHost, azuritePort.Port())
+	
+	// Инициализируем HTTP-клиент для создания контейнера
+	req, err := http.NewRequest("PUT", endpoint+"/testcontainer?restype=container", nil)
+	require.NoError(t, err, "Failed to create HTTP request")
+	
+	resp, err := http.DefaultClient.Do(req)
+	if err == nil && resp.Body != nil {
+		resp.Body.Close()
+	}
+	
+	// Для Azurite (локального тестирования) используем специальные учетные данные и конечную точку
 	runMainTestScenario(ctx, t, clickhouseContainer, map[string]string{
 		"storage-type":      "azblob",
 		"storage-account":   "devstoreaccount1",
 		"storage-key":       "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==",
 		"storage-container": "testcontainer",
 		"storage-path":      "",
-		"storage-endpoint":  fmt.Sprintf("http://%s:%s/devstoreaccount1", azuriteHost, azuritePort.Port()),
+		"storage-endpoint":  endpoint,
 	}, testCase, backupName)
 }
 
@@ -570,8 +582,8 @@ func startAzuriteContainer(ctx context.Context) (testcontainers.Container, error
 		Name:         "clickhouse-dump-test-azurite",
 		Image:        "mcr.microsoft.com/azure-storage/azurite:latest",
 		ExposedPorts: []string{"10000/tcp"},
-		Cmd:          []string{"azurite-blob", "--blobHost", "0.0.0.0"},
-		WaitingFor:   wait.ForListeningPort("10000/tcp"),
+		Cmd:          []string{"azurite-blob", "--blobHost", "0.0.0.0", "--loose"},
+		WaitingFor:   wait.ForListeningPort("10000/tcp").WithStartupTimeout(30 * time.Second),
 	}
 	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
