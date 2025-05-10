@@ -17,6 +17,10 @@ type RemoteStorage interface {
 	// The actual remote filename might include a compression extension (e.g., .gz).
 	Upload(filename string, reader io.Reader, format string, level int) error
 
+	// UploadWithExtension uploads data from the reader to the specified filename with the given extension.
+	// This is used when the data is already compressed and we just need to add the extension.
+	UploadWithExtension(filename string, reader io.Reader, contentEncoding string) error
+
 	// Download retrieves the content of the specified filename.
 	// Implementations should automatically handle decompression based on common
 	// extensions (.gz, .zstd) if the exact filename isn't found or if the

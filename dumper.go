@@ -87,15 +87,25 @@ func (d *Dumper) GetDatabases() ([]string, error) {
 
 func (d *Dumper) dumpDatabaseSchema(dbName string) error {
 	query := fmt.Sprintf("SHOW CREATE DATABASE `%s` SETTINGS format_display_secrets_in_show_and_select=1 FORMAT TSVRaw", dbName)
-	resp, err := d.client.ExecuteQuery(query)
+	body, contentEncoding, err := d.client.ExecuteQueryStreaming(query, d.config.CompressFormat)
 	if err != nil {
 		return err
 	}
-
+	
+	// Читаем содержимое ответа
+	respBytes, err := io.ReadAll(body)
+	if err != nil {
+		body.Close()
+		return err
+	}
+	body.Close()
+	
 	// Replace CREATE DATABASE with CREATE DATABASE IF NOT EXISTS
-	createStmt := strings.Replace(string(resp), "CREATE DATABASE", "CREATE DATABASE IF NOT EXISTS", 1)
+	createStmt := strings.Replace(string(respBytes), "CREATE DATABASE", "CREATE DATABASE IF NOT EXISTS", 1)
 
 	filename := fmt.Sprintf("%s/%s/%s.database.sql", d.config.StorageConfig["path"], d.config.BackupName, dbName)
+	
+	// Для схемы базы данных всегда используем ручное сжатие, так как мы модифицировали содержимое
 	return d.storage.Upload(filename, strings.NewReader(createStmt), d.config.CompressFormat, d.config.CompressLevel)
 }
 
@@ -182,19 +192,33 @@ func (d *Dumper) getTables() (map[string][]string, error) {
 func (d *Dumper) dumpSchema(dbName, tableName string) error {
 	query := fmt.Sprintf("SELECT create_table_query FROM system.tables WHERE database='%s' AND name='%s' SETTINGS format_display_secrets_in_show_and_select=1 FORMAT TSVRaw", dbName, tableName)
 	d.debugf("Schema query: %s", query)
-	resp, err := d.client.ExecuteQuery(query)
+	body, contentEncoding, err := d.client.ExecuteQueryStreaming(query, d.config.CompressFormat)
 	if err != nil {
 		return err
 	}
+	defer func() {
+		if closeErr := body.Close(); closeErr != nil {
+			log.Printf("can't close dumpSchema reader body: %v", closeErr)
+		}
+	}()
 
 	filename := fmt.Sprintf("%s/%s/%s/%s.schema.sql", d.config.StorageConfig["path"], d.config.BackupName, dbName, tableName)
-	return d.storage.Upload(filename, bytes.NewReader(resp), d.config.CompressFormat, d.config.CompressLevel)
+	
+	// Если ClickHouse уже вернул сжатые данные, передаем их напрямую
+	if contentEncoding != "" && strings.ToLower(contentEncoding) == strings.ToLower(d.config.CompressFormat) {
+		// Данные уже сжаты в нужном формате, передаем их напрямую
+		d.debugf("Using pre-compressed schema data from ClickHouse with %s encoding", contentEncoding)
+		return d.storage.UploadWithExtension(filename, body, contentEncoding)
+	}
+	
+	// Иначе сжимаем данные самостоятельно
+	return d.storage.Upload(filename, body, d.config.CompressFormat, d.config.CompressLevel)
 }
 
 func (d *Dumper) dumpData(dbName, tableName string) error {
 	query := fmt.Sprintf("SELECT * FROM `%s`.`%s` FORMAT SQLInsert SETTINGS output_format_sql_insert_max_batch_size=%d, output_format_sql_insert_table_name='`%s`.`%s`'", dbName, tableName, d.config.BatchSize, dbName, tableName)
 	d.debugf("Data query: %s", query)
-	body, err := d.client.ExecuteQueryStreaming(query)
+	body, contentEncoding, err := d.client.ExecuteQueryStreaming(query, d.config.CompressFormat)
 	if err != nil {
 		return err
 	}
@@ -203,7 +227,17 @@ func (d *Dumper) dumpData(dbName, tableName string) error {
 			log.Printf("can't close dumpData reader body: %v", closeErr)
 		}
 	}()
+	
 	filename := fmt.Sprintf("%s/%s/%s/%s.data.sql", d.config.StorageConfig["path"], d.config.BackupName, dbName, tableName)
+	
+	// Если ClickHouse уже вернул сжатые данные, передаем их напрямую
+	if contentEncoding != "" && strings.ToLower(contentEncoding) == strings.ToLower(d.config.CompressFormat) {
+		// Данные уже сжаты в нужном формате, передаем их напрямую
+		d.debugf("Using pre-compressed data from ClickHouse with %s encoding", contentEncoding)
+		return d.storage.UploadWithExtension(filename, body, contentEncoding)
+	}
+	
+	// Иначе сжимаем данные самостоятельно
 	return d.storage.Upload(filename, body, d.config.CompressFormat, d.config.CompressLevel)
 }
 

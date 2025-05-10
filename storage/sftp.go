@@ -179,6 +179,99 @@ func (s *SFTPStorage) Upload(filename string, reader io.Reader, format string, l
 	return nil
 }
 
+// UploadWithExtension uploads pre-compressed data to the specified filename via SFTP.
+func (s *SFTPStorage) UploadWithExtension(filename string, reader io.Reader, contentEncoding string) error {
+	var ext string
+	switch strings.ToLower(contentEncoding) {
+	case "gzip":
+		ext = ".gz"
+	case "zstd":
+		ext = ".zstd"
+	}
+	
+	remoteFilename := filename + ext
+
+	s.debugf("Uploading pre-compressed file to %s (encoding: %s)", remoteFilename, contentEncoding)
+	s.debugf("Full remote path: %s", remoteFilename)
+
+	// Create the remote file
+	s.debugf("Attempting to create remote file: %s", remoteFilename)
+	dstFile, err := s.client.Create(remoteFilename)
+	if err != nil {
+		s.debugf("Failed to create remote file: %v", err)
+		// Check if directory needs to be created
+		if os.IsNotExist(err) || strings.Contains(err.Error(), "no such file") { // Error messages vary
+			// Attempt to create parent directory
+			parentDir := filepath.Dir(remoteFilename)
+			if parentDir != "." && parentDir != "/" {
+				// Ensure parent directory exists
+				s.debugf("Creating SFTP directory: %s", parentDir)
+				if mkdirErr := s.client.MkdirAll(parentDir); mkdirErr != nil {
+					s.debugf("Failed to create directory with MkdirAll: %v", mkdirErr)
+					// Try to create each directory in the path separately
+					// This helps with some SFTP servers that have permission restrictions
+					s.debugf("Attempting to create directories one by one")
+					dirs := strings.Split(strings.Trim(parentDir, "/"), "/")
+					currentPath := ""
+					for _, dir := range dirs {
+						if dir == "" {
+							continue
+						}
+						if currentPath != "" {
+							currentPath += "/"
+						}
+						currentPath += dir
+						// Try to create, ignore errors if directory already exists
+						s.debugf("Creating directory: %s", currentPath)
+						if err := s.client.Mkdir(currentPath); err != nil {
+							s.debugf("Directory creation returned: %v (may already exist)", err)
+						}
+					}
+					// Try again after attempting to create directories
+					s.debugf("Retrying file creation after directory creation")
+					dstFile, err = s.client.Create(remoteFilename)
+					if err != nil {
+						s.debugf("Still failed to create file after directory creation: %v", err)
+						return fmt.Errorf("failed to create remote directory %s for sftp upload on %s: %w", parentDir, s.host, mkdirErr)
+					}
+					s.debugf("File creation successful after directory creation")
+				} else {
+					// Retry creating the file
+					s.debugf("Directory creation successful, retrying file creation")
+					dstFile, err = s.client.Create(remoteFilename)
+				}
+			}
+		}
+		// If still error after potential mkdir
+		if err != nil {
+			s.debugf("Failed to create remote file after all attempts: %v", err)
+			return fmt.Errorf("failed to create remote file %s for sftp upload on %s: %w", remoteFilename, s.host, err)
+		}
+	}
+	s.debugf("Remote file created successfully")
+	defer dstFile.Close() // Ensure file is closed
+
+	// Copy data to the remote file
+	s.debugf("Copying pre-compressed data to remote file")
+	bytesWritten, err := io.Copy(dstFile, reader)
+	if err != nil {
+		s.debugf("Failed to copy pre-compressed data to remote file: %v", err)
+		return fmt.Errorf("failed to copy pre-compressed data to remote file %s via sftp on %s: %w", remoteFilename, s.host, err)
+	}
+	s.debugf("Successfully copied %d bytes of pre-compressed data to remote file", bytesWritten)
+
+	// Close is important to finalize write
+	s.debugf("Closing remote file")
+	err = dstFile.Close()
+	if err != nil {
+		s.debugf("Failed to close remote file: %v", err)
+		return fmt.Errorf("failed to close remote file %s after sftp upload on %s: %w", remoteFilename, s.host, err)
+	}
+	s.debugf("Remote file closed successfully")
+
+	return nil
+}
+
 // Download retrieves a file from SFTP and returns a reader for its decompressed content.
 func (s *SFTPStorage) Download(filename string) (io.ReadCloser, error) {
 	s.debugf("Attempting to download file: %s", filename)

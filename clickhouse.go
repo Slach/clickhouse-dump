@@ -20,7 +20,7 @@ func NewClickHouseClient(config *Config) *ClickHouseClient {
 }
 
 func (c *ClickHouseClient) ExecuteQuery(query string) ([]byte, error) {
-	body, err := c.ExecuteQueryStreaming(query)
+	body, _, err := c.ExecuteQueryStreaming(query, "")
 	if err != nil {
 		return nil, err
 	}
@@ -31,18 +31,29 @@ func (c *ClickHouseClient) ExecuteQuery(query string) ([]byte, error) {
 	return io.ReadAll(body)
 }
 
-func (c *ClickHouseClient) ExecuteQueryStreaming(query string) (io.ReadCloser, error) {
+func (c *ClickHouseClient) ExecuteQueryStreaming(query string, compressFormat string) (io.ReadCloser, string, error) {
 	url := fmt.Sprintf("http://%s:%d/", c.config.Host, c.config.Port)
 	req, reqErr := http.NewRequest("POST", url, strings.NewReader(query))
 	if reqErr != nil {
-		return nil, reqErr
+		return nil, "", reqErr
 	}
 
 	req.SetBasicAuth(c.config.User, c.config.Password)
 	req.Header.Set("Content-Type", "text/plain")
+	
+	// Добавляем заголовок Accept-Encoding, если указан формат сжатия
+	if compressFormat != "" {
+		switch strings.ToLower(compressFormat) {
+		case "gzip":
+			req.Header.Set("Accept-Encoding", "gzip")
+		case "zstd":
+			req.Header.Set("Accept-Encoding", "zstd")
+		}
+	}
+	
 	resp, reqErr := c.client.Do(req)
 	if reqErr != nil {
-		return nil, reqErr
+		return nil, "", reqErr
 	}
 
 	if resp.StatusCode != http.StatusOK {
@@ -53,10 +64,13 @@ func (c *ClickHouseClient) ExecuteQueryStreaming(query string) (io.ReadCloser, e
 		defer func() {
 			_ = resp.Body.Close()
 		}()
-		return nil, fmt.Errorf("HTTP request POST %s..., failed with status code: %d, response: %s", firstNChars(query, 255), resp.StatusCode, string(respText))
+		return nil, "", fmt.Errorf("HTTP request POST %s..., failed with status code: %d, response: %s", firstNChars(query, 255), resp.StatusCode, string(respText))
 	}
 
-	return resp.Body, nil
+	// Проверяем, использовалось ли сжатие в ответе
+	contentEncoding := resp.Header.Get("Content-Encoding")
+	
+	return resp.Body, contentEncoding, nil
 }
 
 // Helper to get first N characters of a string for logging.

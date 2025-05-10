@@ -102,6 +102,32 @@ func (s *S3Storage) Upload(filename string, reader io.Reader, format string, lev
 	return err
 }
 
+func (s *S3Storage) UploadWithExtension(filename string, reader io.Reader, contentEncoding string) error {
+	var ext string
+	switch strings.ToLower(contentEncoding) {
+	case "gzip":
+		ext = ".gz"
+	case "zstd":
+		ext = ".zstd"
+	}
+	
+	s3Key := strings.TrimPrefix(filename, "/") + ext
+	
+	// Устанавливаем соответствующий Content-Encoding для объекта
+	uploadInput := &s3.PutObjectInput{
+		Bucket: aws.String(s.bucket),
+		Key:    aws.String(s3Key),
+		Body:   reader,
+	}
+	
+	if contentEncoding != "" {
+		uploadInput.ContentEncoding = aws.String(contentEncoding)
+	}
+	
+	_, err := s.uploader.Upload(context.Background(), uploadInput)
+	return err
+}
+
 // tempFileCloser оборачивает io.ReadCloser (обычно *os.File)
 // и гарантирует удаление временного файла при вызове Close.
 type tempFileCloser struct {

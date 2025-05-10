@@ -93,6 +93,60 @@ func (f *FileStorage) Upload(filename string, reader io.Reader, format string, l
 	return nil
 }
 
+// UploadWithExtension writes pre-compressed data to a local file with the appropriate extension
+func (f *FileStorage) UploadWithExtension(filename string, reader io.Reader, contentEncoding string) error {
+	fullPath := filename
+	if !strings.HasPrefix(filename, f.basePath) {
+		fullPath = filepath.Join(f.basePath, filename)
+	}
+	
+	// Добавляем расширение в зависимости от типа сжатия
+	var ext string
+	switch strings.ToLower(contentEncoding) {
+	case "gzip":
+		ext = ".gz"
+	case "zstd":
+		ext = ".zstd"
+	}
+	
+	if ext != "" {
+		fullPath = fullPath + ext
+	}
+	
+	f.debugf("Uploading pre-compressed file: %s (encoding: %s)", fullPath, contentEncoding)
+
+	// Ensure directory exists
+	dir := filepath.Dir(fullPath)
+	f.debugf("Creating directory: %s", dir)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		f.debugf("Failed to create directory %s: %v", dir, err)
+		return fmt.Errorf("failed to create directory for %s: %w", fullPath, err)
+	}
+
+	// Create the file
+	f.debugf("Creating file: %s", fullPath)
+	file, err := os.Create(fullPath)
+	if err != nil {
+		f.debugf("Failed to create file %s: %v", fullPath, err)
+		return fmt.Errorf("failed to create file %s: %w", fullPath, err)
+	}
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			f.debugf("can't close %s: %v", fullPath, closeErr)
+		}
+	}()
+
+	f.debugf("Writing pre-compressed data to file: %s", fullPath)
+	_, err = io.Copy(file, reader)
+	if err != nil {
+		f.debugf("Failed to write to file %s: %v", fullPath, err)
+		return fmt.Errorf("failed to write to file %s: %w", fullPath, err)
+	}
+
+	f.debugf("Successfully uploaded pre-compressed file: %s", fullPath)
+	return nil
+}
+
 // Download reads data from a local file
 func (f *FileStorage) Download(fileName string) (io.ReadCloser, error) {
 	f.debugf("Attempting to download file: %s ", fileName)

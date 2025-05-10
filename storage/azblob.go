@@ -104,6 +104,41 @@ func (a *AzBlobStorage) Upload(filename string, reader io.Reader, format string,
 	return nil
 }
 
+// UploadWithExtension uploads pre-compressed data to Azure Blob Storage with the appropriate extension
+func (a *AzBlobStorage) UploadWithExtension(filename string, reader io.Reader, contentEncoding string) error {
+	ctx := context.Background()
+	
+	var ext string
+	switch strings.ToLower(contentEncoding) {
+	case "gzip":
+		ext = ".gz"
+	case "zstd":
+		ext = ".zstd"
+	}
+	
+	blobName := filename + ext
+	blobURL := a.containerURL.NewBlockBlobURL(blobName)
+
+	a.debugf("Uploading pre-compressed blob: %s (encoding: %s)", blobName, contentEncoding)
+
+	// Создаем HTTP-заголовки для блоба
+	headers := azblob.BlobHTTPHeaders{}
+	if contentEncoding != "" {
+		headers.ContentEncoding = contentEncoding
+	}
+
+	// Use UploadStreamToBlockBlob for efficient streaming upload
+	_, err := azblob.UploadStreamToBlockBlob(ctx, reader, blobURL, azblob.UploadStreamToBlockBlobOptions{
+		BlobHTTPHeaders: headers,
+	})
+	if err != nil {
+		a.debugf("Failed to upload pre-compressed blob %s: %v", blobName, err)
+		return fmt.Errorf("failed to upload pre-compressed %s to azure container %s: %w", blobName, a.containerURL.String(), err)
+	}
+	a.debugf("Successfully uploaded pre-compressed blob: %s", blobName)
+	return nil
+}
+
 // Download retrieves a blob from Azure Blob Storage and returns a reader for its decompressed content.
 func (a *AzBlobStorage) Download(filename string) (io.ReadCloser, error) {
 	ctx := context.Background()

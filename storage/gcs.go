@@ -254,6 +254,42 @@ func (g *GCSStorage) Upload(filename string, reader io.Reader, format string, le
 	return nil
 }
 
+// UploadWithExtension uploads pre-compressed data to GCS with the appropriate extension
+func (g *GCSStorage) UploadWithExtension(filename string, reader io.Reader, contentEncoding string) error {
+	ctx := context.Background()
+	
+	var ext string
+	switch strings.ToLower(contentEncoding) {
+	case "gzip":
+		ext = ".gz"
+	case "zstd":
+		ext = ".zstd"
+	}
+	
+	objectName := filename + ext
+	obj := g.bucket.Object(objectName)
+	writer := obj.NewWriter(ctx)
+	
+	// Устанавливаем Content-Encoding для объекта
+	if contentEncoding != "" {
+		writer.ContentEncoding = contentEncoding
+	}
+
+	_, err := io.Copy(writer, reader)
+	if err != nil {
+		// It's important to close the writer even on error to clean up resources.
+		_ = writer.Close() // Ignore close error if copy failed
+		return fmt.Errorf("failed to copy pre-compressed data to gcs object %s in bucket %s: %w", objectName, g.bucketName, err)
+	}
+
+	// Close the writer to finalize the upload
+	err = writer.Close()
+	if err != nil {
+		return fmt.Errorf("failed to close gcs writer for pre-compressed object %s in bucket %s: %w", objectName, g.bucketName, err)
+	}
+	return nil
+}
+
 // Download retrieves an object from GCS and returns a reader for its decompressed content.
 func (g *GCSStorage) Download(filename string) (io.ReadCloser, error) {
 	ctx := context.Background()

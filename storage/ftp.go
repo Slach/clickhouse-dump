@@ -162,6 +162,62 @@ func (f *FTPStorage) Upload(filename string, reader io.Reader, format string, le
 	return nil
 }
 
+// UploadWithExtension uploads pre-compressed data to the specified filename via FTP.
+func (f *FTPStorage) UploadWithExtension(filename string, reader io.Reader, contentEncoding string) error {
+	var ext string
+	switch strings.ToLower(contentEncoding) {
+	case "gzip":
+		ext = ".gz"
+	case "zstd":
+		ext = ".zstd"
+	}
+	
+	remoteFilename := filename + ext
+
+	f.debugf("Uploading pre-compressed file: %s (encoding: %s)", remoteFilename, contentEncoding)
+
+	// Ensure directory exists
+	dir := filepath.Dir(remoteFilename)
+	if dir != "." && dir != "/" {
+		f.debugf("Creating directory structure: %s", dir)
+		// Split the path and create each directory
+		parts := strings.Split(strings.TrimPrefix(dir, "/"), "/")
+		currentPath := ""
+
+		for _, part := range parts {
+			if part == "" {
+				continue
+			}
+
+			if currentPath != "" {
+				currentPath += "/"
+			}
+			currentPath += part
+
+			f.debugf("Checking directory: %s", currentPath)
+			entries, err := f.client.List(currentPath)
+			if err != nil || len(entries) == 0 {
+				f.debugf("Creating directory: %s", currentPath)
+				mkdirErr := f.client.MakeDir(currentPath)
+				if mkdirErr != nil {
+					f.debugf("Failed to create directory %s: %v", currentPath, mkdirErr)
+					// Continue anyway - the directory might already exist
+				}
+			}
+		}
+	}
+
+	f.debugf("Storing pre-compressed file: %s", remoteFilename)
+	err := f.client.Stor(remoteFilename, reader)
+	if err != nil {
+		f.debugf("Failed to upload pre-compressed %s: %v", remoteFilename, err)
+		return fmt.Errorf("failed to upload pre-compressed %s to ftp host %s: %w", remoteFilename, f.host, err)
+	}
+
+	f.debugf("Successfully uploaded pre-compressed file: %s", remoteFilename)
+	return nil
+}
+
 // Download retrieves a file from FTP and returns a reader for its decompressed content.
 func (f *FTPStorage) Download(filename string) (io.ReadCloser, error) {
 	f.debugf("Attempting to download file: %s", filename)
