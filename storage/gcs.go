@@ -31,13 +31,55 @@ type debugGCSTransport struct {
 func (dgt debugGCSTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	originalURLStringForLog := r.URL.String() // Capture before potential modification
 
-	if dgt.isCustomEndpoint && r.URL.Host == "storage.googleapis.com" && strings.HasPrefix(r.URL.Path, "/upload/") {
-		// Log intent to rewrite
-		log.Printf("[GCS_REWRITE] Attempting to rewrite media upload URL from: %s", r.URL.String())
-		r.URL.Scheme = dgt.customEndpointScheme
-		r.URL.Host = dgt.customEndpointHost
-		// The path (e.g., /upload/storage/v1/b/bucket/o/object) should remain unchanged.
-		log.Printf("[GCS_REWRITE] Rewritten media upload URL to: %s", r.URL.String())
+	if dgt.isCustomEndpoint {
+		// Ensure scheme and host are correctly pointing to the custom endpoint.
+		if r.URL.Scheme != dgt.customEndpointScheme || r.URL.Host != dgt.customEndpointHost {
+			log.Printf("[GCS_ENDPOINT_REWRITE] Attempting to rewrite scheme/host for URL from: %s", r.URL.String())
+			r.URL.Scheme = dgt.customEndpointScheme
+			r.URL.Host = dgt.customEndpointHost
+			log.Printf("[GCS_ENDPOINT_REWRITE] Rewrote scheme/host for URL to: %s", r.URL.String())
+		}
+
+			// Path rewriting logic for fake-gcs-server compatibility
+		currentPath := r.URL.Path
+		newPath := currentPath
+
+		if strings.HasPrefix(currentPath, "/upload/") {
+			// Upload paths are usually fine, e.g., /upload/storage/v1/b/bucket/o
+			// No change needed unless specific issues are found.
+		} else if strings.HasPrefix(currentPath, "/b/") && strings.Contains(currentPath, "/o") {
+			// This is likely a ListObjects or GetObjectMetadata request, e.g. /b/bucket/o or /b/bucket/o/object
+			// fake-gcs-server expects /storage/v1/b/bucket/o...
+			if !strings.HasPrefix(currentPath, "/storage/v1/") {
+				newPath = "/storage/v1" + currentPath
+				log.Printf("[GCS_PATH_REWRITE_LIST_GET] Path %s -> %s", currentPath, newPath)
+			}
+		} else if !strings.HasPrefix(currentPath, "/storage/v1/") && !strings.HasPrefix(currentPath, "/upload/") && countChar(currentPath, '/') >= 2 {
+			// This heuristic targets paths like "/bucketname/objectname..." which NewReader might generate.
+			// It needs to be transformed to "/storage/v1/b/bucketname/o/objectname..."
+			parts := strings.SplitN(strings.TrimPrefix(currentPath, "/"), "/", 2)
+			if len(parts) == 2 {
+				bucketName := parts[0]
+				objectPath := parts[1]
+				// Ensure objectPath doesn't get an extra leading slash if it was empty
+				// and to correctly form /o/objectName vs /o/folder/objectName
+				newPath = fmt.Sprintf("/storage/v1/b/%s/o/%s", bucketName, objectPath)
+				log.Printf("[GCS_PATH_REWRITE_DOWNLOAD] Path %s -> %s (bucket: %s, object: %s)", currentPath, newPath, bucketName, objectPath)
+				// For direct object downloads, GCS API expects ?alt=media
+				q := r.URL.Query()
+				if q.Get("alt") == "" { // Add alt=media only if not already present
+					q.Set("alt", "media")
+					r.URL.RawQuery = q.Encode()
+					log.Printf("[GCS_PATH_REWRITE_DOWNLOAD] Added ?alt=media to query for %s", r.URL.Path)
+				}
+			} else if len(parts) == 1 { // Path might be just "/bucketname" - less common for object ops
+				log.Printf("[GCS_PATH_REWRITE_WARN] Path %s looks like a bucket-only path, not rewriting further for object access.", currentPath)
+			}
+		}
+
+		if newPath != currentPath {
+			r.URL.Path = newPath
+		}
 	}
 
 	logMsg := fmt.Sprintf(">>> [GCS_REQUEST] >>> %v %v", r.Method, r.URL.String())
@@ -265,6 +307,17 @@ func (g *GCSStorage) Download(filename string) (io.ReadCloser, error) {
 // List returns a list of object names in the GCS bucket matching the prefix.
 func (g *GCSStorage) List(prefix string, recursive bool) ([]string, error) {
 	ctx := context.Background()
+	// Ensure prefix is clean and doesn't start with a slash if it's not just "/"
+	// For GCS, a prefix should not typically start with a slash.
+	// An empty prefix means list from the root.
+	// A prefix like "folder/" means list objects in "folder".
+	if prefix != "" && prefix != "/" {
+		prefix = strings.TrimLeft(prefix, "/")
+	} else if prefix == "/" {
+		// If the intention is to list from the root, GCS expects an empty prefix.
+		prefix = ""
+	}
+
 	var objectNames []string
 
 	query := &storage.Query{
@@ -280,7 +333,7 @@ func (g *GCSStorage) List(prefix string, recursive bool) ([]string, error) {
 
 	for {
 		attrs, err := it.Next()
-		if err == iterator.Done {
+		if errors.Is(err, iterator.Done) {
 			break
 		}
 		if err != nil {
@@ -307,4 +360,14 @@ func (g *GCSStorage) Close() error {
 		return g.client.Close()
 	}
 	return nil
+}
+
+func countChar(s string, c rune) int {
+	count := 0
+	for _, char := range s {
+		if char == c {
+			count++
+		}
+	}
+	return count
 }
