@@ -609,12 +609,10 @@ func startFTPContainer(ctx context.Context) (testcontainers.Container, error) {
 func startSFTPContainer(ctx context.Context) (testcontainers.Container, error) {
 	req := testcontainers.ContainerRequest{
 		Name:         "clickhouse-dump-test-sftp",
-		Image:        "panubo/sshd:latest",
+		Image:        "atmoz/sftp:latest",
 		ExposedPorts: []string{"22/tcp"},
-		Env: map[string]string{
-			"SSH_USERS": "testuser:1001:testpass",
-		},
-		WaitingFor: wait.ForListeningPort("22/tcp"),
+		Cmd:          []string{"testuser:testpass:::upload"},
+		WaitingFor:   wait.ForListeningPort("22/tcp"),
 	}
 	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
