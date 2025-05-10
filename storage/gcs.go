@@ -40,7 +40,7 @@ func (dgt debugGCSTransport) RoundTrip(r *http.Request) (*http.Response, error) 
 			log.Printf("[GCS_ENDPOINT_REWRITE] Rewrote scheme/host for URL to: %s", r.URL.String())
 		}
 
-			// Path rewriting logic for fake-gcs-server compatibility
+		// Path rewriting logic for fake-gcs-server compatibility
 		currentPath := r.URL.Path
 		newPath := currentPath
 
@@ -54,7 +54,7 @@ func (dgt debugGCSTransport) RoundTrip(r *http.Request) (*http.Response, error) 
 				newPath = "/storage/v1" + currentPath
 				log.Printf("[GCS_PATH_REWRITE_LIST_GET] Path %s -> %s", currentPath, newPath)
 			}
-		} else if !strings.HasPrefix(currentPath, "/storage/v1/") && !strings.HasPrefix(currentPath, "/upload/") && countChar(currentPath, '/') >= 2 {
+		} else if !strings.HasPrefix(currentPath, "/storage/v1/") && !strings.HasPrefix(currentPath, "/upload/") && strings.Count(currentPath, "/") >= 2 {
 			// This heuristic targets paths like "/bucketname/objectname..." which NewReader might generate.
 			// It needs to be transformed to "/storage/v1/b/bucketname/o/objectname..."
 			parts := strings.SplitN(strings.TrimPrefix(currentPath, "/"), "/", 2)
@@ -149,7 +149,7 @@ func (cegt customEndpointGCSTransport) RoundTrip(r *http.Request) (*http.Respons
 				newPath = "/storage/v1" + currentPath
 				log.Printf("[GCS_PATH_REWRITE_LIST_GET] Path %s -> %s", currentPath, newPath)
 			}
-		} else if !strings.HasPrefix(currentPath, "/storage/v1/") && !strings.HasPrefix(currentPath, "/upload/") && countChar(currentPath, '/') >= 2 {
+		} else if !strings.HasPrefix(currentPath, "/storage/v1/") && !strings.HasPrefix(currentPath, "/upload/") && strings.Count(currentPath, "/") >= 2 {
 			// This heuristic targets paths like "/bucketname/objectname..." which NewReader might generate.
 			// It needs to be transformed to "/storage/v1/b/bucketname/o/objectname..."
 			parts := strings.SplitN(strings.TrimPrefix(currentPath, "/"), "/", 2)
