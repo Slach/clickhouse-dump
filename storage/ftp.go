@@ -163,115 +163,44 @@ func (f *FTPStorage) Upload(filename string, reader io.Reader, format string, le
 }
 
 // Download retrieves a file from FTP and returns a reader for its decompressed content.
-// It tries common compression extensions (.gz, .zstd) if the base filename doesn't exist.
 func (f *FTPStorage) Download(filename string) (io.ReadCloser, error) {
-	// Don't add extensions if the filename already has a compression extension
-	extensionsToTry := []string{""}
-	if !strings.HasSuffix(filename, ".gz") && !strings.HasSuffix(filename, ".zstd") {
-		extensionsToTry = []string{".gz", ".zstd", ""}
-	}
+	f.debugf("Attempting to download file: %s", filename)
 
-	f.debugf("Attempting to download file: %s (will try extensions: %v)", filename, extensionsToTry)
-
-	var lastErr error
-	for _, ext := range extensionsToTry {
-		remoteFilename := filename + ext
-		f.debugf("Trying to download: %s", remoteFilename)
-
-		resp, retrErr := f.client.Retr(remoteFilename)
-
-		if retrErr == nil {
-			// Success! Wrap the response reader with decompression.
-			f.debugf("Successfully downloaded file: %s", remoteFilename)
-			// The caller must close the returned reader, which will close the underlying FTP data connection.
-			decompressedStream := decompressStream(resp, remoteFilename) // Handles decompression based on remoteFilename extension
-			// We need to ensure the underlying *ftp.Response is closed when the decompressed stream is closed.
-			// decompressStream returns an io.ReadCloser, so this should work.
-			return decompressedStream, nil
-		}
-
-		// Handle error
-		f.debugf("Failed to download %s: %v", remoteFilename, retrErr)
-		lastErr = fmt.Errorf("failed attempt to download %s from ftp host %s: %w", remoteFilename, f.host, retrErr)
-
-		// Check for 550 (File not found) or similar errors
-		if strings.Contains(retrErr.Error(), "550") ||
-			strings.Contains(strings.ToLower(retrErr.Error()), strings.ToLower(ftp.StatusText(ftp.StatusFileUnavailable))) {
-			f.debugf("File %s not found (550), trying next extension", remoteFilename)
-			continue
-		}
-
-		// Check for passive mode responses - these are not errors
-		if strings.Contains(retrErr.Error(), "229") || // Extended Passive Mode
-			strings.Contains(retrErr.Error(), "227") { // Standard Passive Mode
-			f.debugf("Received passive mode response for %s, retrying", remoteFilename)
-
-			// Wait a moment for the server to establish the data connection
-			time.Sleep(500 * time.Millisecond)
-
-			// Try again with the same extension
-			resp, retryErr := f.client.Retr(remoteFilename)
-			if retryErr == nil {
-				// Success on retry!
-				f.debugf("Successfully downloaded file on retry: %s", remoteFilename)
-				decompressedStream := decompressStream(resp, remoteFilename)
-				return decompressedStream, nil
-			}
-
-			// If the retry error also contains passive mode messages, try one more time
-			if strings.Contains(retryErr.Error(), "229") || strings.Contains(retryErr.Error(), "227") {
-				f.debugf("Received another passive mode response, final retry for %s", remoteFilename)
-				time.Sleep(1 * time.Second)
-				resp, finalRetryErr := f.client.Retr(remoteFilename)
-				if finalRetryErr == nil {
-					f.debugf("Successfully downloaded file on final retry: %s", remoteFilename)
-					decompressedStream := decompressStream(resp, remoteFilename)
-					return decompressedStream, nil
-				}
-			}
-
-			// If retry also failed, check if it's a 550 (not found) error
-			if strings.Contains(retryErr.Error(), "550") ||
-				strings.Contains(strings.ToLower(retryErr.Error()), strings.ToLower(ftp.StatusText(ftp.StatusFileUnavailable))) {
-				f.debugf("File %s not found (550) after passive mode retry, trying next extension", remoteFilename)
-				continue
-			}
-
-			// For other errors after passive mode, try next extension
-			f.debugf("Retry failed for %s after passive mode: %v", remoteFilename, retryErr)
-			continue
-		}
-
-		// If it's not a recognized "not found" error or passive mode message, return it immediately
-		f.debugf("Encountered non-recoverable error for %s: %v", remoteFilename, retrErr)
-		return nil, lastErr
-	}
-
-	// If we tried all extensions and none worked, return the last error encountered
-	f.debugf("All download attempts failed for %s with extensions %v", filename, extensionsToTry)
-
-	// Try to reconnect and retry one more time
-	f.debugf("Attempting to reconnect to FTP server and retry download")
-	if err := f.reconnect(); err != nil {
-		f.debugf("Failed to reconnect to FTP server: %v", err)
-		return nil, fmt.Errorf("file %s not found on ftp host %s with extensions %v: %w", filename, f.host, extensionsToTry, lastErr)
-	}
-
-	// Try one more time with the original filename
-	f.debugf("Retrying download after reconnection: %s", filename)
-	resp, finalErr := f.client.Retr(filename)
-	if finalErr == nil {
-		f.debugf("Successfully downloaded file after reconnection: %s", filename)
+	// Try direct download
+	resp, err := f.client.Retr(filename)
+	if err == nil {
+		f.debugf("Successfully downloaded file: %s", filename)
 		return decompressStream(resp, filename), nil
 	}
 
-	return nil, fmt.Errorf("file %s not found on ftp host %s with extensions %v: %w", filename, f.host, extensionsToTry, lastErr)
+	f.debugf("Failed to download %s: %v", filename, err)
+
+	// Check for passive mode responses - these are not errors
+	if strings.Contains(err.Error(), "229") || // Extended Passive Mode
+		strings.Contains(err.Error(), "227") { // Standard Passive Mode
+		
+		// Reconnect and try again
+		f.debugf("Received passive mode response, reconnecting and retrying")
+		if reconnectErr := f.reconnect(); reconnectErr != nil {
+			f.debugf("Failed to reconnect: %v", reconnectErr)
+			return nil, fmt.Errorf("failed to download %s: %w", filename, err)
+		}
+		
+		// Try again after reconnection
+		resp, retryErr := f.client.Retr(filename)
+		if retryErr == nil {
+			f.debugf("Successfully downloaded file after reconnection: %s", filename)
+			return decompressStream(resp, filename), nil
+		}
+		
+		f.debugf("Failed to download %s after reconnection: %v", filename, retryErr)
+		return nil, fmt.Errorf("failed to download %s after reconnection: %w", filename, retryErr)
+	}
+
+	return nil, fmt.Errorf("failed to download %s: %w", filename, err)
 }
 
 // List returns a list of filenames in the FTP server's current directory matching the prefix.
-// Note: This lists based on the *current working directory* on the FTP server.
-// It might be necessary to change directory (`Cwd`) before listing if dumps are in subdirs.
-// FTP LIST command output parsing can be fragile.
 func (f *FTPStorage) List(prefix string, recursive bool) ([]string, error) {
 	var matchingFiles []string
 
@@ -288,81 +217,12 @@ func (f *FTPStorage) List(prefix string, recursive bool) ([]string, error) {
 	// Normalize prefix - remove leading slash for FTP paths
 	prefix = strings.TrimPrefix(prefix, "/")
 
-	// If prefix is empty, list from root
-	if prefix == "" {
-		entries, err := f.client.List("/")
-		if err != nil {
-			f.debugf("Failed to list root directory: %v", err)
-			return nil, fmt.Errorf("failed to list root directory: %w", err)
-		}
-
-		for _, entry := range entries {
-			if entry.Type == ftp.EntryTypeFile {
-				matchingFiles = append(matchingFiles, entry.Name)
-			} else if recursive && entry.Type == ftp.EntryTypeFolder && entry.Name != "." && entry.Name != ".." {
-				// For directories, list recursively
-				subFiles, err := f.listDirectory(entry.Name, "", recursive)
-				if err != nil {
-					f.debugf("Error listing subdirectory %s: %v", entry.Name, err)
-					continue // Continue with other directories instead of failing completely
-				}
-				matchingFiles = append(matchingFiles, subFiles...)
-			}
-		}
-
-		return matchingFiles, nil
-	}
-
-	// For non-empty prefix, determine the directory to list
-	dirToList := filepath.Dir(prefix)
-	if dirToList == "." {
-		dirToList = ""
-	}
-
-	// Get the base name to filter results
-	baseName := filepath.Base(prefix)
-
-	return f.listDirectory(dirToList, baseName, recursive)
-}
-
-// listDirectory is a helper function that lists a specific directory and filters by prefix
-func (f *FTPStorage) listDirectory(dir string, filterPrefix string, recursive bool) ([]string, error) {
-	var matchingFiles []string
-
-	// Get current directory to restore later
-	cwd, err := f.client.CurrentDir()
+	// Get all entries from the root directory
+	entries, err := f.client.List("/")
 	if err != nil {
-		f.debugf("Failed to get current directory: %v", err)
-		return nil, fmt.Errorf("failed to get current directory: %w", err)
+		f.debugf("Failed to list root directory: %v", err)
+		return nil, fmt.Errorf("failed to list root directory: %w", err)
 	}
-
-	// Change to target directory if it's not empty
-	if dir != "" {
-		f.debugf("Changing to directory: %s", dir)
-		if err := f.client.ChangeDir(dir); err != nil {
-			f.debugf("Failed to change to directory %s: %v", dir, err)
-			return nil, fmt.Errorf("failed to change to directory %s: %w", dir, err)
-		}
-	}
-
-	// Ensure we restore the original directory when done
-	defer func() {
-		if cwd != "" {
-			f.debugf("Restoring original directory: %s", cwd)
-			if err := f.client.ChangeDir(cwd); err != nil {
-				f.debugf("Failed to restore original directory %s: %v", cwd, err)
-			}
-		}
-	}()
-
-	// List current directory
-	f.debugf("Listing entries in directory: %s", dir)
-	entries, err := f.client.List(".")
-	if err != nil {
-		f.debugf("Failed to list directory %s: %v", dir, err)
-		return nil, fmt.Errorf("failed to list directory %s: %w", dir, err)
-	}
-	f.debugf("Found %d entries in directory %s", len(entries), dir)
 
 	// Process entries
 	for _, entry := range entries {
@@ -371,35 +231,48 @@ func (f *FTPStorage) listDirectory(dir string, filterPrefix string, recursive bo
 			continue
 		}
 
-		// Construct the full path relative to the FTP root
-		var fullPath string
-		if dir == "" {
-			fullPath = entry.Name
-		} else {
-			fullPath = filepath.Join(dir, entry.Name)
-		}
+		// If entry is a directory that matches our prefix
+		if entry.Type == ftp.EntryTypeFolder && (prefix == "" || strings.HasPrefix(entry.Name, prefix) || strings.HasPrefix(prefix, entry.Name)) {
+			// List all files in this directory
+			f.debugf("Changing to directory: %s", entry.Name)
+			if err := f.client.ChangeDir(entry.Name); err != nil {
+				f.debugf("Failed to change to directory %s: %v", entry.Name, err)
+				continue // Skip this directory but continue with others
+			}
 
-		// For files, check if they match the filter
-		if entry.Type == ftp.EntryTypeFile {
-			f.debugf("Checking file: %s with filter: %s", fullPath, filterPrefix)
-			if filterPrefix == "" || strings.HasPrefix(entry.Name, filterPrefix) {
-				f.debugf("Adding matching file: %s", fullPath)
-				matchingFiles = append(matchingFiles, fullPath)
-			}
-		} else if recursive && entry.Type == ftp.EntryTypeFolder {
-			// For directories, recurse if requested
-			f.debugf("Recursively listing subdirectory: %s", entry.Name)
-			subFiles, err := f.listDirectory(fullPath, "", recursive)
+			// List all files in the directory
+			dirEntries, err := f.client.List(".")
 			if err != nil {
-				f.debugf("Error listing subdirectory %s: %v", fullPath, err)
-				continue // Continue with other directories instead of failing completely
+				f.debugf("Failed to list directory %s: %v", entry.Name, err)
+				// Return to root directory
+				if err := f.client.ChangeDir("/"); err != nil {
+					f.debugf("Failed to return to root directory: %v", err)
+				}
+				continue // Skip this directory but continue with others
 			}
-			f.debugf("Adding %d files from subdirectory %s", len(subFiles), fullPath)
-			matchingFiles = append(matchingFiles, subFiles...)
+
+			// Add all files from this directory
+			for _, dirEntry := range dirEntries {
+				if dirEntry.Type == ftp.EntryTypeFile {
+					fullPath := filepath.Join(entry.Name, dirEntry.Name)
+					f.debugf("Adding file: %s", fullPath)
+					matchingFiles = append(matchingFiles, fullPath)
+				}
+			}
+
+			// Return to root directory
+			if err := f.client.ChangeDir("/"); err != nil {
+				f.debugf("Failed to return to root directory: %v", err)
+				return matchingFiles, nil // Return what we have so far
+			}
+		} else if entry.Type == ftp.EntryTypeFile && (prefix == "" || strings.HasPrefix(entry.Name, prefix)) {
+			// Add matching files from root
+			f.debugf("Adding file from root: %s", entry.Name)
+			matchingFiles = append(matchingFiles, entry.Name)
 		}
 	}
 
-	f.debugf("Found %d matching files in directory %s", len(matchingFiles), dir)
+	f.debugf("Found %d matching files", len(matchingFiles))
 	return matchingFiles, nil
 }
 
