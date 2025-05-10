@@ -3,6 +3,7 @@ package storage
 import (
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"path/filepath"
 	"strings"
@@ -15,7 +16,7 @@ type FTPStorage struct {
 	client *ftp.ServerConn
 	host   string // Store host for logging/reconnect?
 	user   string
-	debug  bool   // Debug flag
+	debug  bool // Debug flag
 	// Password not stored for security
 }
 
@@ -68,19 +69,6 @@ func NewFTPStorage(host, user, password string, debug bool) (*FTPStorage, error)
 		log.Printf("[ftp:debug] Successfully logged in to FTP server %s with user %s", host, user)
 	}
 
-	// Set passive mode - usually required for container environments
-	if debug {
-		log.Printf("[ftp:debug] Setting passive mode for FTP connection")
-	}
-	err = c.Pasv(true)
-	if err != nil {
-		if debug {
-			log.Printf("[ftp:debug] Failed to set passive mode: %v", err)
-		}
-		c.Quit()
-		return nil, fmt.Errorf("failed to set passive mode: %w", err)
-	}
-
 	return &FTPStorage{
 		client: c,
 		host:   host,
@@ -93,9 +81,9 @@ func NewFTPStorage(host, user, password string, debug bool) (*FTPStorage, error)
 func (f *FTPStorage) Upload(filename string, reader io.Reader, format string, level int) error {
 	compressedReader, ext := compressStream(reader, format, level)
 	remoteFilename := filename + ext
-	
+
 	f.debugf("Uploading file: %s (compression: %s level %d)", remoteFilename, format, level)
-	
+
 	// Ensure directory exists
 	dir := filepath.Dir(remoteFilename)
 	if dir != "." && dir != "/" {
@@ -103,17 +91,17 @@ func (f *FTPStorage) Upload(filename string, reader io.Reader, format string, le
 		// Split the path and create each directory
 		parts := strings.Split(strings.TrimPrefix(dir, "/"), "/")
 		currentPath := ""
-		
+
 		for _, part := range parts {
 			if part == "" {
 				continue
 			}
-			
+
 			if currentPath != "" {
 				currentPath += "/"
 			}
 			currentPath += part
-			
+
 			f.debugf("Checking directory: %s", currentPath)
 			entries, err := f.client.List(currentPath)
 			if err != nil || len(entries) == 0 {
@@ -126,14 +114,14 @@ func (f *FTPStorage) Upload(filename string, reader io.Reader, format string, le
 			}
 		}
 	}
-	
+
 	f.debugf("Storing file: %s", remoteFilename)
 	err := f.client.Stor(remoteFilename, compressedReader)
 	if err != nil {
 		f.debugf("Failed to upload %s: %v", remoteFilename, err)
 		return fmt.Errorf("failed to upload %s to ftp host %s: %w", remoteFilename, f.host, err)
 	}
-	
+
 	f.debugf("Successfully uploaded file: %s", remoteFilename)
 	return nil
 }
@@ -149,7 +137,7 @@ func (f *FTPStorage) Download(filename string) (io.ReadCloser, error) {
 	for _, ext := range extensionsToTry {
 		remoteFilename := filename + ext
 		f.debugf("Trying to download: %s", remoteFilename)
-		
+
 		resp, retrErr := f.client.Retr(remoteFilename)
 
 		if retrErr == nil {
@@ -210,17 +198,17 @@ func (f *FTPStorage) List(prefix string, recursive bool) ([]string, error) {
 				// Create directory structure
 				parts := strings.Split(strings.TrimPrefix(prefixDir, "/"), "/")
 				currentPath := ""
-				
+
 				for _, part := range parts {
 					if part == "" {
 						continue
 					}
-					
+
 					if currentPath != "" {
 						currentPath += "/"
 					}
 					currentPath += part
-					
+
 					f.debugf("Checking directory: %s", currentPath)
 					entries, listErr := f.client.List(currentPath)
 					if listErr != nil || len(entries) == 0 {
@@ -231,7 +219,7 @@ func (f *FTPStorage) List(prefix string, recursive bool) ([]string, error) {
 						}
 					}
 				}
-				
+
 				// Try changing to the directory again
 				if err := f.client.ChangeDir(prefixDir); err != nil {
 					f.debugf("Still failed to change to directory %s after creation attempt: %v", prefixDir, err)
