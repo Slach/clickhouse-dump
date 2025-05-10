@@ -178,21 +178,21 @@ func (f *FTPStorage) Download(filename string) (io.ReadCloser, error) {
 	// Check for passive mode responses - these are not errors
 	if strings.Contains(err.Error(), "229") || // Extended Passive Mode
 		strings.Contains(err.Error(), "227") { // Standard Passive Mode
-		
+
 		// Reconnect and try again
 		f.debugf("Received passive mode response, reconnecting and retrying")
 		if reconnectErr := f.reconnect(); reconnectErr != nil {
 			f.debugf("Failed to reconnect: %v", reconnectErr)
 			return nil, fmt.Errorf("failed to download %s: %w", filename, err)
 		}
-		
+
 		// Try again after reconnection
 		resp, retryErr := f.client.Retr(filename)
 		if retryErr == nil {
 			f.debugf("Successfully downloaded file after reconnection: %s", filename)
 			return decompressStream(resp, filename), nil
 		}
-		
+
 		f.debugf("Failed to download %s after reconnection: %v", filename, retryErr)
 		return nil, fmt.Errorf("failed to download %s after reconnection: %w", filename, retryErr)
 	}
@@ -217,7 +217,7 @@ func (f *FTPStorage) List(prefix string, recursive bool) ([]string, error) {
 			continue // Skip errors and continue
 		}
 
-		entry := walker.Entry()
+		entry := walker.Stat()
 		// Skip directories if we only want files
 		if entry.Type == ftp.EntryTypeFile {
 			f.debugf("Adding file: %s", walker.Path())
