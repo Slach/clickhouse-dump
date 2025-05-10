@@ -423,6 +423,8 @@ func testAzureBlobStorage(ctx context.Context, t *testing.T, clickhouseContainer
 		resp.Body.Close()
 	}
 	
+	t.Logf("Created test container in Azurite at %s", endpoint)
+	
 	// For Azurite (local testing) use special credentials and endpoint
 	runMainTestScenario(ctx, t, clickhouseContainer, map[string]string{
 		"storage-type":      "azblob",

@@ -33,7 +33,7 @@ func NewDumper(config *Config) (*Dumper, error) {
 	case "gcs":
 		s, err = storage.NewGCSStorage(config.StorageConfig["bucket"], config.StorageConfig["endpoint"], config.StorageConfig["key"], config.Debug)
 	case "azblob":
-		s, err = storage.NewAzBlobStorage(config.StorageConfig["account"], config.StorageConfig["key"], config.StorageConfig["container"], config.StorageConfig["endpoint"])
+		s, err = storage.NewAzBlobStorage(config.StorageConfig["account"], config.StorageConfig["key"], config.StorageConfig["container"], config.StorageConfig["endpoint"], config.Debug)
 	case "sftp":
 		s, err = storage.NewSFTPStorage(config.StorageConfig["host"], config.StorageConfig["user"], config.StorageConfig["password"])
 	case "ftp":
