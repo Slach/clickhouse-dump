@@ -116,6 +116,69 @@ func (dgt debugGCSTransport) RoundTrip(r *http.Request) (*http.Response, error) 
 	return resp, err
 }
 
+// customEndpointGCSTransport wraps an http.RoundTripper to rewrite media upload URLs to a custom endpoint if specified.
+type customEndpointGCSTransport struct {
+	base                 http.RoundTripper
+	isCustomEndpoint     bool
+	customEndpointScheme string
+	customEndpointHost   string // host:port
+}
+
+// RoundTrip executes a single HTTP transaction, potentially rewriting the URL for media uploads to a custom endpoint.
+func (cegt customEndpointGCSTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	if cegt.isCustomEndpoint {
+		// Ensure scheme and host are correctly pointing to the custom endpoint.
+		if r.URL.Scheme != cegt.customEndpointScheme || r.URL.Host != cegt.customEndpointHost {
+			log.Printf("[GCS_ENDPOINT_REWRITE] Attempting to rewrite scheme/host for URL from: %s", r.URL.String())
+			r.URL.Scheme = cegt.customEndpointScheme
+			r.URL.Host = cegt.customEndpointHost
+			log.Printf("[GCS_ENDPOINT_REWRITE] Rewrote scheme/host for URL to: %s", r.URL.String())
+		}
+
+		// Path rewriting logic for fake-gcs-server compatibility
+		currentPath := r.URL.Path
+		newPath := currentPath
+
+		if strings.HasPrefix(currentPath, "/upload/") {
+			// Upload paths are usually fine, e.g., /upload/storage/v1/b/bucket/o
+			// No change needed unless specific issues are found.
+		} else if strings.HasPrefix(currentPath, "/b/") && strings.Contains(currentPath, "/o") {
+			// This is likely a ListObjects or GetObjectMetadata request, e.g. /b/bucket/o or /b/bucket/o/object
+			// fake-gcs-server expects /storage/v1/b/bucket/o...
+			if !strings.HasPrefix(currentPath, "/storage/v1/") {
+				newPath = "/storage/v1" + currentPath
+				log.Printf("[GCS_PATH_REWRITE_LIST_GET] Path %s -> %s", currentPath, newPath)
+			}
+		} else if !strings.HasPrefix(currentPath, "/storage/v1/") && !strings.HasPrefix(currentPath, "/upload/") && countChar(currentPath, '/') >= 2 {
+			// This heuristic targets paths like "/bucketname/objectname..." which NewReader might generate.
+			// It needs to be transformed to "/storage/v1/b/bucketname/o/objectname..."
+			parts := strings.SplitN(strings.TrimPrefix(currentPath, "/"), "/", 2)
+			if len(parts) == 2 {
+				bucketName := parts[0]
+				objectPath := parts[1]
+				// Ensure objectPath doesn't get an extra leading slash if it was empty
+				// and to correctly form /o/objectName vs /o/folder/objectName
+				newPath = fmt.Sprintf("/storage/v1/b/%s/o/%s", bucketName, objectPath)
+				log.Printf("[GCS_PATH_REWRITE_DOWNLOAD] Path %s -> %s (bucket: %s, object: %s)", currentPath, newPath, bucketName, objectPath)
+				// For direct object downloads, GCS API expects ?alt=media
+				q := r.URL.Query()
+				if q.Get("alt") == "" { // Add alt=media only if not already present
+					q.Set("alt", "media")
+					r.URL.RawQuery = q.Encode()
+					log.Printf("[GCS_PATH_REWRITE_DOWNLOAD] Added ?alt=media to query for %s", r.URL.Path)
+				}
+			} else if len(parts) == 1 { // Path might be just "/bucketname" - less common for object ops
+				log.Printf("[GCS_PATH_REWRITE_WARN] Path %s looks like a bucket-only path, not rewriting further for object access.", currentPath)
+			}
+		}
+
+		if newPath != currentPath {
+			r.URL.Path = newPath
+		}
+	}
+	return cegt.base.RoundTrip(r)
+}
+
 // rewriteTransport forces requests to use HTTP if the original scheme was HTTPS.
 // This is useful for local test servers like fake-gcs-server that might be configured
 // to listen on HTTP but SDKs might default to HTTPS.
@@ -207,6 +270,13 @@ func NewGCSStorage(bucketName, endpoint, credentialsFile string, debug bool) (*G
 	// Wrap with debug transport for logging and URL rewriting
 	if debug {
 		transport = debugGCSTransport{
+			base:                 transport,
+			isCustomEndpoint:     ueIsSet,
+			customEndpointScheme: ueScheme,
+			customEndpointHost:   ueHost,
+		}
+	} else {
+		transport = customEndpointGCSTransport{
 			base:                 transport,
 			isCustomEndpoint:     ueIsSet,
 			customEndpointScheme: ueScheme,
