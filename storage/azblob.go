@@ -48,10 +48,26 @@ func NewAzBlobStorage(accountName, accountKey, containerName, endpoint string, d
 	}
 	containerURL := azblob.NewContainerURL(*u, p)
 
-	// Verify container exists
-	_, err = containerURL.GetProperties(context.Background(), azblob.LeaseAccessConditions{})
+	// Verify container exists, create if not exists
+	ctx := context.Background()
+	_, err = containerURL.GetProperties(ctx, azblob.LeaseAccessConditions{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to access container %s: %w", containerName, err)
+		// Check if error is container not found
+		if stgErr, ok := err.(azblob.StorageError); ok && stgErr.ServiceCode() == azblob.ServiceCodeContainerNotFound {
+			// Container doesn't exist, create it
+			if debug {
+				log.Printf("[azblob:debug] Container %s not found, creating it", containerName)
+			}
+			_, err = containerURL.Create(ctx, azblob.Metadata{}, azblob.PublicAccessNone)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create container %s: %w", containerName, err)
+			}
+			if debug {
+				log.Printf("[azblob:debug] Container %s created successfully", containerName)
+			}
+		} else {
+			return nil, fmt.Errorf("failed to access container %s: %w", containerName, err)
+		}
 	}
 
 	storage := &AzBlobStorage{

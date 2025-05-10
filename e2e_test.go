@@ -411,21 +411,9 @@ func testAzureBlobStorage(ctx context.Context, t *testing.T, clickhouseContainer
 	azuritePort, err := azuriteContainer.MappedPort(ctx, "10000/tcp")
 	require.NoError(t, err, "Failed to get Azurite port")
 
-	// Create container in Azurite before test
+	// Get Azurite endpoint
 	endpoint := fmt.Sprintf("http://%s:%s/devstoreaccount1", azuriteHost, azuritePort.Port())
-
-	// Initialize HTTP client to create container
-	req, err := http.NewRequest("PUT", endpoint+"/testcontainer?restype=container", nil)
-	require.NoError(t, err, "Failed to create HTTP request")
-
-	resp, err := http.DefaultClient.Do(req)
-	if err == nil && resp.Body != nil {
-		respBody, readErr := io.ReadAll(resp.Body)
-		require.NoError(t, readErr, "Unexpected error during read creation`testcontainer` response: %s", respBody)
-		t.Logf("Create `testcontainer` response:\n%s", respBody)
-	}
-
-	t.Logf("Created test container in Azurite at %s", endpoint)
+	t.Logf("Using Azurite endpoint: %s", endpoint)
 
 	// For Azurite (local testing) use special credentials and endpoint
 	runMainTestScenario(ctx, t, clickhouseContainer, map[string]string{
