@@ -99,6 +99,7 @@ func (s *SFTPStorage) Upload(filename string, reader io.Reader, format string, l
 	remoteFilename := filename + ext
 	
 	s.debugf("Uploading file to %s (compression: %s, level: %d)", remoteFilename, format, level)
+	s.debugf("Full remote path: %s", remoteFilename)
 
 	// Create the remote file
 	s.debugf("Attempting to create remote file: %s", remoteFilename)
@@ -202,8 +203,28 @@ func (s *SFTPStorage) List(prefix string, recursive bool) ([]string, error) {
 	
 	var matchingFiles []string
 
-	s.debugf("Starting SFTP walk from root directory")
-	walker := s.client.Walk(".")
+	// Определяем начальный путь для обхода
+	startPath := "."
+	if prefix != "" {
+		// Если префикс указан, начинаем с его директории
+		prefixDir := filepath.Dir(prefix)
+		if prefixDir != "." {
+			startPath = prefixDir
+		}
+	}
+	
+	s.debugf("Starting SFTP walk from directory: %s", startPath)
+	
+	// Проверяем существование начального пути
+	_, err := s.client.Stat(startPath)
+	if err != nil {
+		s.debugf("Start path does not exist: %s, error: %v", startPath, err)
+		// Если путь не существует, возвращаем пустой список
+		return []string{}, nil
+	}
+	
+	// Начинаем обход с указанного пути
+	walker := s.client.Walk(startPath)
 	for walker.Step() {
 		if err := walker.Err(); err != nil {
 			s.debugf("Error walking SFTP path: %v", err)
@@ -211,16 +232,26 @@ func (s *SFTPStorage) List(prefix string, recursive bool) ([]string, error) {
 		}
 
 		path := walker.Path()
-		if !strings.HasPrefix(path, prefix) {
+		s.debugf("Examining path: %s", path)
+		
+		// Проверяем, соответствует ли путь префиксу
+		if prefix != "" && !strings.HasPrefix(path, prefix) {
 			if walker.Stat().IsDir() {
-				s.debugf("Skipping directory that doesn't match prefix: %s", path)
-				walker.SkipDir() // Skip directories that don't match prefix
+				// Если это директория и она не соответствует префиксу,
+				// проверяем, может ли она содержать файлы с нужным префиксом
+				if !strings.HasPrefix(prefix, path+"/") {
+					s.debugf("Skipping directory that doesn't match prefix: %s", path)
+					walker.SkipDir()
+				} else {
+					s.debugf("Entering directory that might contain matching files: %s", path)
+				}
 			}
 			continue
 		}
 
 		if !walker.Stat().IsDir() {
-			if recursive || filepath.Dir(path) == filepath.Dir(prefix) {
+			// Для файлов проверяем, соответствуют ли они условиям рекурсии
+			if recursive || filepath.Dir(path) == filepath.Dir(prefix) || prefix == "" {
 				s.debugf("Found matching file: %s", path)
 				matchingFiles = append(matchingFiles, path)
 			}
