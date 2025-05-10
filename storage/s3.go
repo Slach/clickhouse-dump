@@ -106,7 +106,7 @@ func (s *S3Storage) Upload(filename string, reader io.Reader, format string, lev
 // и гарантирует удаление временного файла при вызове Close.
 type tempFileCloser struct {
 	io.ReadCloser
-	name string // Путь к временному файлу
+	name string // Path to temporary file
 }
 
 // Close закрывает нижележащий ReadCloser, а затем удаляет временный файл.
@@ -114,8 +114,8 @@ func (tfc *tempFileCloser) Close() error {
 	closeErr := tfc.ReadCloser.Close()
 	removeErr := os.Remove(tfc.name)
 	if closeErr != nil {
-		// Если закрытие ридера не удалось, возвращаем эту ошибку.
-		// Логгируем ошибку удаления, если она также произошла.
+		// If closing the reader failed, return this error.
+		// Log the removal error if it also occurred.
 		if removeErr != nil {
 			log.Printf("also failed to remove temporary file %s: %v", tfc.name, removeErr)
 		}
