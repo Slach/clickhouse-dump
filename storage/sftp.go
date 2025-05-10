@@ -107,37 +107,15 @@ func (s *SFTPStorage) Upload(filename string, reader io.Reader, format string, l
 }
 
 // Download retrieves a file from SFTP and returns a reader for its decompressed content.
-// It tries common compression extensions (.gz, .zstd) if the base filename doesn't exist.
 func (s *SFTPStorage) Download(filename string) (io.ReadCloser, error) {
-	extensionsToTry := []string{".gz", ".zstd", ""} // Try compressed first, then raw
-
-	var lastErr error
-	for _, ext := range extensionsToTry {
-		remoteFilename := filename + ext
-		file, err := s.client.Open(remoteFilename)
-
-		if err == nil {
-			// Success! Wrap the file reader with decompression.
-			// The caller must close the returned reader, which will close the underlying sftp.File.
-			decompressedStream := decompressStream(file, remoteFilename) // Handles decompression based on remoteFilename extension
-			return decompressedStream, nil
-		}
-
-		// Handle error
-		lastErr = fmt.Errorf("failed attempt to download %s from sftp host %s: %w", remoteFilename, s.host, err)
-
-		// Check if the error indicates file not found (os.ErrNotExist is common via sftp)
-		if os.IsNotExist(err) || strings.Contains(strings.ToLower(err.Error()), "no such file") {
-			// File not found, continue to try the next extension
-			continue
-		}
-
-		// If it's not a recognized "not found" error, return it immediately
-		return nil, lastErr
+	file, err := s.client.Open(filename)
+	if err != nil {
+		return nil, fmt.Errorf("failed to download %s from sftp host %s: %w", filename, s.host, err)
 	}
-
-	// If we tried all extensions and none worked, return the last error encountered
-	return nil, fmt.Errorf("file %s not found on sftp host %s with extensions %v: %w", filename, s.host, extensionsToTry, lastErr)
+	
+	// Success! Wrap the file reader with decompression.
+	// The caller must close the returned reader, which will close the underlying sftp.File.
+	return decompressStream(file, filename), nil
 }
 
 // List returns a list of filenames in the SFTP server matching the prefix.

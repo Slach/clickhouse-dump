@@ -255,41 +255,19 @@ func (g *GCSStorage) Upload(filename string, reader io.Reader, format string, le
 }
 
 // Download retrieves an object from GCS and returns a reader for its decompressed content.
-// It tries common compression extensions (.gz, .zstd) if the base filename doesn't exist.
 func (g *GCSStorage) Download(filename string) (io.ReadCloser, error) {
 	ctx := context.Background()
-	extensionsToTry := []string{".gz", ".zstd", ""} // Try compressed first, then raw
+	obj := g.bucket.Object(filename)
 
-	var lastErr error
-	for _, ext := range extensionsToTry {
-		objectName := filename + ext
-		obj := g.bucket.Object(objectName)
-
-		// Attempt to create a reader for the object
-		reader, err := obj.NewReader(ctx)
-
-		if err == nil {
-			// Success! Return the reader wrapped in our decompressor.
-			// The caller must close the returned reader.
-			decompressedStream := decompressStream(reader, objectName) // Handles decompression based on objectName extension
-			return decompressedStream, nil
-		}
-
-		// Handle error
-		lastErr = fmt.Errorf("failed attempt to download %s from gcs bucket %s: %w", objectName, g.bucketName, err)
-
-		// Check if the error is storage.ErrObjectNotExist
-		if errors.Is(err, storage.ErrObjectNotExist) {
-			// Object not found, continue to try the next extension
-			continue
-		}
-
-		// If it's not an ErrObjectNotExist error, return it immediately
-		return nil, lastErr
+	// Attempt to create a reader for the object
+	reader, err := obj.NewReader(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to download %s from gcs bucket %s: %w", filename, g.bucketName, err)
 	}
 
-	// If we tried all extensions and none worked, return the last error encountered
-	return nil, fmt.Errorf("file %s not found in gcs bucket %s with extensions %v: %w", filename, g.bucketName, extensionsToTry, lastErr)
+	// Success! Return the reader wrapped in our decompressor.
+	// The caller must close the returned reader.
+	return decompressStream(reader, filename), nil
 }
 
 // List returns a list of object names in the GCS bucket matching the prefix.

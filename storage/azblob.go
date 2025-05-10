@@ -105,55 +105,24 @@ func (a *AzBlobStorage) Upload(filename string, reader io.Reader, format string,
 }
 
 // Download retrieves a blob from Azure Blob Storage and returns a reader for its decompressed content.
-// It tries common compression extensions (.gz, .zstd) if the base filename doesn't exist.
 func (a *AzBlobStorage) Download(filename string) (io.ReadCloser, error) {
 	ctx := context.Background()
-	extensionsToTry := []string{".gz", ".zstd", ""} // Try compressed first, then raw
+	blobURL := a.containerURL.NewBlockBlobURL(filename)
 
-	a.debugf("Attempting to download blob: %s (will try extensions: %v)", filename, extensionsToTry)
+	a.debugf("Attempting to download blob: %s", filename)
 
-	var lastErr error
-	for _, ext := range extensionsToTry {
-		blobName := filename + ext
-		blobURL := a.containerURL.NewBlockBlobURL(blobName)
-
-		a.debugf("Trying to download blob: %s", blobName)
-
-		// Attempt to download the blob properties first to check existence with less overhead
-		// _, err := blobURL.GetProperties(ctx, azblob.BlobAccessConditions{}, azblob.ClientProvidedKeyOptions{})
-		// if err == nil { // Blob exists
-
-		// Or directly attempt download
-		response, err := blobURL.Download(ctx, 0, azblob.CountToEnd, azblob.BlobAccessConditions{}, false, azblob.ClientProvidedKeyOptions{})
-
-		if err == nil {
-			// Success! Return the response body wrapped in our decompressor
-			// The response body needs to be closed by the caller.
-			a.debugf("Successfully downloaded blob: %s", blobName)
-			bodyStream := response.Body(azblob.RetryReaderOptions{MaxRetryRequests: 3}) // Use retry reader
-			decompressedStream := decompressStream(bodyStream, blobName)                // Handles decompression based on blobName extension
-			return decompressedStream, nil
-		}
-
-		// Handle error
-		a.debugf("Failed to download blob %s: %v", blobName, err)
-		lastErr = fmt.Errorf("failed attempt to download %s from azure container %s: %w", blobName, a.containerURL.String(), err)
-
-		// Check if the error is a 404 Not Found
-		if stgErr, ok := err.(azblob.StorageError); ok {
-			if stgErr.ServiceCode() == azblob.ServiceCodeBlobNotFound {
-				// Blob not found, continue to try the next extension
-				a.debugf("Blob %s not found (404), trying next extension", blobName)
-				continue
-			}
-		}
-		// If it's not a BlobNotFound error, return it immediately
-		return nil, lastErr
+	// Directly attempt download
+	response, err := blobURL.Download(ctx, 0, azblob.CountToEnd, azblob.BlobAccessConditions{}, false, azblob.ClientProvidedKeyOptions{})
+	if err != nil {
+		a.debugf("Failed to download blob %s: %v", filename, err)
+		return nil, fmt.Errorf("failed to download %s from azure container %s: %w", filename, a.containerURL.String(), err)
 	}
 
-	// If we tried all extensions and none worked, return the last error encountered
-	a.debugf("All download attempts failed for %s with extensions %v", filename, extensionsToTry)
-	return nil, fmt.Errorf("file %s not found in azure container %s with extensions %v: %w", filename, a.containerURL.String(), extensionsToTry, lastErr)
+	// Success! Return the response body wrapped in our decompressor
+	// The response body needs to be closed by the caller.
+	a.debugf("Successfully downloaded blob: %s", filename)
+	bodyStream := response.Body(azblob.RetryReaderOptions{MaxRetryRequests: 3}) // Use retry reader
+	return decompressStream(bodyStream, filename), nil
 }
 
 // List returns a list of blob names in the Azure container matching the prefix.
