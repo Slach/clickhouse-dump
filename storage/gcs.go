@@ -17,77 +17,17 @@ import (
 	"log"
 )
 
-// debugGCSTransport wraps an http.RoundTripper to log GCS requests and responses,
-// and to rewrite media upload URLs to a custom endpoint if specified.
+// debugGCSTransport wraps an http.RoundTripper to log GCS requests and responses
 type debugGCSTransport struct {
-	base                 http.RoundTripper
-	isCustomEndpoint     bool
-	customEndpointScheme string
-	customEndpointHost   string // host:port
+	base http.RoundTripper
 }
 
-// RoundTrip executes a single HTTP transaction, adding logging before and after,
-// and potentially rewriting the URL for media uploads to a custom endpoint.
+// RoundTrip executes a single HTTP transaction with debug logging
 func (dgt debugGCSTransport) RoundTrip(r *http.Request) (*http.Response, error) {
-	originalURLStringForLog := r.URL.String() // Capture before potential modification
+	originalURL := r.URL.String()
 
-	if dgt.isCustomEndpoint {
-		// Ensure scheme and host are correctly pointing to the custom endpoint.
-		if r.URL.Scheme != dgt.customEndpointScheme || r.URL.Host != dgt.customEndpointHost {
-			log.Printf("[GCS_ENDPOINT_REWRITE] Attempting to rewrite scheme/host for URL from: %s", r.URL.String())
-			r.URL.Scheme = dgt.customEndpointScheme
-			r.URL.Host = dgt.customEndpointHost
-			log.Printf("[GCS_ENDPOINT_REWRITE] Rewrote scheme/host for URL to: %s", r.URL.String())
-		}
-
-		// Path rewriting logic for fake-gcs-server compatibility
-		currentPath := r.URL.Path
-		newPath := currentPath
-
-		if strings.HasPrefix(currentPath, "/upload/") {
-			// Upload paths are usually fine, e.g., /upload/storage/v1/b/bucket/o
-			// No change needed unless specific issues are found.
-		} else if strings.HasPrefix(currentPath, "/b/") && strings.Contains(currentPath, "/o") {
-			// This is likely a ListObjects or GetObjectMetadata request, e.g. /b/bucket/o or /b/bucket/o/object
-			// fake-gcs-server expects /storage/v1/b/bucket/o...
-			if !strings.HasPrefix(currentPath, "/storage/v1/") {
-				newPath = "/storage/v1" + currentPath
-				log.Printf("[GCS_PATH_REWRITE_LIST_GET] Path %s -> %s", currentPath, newPath)
-			}
-		} else if !strings.HasPrefix(currentPath, "/storage/v1/") && !strings.HasPrefix(currentPath, "/upload/") && strings.Count(currentPath, "/") >= 2 {
-			// This heuristic targets paths like "/bucketname/objectname..." which NewReader might generate.
-			// It needs to be transformed to "/storage/v1/b/bucketname/o/objectname..."
-			parts := strings.SplitN(strings.TrimPrefix(currentPath, "/"), "/", 2)
-			if len(parts) == 2 {
-				bucketName := parts[0]
-				objectPath := parts[1]
-				// Ensure objectPath doesn't get an extra leading slash if it was empty
-				// and to correctly form /o/objectName vs /o/folder/objectName
-				newPath = fmt.Sprintf("/storage/v1/b/%s/o/%s", bucketName, objectPath)
-				log.Printf("[GCS_PATH_REWRITE_DOWNLOAD] Path %s -> %s (bucket: %s, object: %s)", currentPath, newPath, bucketName, objectPath)
-				// For direct object downloads, GCS API expects ?alt=media
-				q := r.URL.Query()
-				if q.Get("alt") == "" { // Add alt=media only if not already present
-					q.Set("alt", "media")
-					r.URL.RawQuery = q.Encode()
-					log.Printf("[GCS_PATH_REWRITE_DOWNLOAD] Added ?alt=media to query for %s", r.URL.Path)
-				}
-			} else if len(parts) == 1 { // Path might be just "/bucketname" - less common for object ops
-				log.Printf("[GCS_PATH_REWRITE_WARN] Path %s looks like a bucket-only path, not rewriting further for object access.", currentPath)
-			}
-		}
-
-		if newPath != currentPath {
-			r.URL.Path = newPath
-		}
-	}
-
-	logMsg := fmt.Sprintf(">>> [GCS_REQUEST] >>> %v %v", r.Method, r.URL.String())
-	if originalURLStringForLog != r.URL.String() {
-		logMsg += fmt.Sprintf(" (original: %s)", originalURLStringForLog)
-	}
-	logMsg += "\n"
-
+	// Log request
+	logMsg := fmt.Sprintf(">>> [GCS_REQUEST] >>> %v %v\n", r.Method, originalURL)
 	for h, values := range r.Header {
 		for _, v := range values {
 			logMsg += fmt.Sprintf("%v: %v\n", h, v)
@@ -95,87 +35,68 @@ func (dgt debugGCSTransport) RoundTrip(r *http.Request) (*http.Response, error) 
 	}
 	log.Println(logMsg)
 
+	// Execute request
 	resp, err := dgt.base.RoundTrip(r)
 	if err != nil {
 		log.Printf("GCS_ERROR: %v", err)
 		return resp, err
 	}
 
-	logMsg = fmt.Sprintf("<<< [GCS_RESPONSE: %s] <<< %v %v\n", resp.Status, r.Method, r.URL.String())
-	if originalURLStringForLog != r.URL.String() && resp.Request != nil && originalURLStringForLog != resp.Request.URL.String() {
-		// If the request URL was rewritten, also log the original URL context for the response
-		logMsg = fmt.Sprintf("<<< [GCS_RESPONSE: %s] <<< %v %v (original request URL: %s)\n", resp.Status, r.Method, r.URL.String(), originalURLStringForLog)
-	}
-
+	// Log response
+	logMsg = fmt.Sprintf("<<< [GCS_RESPONSE: %s] <<< %v %v\n", resp.Status, r.Method, originalURL)
 	for h, values := range resp.Header {
 		for _, v := range values {
 			logMsg += fmt.Sprintf("%v: %v\n", h, v)
 		}
 	}
 	log.Println(logMsg)
+
 	return resp, err
 }
 
-// customEndpointGCSTransport wraps an http.RoundTripper to rewrite media upload URLs to a custom endpoint if specified.
+// customEndpointGCSTransport wraps an http.RoundTripper to rewrite URLs for custom GCS endpoints
 type customEndpointGCSTransport struct {
 	base                 http.RoundTripper
-	isCustomEndpoint     bool
 	customEndpointScheme string
 	customEndpointHost   string // host:port
 }
 
-// RoundTrip executes a single HTTP transaction, potentially rewriting the URL for media uploads to a custom endpoint.
+// RoundTrip rewrites request URLs for custom GCS endpoints
 func (cegt customEndpointGCSTransport) RoundTrip(r *http.Request) (*http.Response, error) {
-	if cegt.isCustomEndpoint {
-		// Ensure scheme and host are correctly pointing to the custom endpoint.
-		if r.URL.Scheme != cegt.customEndpointScheme || r.URL.Host != cegt.customEndpointHost {
-			log.Printf("[GCS_ENDPOINT_REWRITE] Attempting to rewrite scheme/host for URL from: %s", r.URL.String())
-			r.URL.Scheme = cegt.customEndpointScheme
-			r.URL.Host = cegt.customEndpointHost
-			log.Printf("[GCS_ENDPOINT_REWRITE] Rewrote scheme/host for URL to: %s", r.URL.String())
+	// Rewrite scheme and host to custom endpoint
+	if r.URL.Scheme != cegt.customEndpointScheme || r.URL.Host != cegt.customEndpointHost {
+		r.URL.Scheme = cegt.customEndpointScheme
+		r.URL.Host = cegt.customEndpointHost
+	}
+
+	// Path rewriting logic for fake-gcs-server compatibility
+	currentPath := r.URL.Path
+	newPath := currentPath
+
+	if strings.HasPrefix(currentPath, "/b/") && strings.Contains(currentPath, "/o") {
+		// Rewrite /b/bucket/o to /storage/v1/b/bucket/o
+		if !strings.HasPrefix(currentPath, "/storage/v1/") {
+			newPath = "/storage/v1" + currentPath
 		}
-
-		// Path rewriting logic for fake-gcs-server compatibility
-		currentPath := r.URL.Path
-		newPath := currentPath
-
-		if strings.HasPrefix(currentPath, "/upload/") {
-			// Upload paths are usually fine, e.g., /upload/storage/v1/b/bucket/o
-			// No change needed unless specific issues are found.
-		} else if strings.HasPrefix(currentPath, "/b/") && strings.Contains(currentPath, "/o") {
-			// This is likely a ListObjects or GetObjectMetadata request, e.g. /b/bucket/o or /b/bucket/o/object
-			// fake-gcs-server expects /storage/v1/b/bucket/o...
-			if !strings.HasPrefix(currentPath, "/storage/v1/") {
-				newPath = "/storage/v1" + currentPath
-				log.Printf("[GCS_PATH_REWRITE_LIST_GET] Path %s -> %s", currentPath, newPath)
-			}
-		} else if !strings.HasPrefix(currentPath, "/storage/v1/") && !strings.HasPrefix(currentPath, "/upload/") && strings.Count(currentPath, "/") >= 2 {
-			// This heuristic targets paths like "/bucketname/objectname..." which NewReader might generate.
-			// It needs to be transformed to "/storage/v1/b/bucketname/o/objectname..."
-			parts := strings.SplitN(strings.TrimPrefix(currentPath, "/"), "/", 2)
-			if len(parts) == 2 {
-				bucketName := parts[0]
-				objectPath := parts[1]
-				// Ensure objectPath doesn't get an extra leading slash if it was empty
-				// and to correctly form /o/objectName vs /o/folder/objectName
-				newPath = fmt.Sprintf("/storage/v1/b/%s/o/%s", bucketName, objectPath)
-				log.Printf("[GCS_PATH_REWRITE_DOWNLOAD] Path %s -> %s (bucket: %s, object: %s)", currentPath, newPath, bucketName, objectPath)
-				// For direct object downloads, GCS API expects ?alt=media
+	} else if !strings.HasPrefix(currentPath, "/storage/v1/") && 
+		!strings.HasPrefix(currentPath, "/upload/") && 
+		strings.Count(currentPath, "/") >= 2 {
+		// Rewrite /bucket/object to /storage/v1/b/bucket/o/object
+		parts := strings.SplitN(strings.TrimPrefix(currentPath, "/"), "/", 2)
+		if len(parts) == 2 {
+			newPath = fmt.Sprintf("/storage/v1/b/%s/o/%s", parts[0], parts[1])
+			if r.URL.Query().Get("alt") == "" {
 				q := r.URL.Query()
-				if q.Get("alt") == "" { // Add alt=media only if not already present
-					q.Set("alt", "media")
-					r.URL.RawQuery = q.Encode()
-					log.Printf("[GCS_PATH_REWRITE_DOWNLOAD] Added ?alt=media to query for %s", r.URL.Path)
-				}
-			} else if len(parts) == 1 { // Path might be just "/bucketname" - less common for object ops
-				log.Printf("[GCS_PATH_REWRITE_WARN] Path %s looks like a bucket-only path, not rewriting further for object access.", currentPath)
+				q.Set("alt", "media")
+				r.URL.RawQuery = q.Encode()
 			}
-		}
-
-		if newPath != currentPath {
-			r.URL.Path = newPath
 		}
 	}
+
+	if newPath != currentPath {
+		r.URL.Path = newPath
+	}
+
 	return cegt.base.RoundTrip(r)
 }
 
@@ -267,20 +188,17 @@ func NewGCSStorage(bucketName, endpoint, credentialsFile string, debug bool) (*G
 		}
 	}
 
-	// Wrap with debug transport for logging and URL rewriting
-	if debug {
-		transport = debugGCSTransport{
+	// Chain transports - first custom endpoint, then debug if needed
+	if ueIsSet {
+		transport = customEndpointGCSTransport{
 			base:                 transport,
-			isCustomEndpoint:     ueIsSet,
 			customEndpointScheme: ueScheme,
 			customEndpointHost:   ueHost,
 		}
-	} else {
-		transport = customEndpointGCSTransport{
-			base:                 transport,
-			isCustomEndpoint:     ueIsSet,
-			customEndpointScheme: ueScheme,
-			customEndpointHost:   ueHost,
+	}
+	if debug {
+		transport = debugGCSTransport{
+			base: transport,
 		}
 	}
 	httpClient := &http.Client{Transport: transport}
