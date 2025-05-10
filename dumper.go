@@ -204,14 +204,14 @@ func (d *Dumper) dumpSchema(dbName, tableName string) error {
 
 	filename := fmt.Sprintf("%s/%s/%s/%s.schema.sql", d.config.StorageConfig["path"], d.config.BackupName, dbName, tableName)
 	
-	// Если ClickHouse уже вернул сжатые данные, передаем их напрямую
+	// If ClickHouse already returned compressed data, pass it directly
 	if contentEncoding != "" && strings.ToLower(contentEncoding) == strings.ToLower(d.config.CompressFormat) {
-		// Данные уже сжаты в нужном формате, передаем их напрямую
+		// Data is already compressed in the required format, pass it directly
 		d.debugf("Using pre-compressed schema data from ClickHouse with %s encoding", contentEncoding)
 		return d.storage.UploadWithExtension(filename, body, contentEncoding)
 	}
 	
-	// Иначе сжимаем данные самостоятельно
+	// Otherwise compress the data ourselves
 	return d.storage.Upload(filename, body, d.config.CompressFormat, d.config.CompressLevel)
 }
 
@@ -230,9 +230,9 @@ func (d *Dumper) dumpData(dbName, tableName string) error {
 	
 	filename := fmt.Sprintf("%s/%s/%s/%s.data.sql", d.config.StorageConfig["path"], d.config.BackupName, dbName, tableName)
 	
-	// Если ClickHouse уже вернул сжатые данные, передаем их напрямую
+	// If ClickHouse already returned compressed data, pass it directly
 	if contentEncoding != "" && strings.ToLower(contentEncoding) == strings.ToLower(d.config.CompressFormat) {
-		// Данные уже сжаты в нужном формате, передаем их напрямую
+		// Data is already compressed in the required format, pass it directly
 		d.debugf("Using pre-compressed data from ClickHouse with %s encoding", contentEncoding)
 		return d.storage.UploadWithExtension(filename, body, contentEncoding)
 	}

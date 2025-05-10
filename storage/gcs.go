@@ -270,7 +270,7 @@ func (g *GCSStorage) UploadWithExtension(filename string, reader io.Reader, cont
 	obj := g.bucket.Object(objectName)
 	writer := obj.NewWriter(ctx)
 	
-	// Устанавливаем Content-Encoding для объекта
+	// Set Content-Encoding for the object
 	if contentEncoding != "" {
 		writer.ContentEncoding = contentEncoding
 	}

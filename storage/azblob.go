@@ -121,7 +121,7 @@ func (a *AzBlobStorage) UploadWithExtension(filename string, reader io.Reader, c
 
 	a.debugf("Uploading pre-compressed blob: %s (encoding: %s)", blobName, contentEncoding)
 
-	// Создаем HTTP-заголовки для блоба
+	// Create HTTP headers for the blob
 	headers := azblob.BlobHTTPHeaders{}
 	if contentEncoding != "" {
 		headers.ContentEncoding = contentEncoding

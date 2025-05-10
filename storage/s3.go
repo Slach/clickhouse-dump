@@ -113,7 +113,7 @@ func (s *S3Storage) UploadWithExtension(filename string, reader io.Reader, conte
 	
 	s3Key := strings.TrimPrefix(filename, "/") + ext
 	
-	// Устанавливаем соответствующий Content-Encoding для объекта
+	// Set the appropriate Content-Encoding for the object
 	uploadInput := &s3.PutObjectInput{
 		Bucket: aws.String(s.bucket),
 		Key:    aws.String(s3Key),
@@ -128,14 +128,14 @@ func (s *S3Storage) UploadWithExtension(filename string, reader io.Reader, conte
 	return err
 }
 
-// tempFileCloser оборачивает io.ReadCloser (обычно *os.File)
-// и гарантирует удаление временного файла при вызове Close.
+// tempFileCloser wraps an io.ReadCloser (usually *os.File)
+// and ensures the temporary file is deleted when Close is called.
 type tempFileCloser struct {
 	io.ReadCloser
 	name string // Path to temporary file
 }
 
-// Close закрывает нижележащий ReadCloser, а затем удаляет временный файл.
+// Close closes the underlying ReadCloser and then deletes the temporary file.
 func (tfc *tempFileCloser) Close() error {
 	closeErr := tfc.ReadCloser.Close()
 	removeErr := os.Remove(tfc.name)
@@ -147,44 +147,44 @@ func (tfc *tempFileCloser) Close() error {
 		}
 		return closeErr
 	}
-	// Если закрытие прошло успешно, возвращаем ошибку удаления (если есть).
+	// If closing was successful, return the removal error (if any).
 	return removeErr
 }
 
 func (s *S3Storage) Download(filename string) (io.ReadCloser, error) {
 	s3Key := strings.TrimPrefix(filename, "/")
 
-	// Создаем временный файл для загрузки
+	// Create a temporary file for download
 	tempFile, err := os.CreateTemp("", "s3-download-*")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temporary file: %w", err)
 	}
 
-	// Пытаемся загрузить
+	// Try to download
 	_, err = s.downloader.Download(context.Background(), tempFile, &s3.GetObjectInput{
 		Bucket: aws.String(s.bucket),
 		Key:    aws.String(s3Key),
 	})
 
 	if err == nil {
-		// Загрузка успешна
-		// Перемещаем указатель в начало файла для чтения его содержимого
+		// Download successful
+		// Move the pointer to the beginning of the file to read its contents
 		if _, seekErr := tempFile.Seek(0, io.SeekStart); seekErr != nil {
-			_ = tempFile.Close()           // Пытаемся закрыть
-			_ = os.Remove(tempFile.Name()) // Пытаемся удалить
+			_ = tempFile.Close()           // Try to close
+			_ = os.Remove(tempFile.Name()) // Try to delete
 			return nil, fmt.Errorf("failed to seek temporary file: %w", seekErr)
 		}
 
-		// Оборачиваем файл в декомпрессор и кастомный closer для удаления временного файла
-		decompressedStream := decompressStream(tempFile, s3Key) // tempFile это io.ReadCloser
+		// Wrap the file in a decompressor and custom closer to delete the temporary file
+		decompressedStream := decompressStream(tempFile, s3Key) // tempFile is an io.ReadCloser
 		return &tempFileCloser{ReadCloser: decompressedStream, name: tempFile.Name()}, nil
 	}
 
-	// Загрузка не удалась, очищаем текущий tempFile
+	// Download failed, clean up the current tempFile
 	_ = tempFile.Close()
-	_ = os.Remove(tempFile.Name()) // Удаляем (вероятно, пустой или частично записанный) временный файл
+	_ = os.Remove(tempFile.Name()) // Delete the (likely empty or partially written) temporary file
 
-	// Проверяем, является ли ошибка NoSuchKey (или эквивалентной)
+	// Check if the error is NoSuchKey (or equivalent)
 	var nsk *types.NoSuchKey
 	if errors.As(err, &nsk) {
 		return nil, fmt.Errorf("object %s not found in S3: %w", s3Key, err)

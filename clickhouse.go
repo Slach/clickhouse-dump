@@ -41,7 +41,7 @@ func (c *ClickHouseClient) ExecuteQueryStreaming(query string, compressFormat st
 	req.SetBasicAuth(c.config.User, c.config.Password)
 	req.Header.Set("Content-Type", "text/plain")
 	
-	// Добавляем заголовок Accept-Encoding, если указан формат сжатия
+	// Add Accept-Encoding header if compression format is specified
 	if compressFormat != "" {
 		switch strings.ToLower(compressFormat) {
 		case "gzip":
@@ -67,7 +67,7 @@ func (c *ClickHouseClient) ExecuteQueryStreaming(query string, compressFormat st
 		return nil, "", fmt.Errorf("HTTP request POST %s..., failed with status code: %d, response: %s", firstNChars(query, 255), resp.StatusCode, string(respText))
 	}
 
-	// Проверяем, использовалось ли сжатие в ответе
+	// Check if compression was used in the response
 	contentEncoding := resp.Header.Get("Content-Encoding")
 	
 	return resp.Body, contentEncoding, nil

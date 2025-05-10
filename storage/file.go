@@ -100,7 +100,7 @@ func (f *FileStorage) UploadWithExtension(filename string, reader io.Reader, con
 		fullPath = filepath.Join(f.basePath, filename)
 	}
 	
-	// Добавляем расширение в зависимости от типа сжатия
+	// Add extension based on compression type
 	var ext string
 	switch strings.ToLower(contentEncoding) {
 	case "gzip":
