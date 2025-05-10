@@ -106,6 +106,13 @@ func (d *Dumper) dumpDatabaseSchema(dbName string) error {
 
 	filename := fmt.Sprintf("%s/%s/%s.database.sql", d.config.StorageConfig["path"], d.config.BackupName, dbName)
 
+	// Если ClickHouse вернул сжатые данные в нужном формате, используем их напрямую
+	if contentEncoding != "" && strings.ToLower(contentEncoding) == strings.ToLower(d.config.CompressFormat) {
+		// Данные уже сжаты в требуемом формате, но мы модифицировали содержимое,
+		// поэтому всё равно используем ручное сжатие
+		d.debugf("Модифицированные данные схемы базы данных будут сжаты с использованием %s", d.config.CompressFormat)
+	}
+	
 	// Для схемы базы данных всегда используем ручное сжатие, так как мы модифицировали содержимое
 	return d.storage.Upload(filename, strings.NewReader(createStmt), d.config.CompressFormat, d.config.CompressLevel)
 }
