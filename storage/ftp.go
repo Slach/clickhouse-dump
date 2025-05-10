@@ -12,12 +12,11 @@ import (
 	"github.com/jlaffaye/ftp"
 )
 
-type FTPStorage struct {
-	client *ftp.ServerConn
-	host   string // Store host for logging/reconnect?
-	user   string
-	debug  bool // Debug flag
-	// Password not stored for security
+// debugf logs debug messages if debug is enabled
+func (f *FTPStorage) debugf(format string, args ...interface{}) {
+	if f.debug {
+		log.Printf("[ftp:debug] "+format, args...)
+	}
 }
 
 // debugf logs debug messages if debug is enabled
@@ -25,6 +24,47 @@ func (f *FTPStorage) debugf(format string, args ...interface{}) {
 	if f.debug {
 		log.Printf("[ftp:debug] "+format, args...)
 	}
+}
+
+// FTPStorage stores connection details and provides methods for FTP operations
+type FTPStorage struct {
+	client   *ftp.ServerConn
+	host     string // Store host for logging/reconnect
+	user     string
+	password string // Store password for reconnection
+	debug    bool   // Debug flag
+}
+
+// reconnect closes the current connection and establishes a new one
+func (f *FTPStorage) reconnect() error {
+	// Close existing connection if any
+	if f.client != nil {
+		f.debugf("Closing existing FTP connection before reconnect")
+		_ = f.client.Quit() // Ignore errors on close
+	}
+	
+	f.debugf("Reconnecting to FTP server %s with user %s", f.host, f.user)
+	
+	// Dial with timeout
+	c, err := ftp.Dial(f.host, ftp.DialWithTimeout(10*time.Second))
+	if err != nil {
+		f.debugf("Failed to dial FTP host %s during reconnect: %v", f.host, err)
+		return fmt.Errorf("failed to dial ftp host %s during reconnect: %w", f.host, err)
+	}
+	
+	// Login with timeout
+	err = c.Login(f.user, f.password)
+	if err != nil {
+		f.debugf("Failed to login to FTP host %s with user %s during reconnect: %v", f.host, f.user, err)
+		if quitErr := c.Quit(); quitErr != nil {
+			f.debugf("Can't quit FTP connection after failed login: %v", quitErr)
+		}
+		return fmt.Errorf("failed to login to ftp host %s with user %s during reconnect: %w", f.host, f.user, err)
+	}
+	
+	f.debugf("Successfully reconnected to FTP server %s", f.host)
+	f.client = c
+	return nil
 }
 
 // NewFTPStorage creates a new FTP storage client.
@@ -72,10 +112,11 @@ func NewFTPStorage(host, user, password string, debug bool) (*FTPStorage, error)
 	}
 
 	return &FTPStorage{
-		client: c,
-		host:   host,
-		user:   user,
-		debug:  debug,
+		client:   c,
+		host:     host,
+		user:     user,
+		password: password, // Store password for reconnection
+		debug:    debug,
 	}, nil
 }
 
@@ -167,9 +208,14 @@ func (f *FTPStorage) Download(filename string) (io.ReadCloser, error) {
 			continue
 		}
 		
-		// Check for 229 (Entering Extended Passive Mode) - this is not an error
-		if strings.Contains(retrErr.Error(), "229") {
-			f.debugf("Received 229 response (passive mode) for %s, retrying", remoteFilename)
+		// Check for passive mode responses - these are not errors
+		if strings.Contains(retrErr.Error(), "229") || // Extended Passive Mode
+		   strings.Contains(retrErr.Error(), "227") {  // Standard Passive Mode
+			f.debugf("Received passive mode response for %s, retrying", remoteFilename)
+			
+			// Wait a moment for the server to establish the data connection
+			time.Sleep(500 * time.Millisecond)
+			
 			// Try again with the same extension
 			resp, retryErr := f.client.Retr(remoteFilename)
 			if retryErr == nil {
@@ -178,8 +224,28 @@ func (f *FTPStorage) Download(filename string) (io.ReadCloser, error) {
 				decompressedStream := decompressStream(resp, remoteFilename)
 				return decompressedStream, nil
 			}
-			// If retry also failed, continue to next extension
-			f.debugf("Retry also failed for %s: %v", remoteFilename, retryErr)
+			
+			// If the retry error also contains passive mode messages, try one more time
+			if strings.Contains(retryErr.Error(), "229") || strings.Contains(retryErr.Error(), "227") {
+				f.debugf("Received another passive mode response, final retry for %s", remoteFilename)
+				time.Sleep(1 * time.Second)
+				resp, finalRetryErr := f.client.Retr(remoteFilename)
+				if finalRetryErr == nil {
+					f.debugf("Successfully downloaded file on final retry: %s", remoteFilename)
+					decompressedStream := decompressStream(resp, remoteFilename)
+					return decompressedStream, nil
+				}
+			}
+			
+			// If retry also failed, check if it's a 550 (not found) error
+			if strings.Contains(retryErr.Error(), "550") || 
+			   strings.Contains(strings.ToLower(retryErr.Error()), strings.ToLower(ftp.StatusText(ftp.StatusFileUnavailable))) {
+				f.debugf("File %s not found (550) after passive mode retry, trying next extension", remoteFilename)
+				continue
+			}
+			
+			// For other errors after passive mode, try next extension
+			f.debugf("Retry failed for %s after passive mode: %v", remoteFilename, retryErr)
 			continue
 		}
 
@@ -190,6 +256,22 @@ func (f *FTPStorage) Download(filename string) (io.ReadCloser, error) {
 
 	// If we tried all extensions and none worked, return the last error encountered
 	f.debugf("All download attempts failed for %s with extensions %v", filename, extensionsToTry)
+	
+	// Try to reconnect and retry one more time
+	f.debugf("Attempting to reconnect to FTP server and retry download")
+	if err := f.reconnect(); err != nil {
+		f.debugf("Failed to reconnect to FTP server: %v", err)
+		return nil, fmt.Errorf("file %s not found on ftp host %s with extensions %v: %w", filename, f.host, extensionsToTry, lastErr)
+	}
+	
+	// Try one more time with the original filename
+	f.debugf("Retrying download after reconnection: %s", filename)
+	resp, finalErr := f.client.Retr(filename)
+	if finalErr == nil {
+		f.debugf("Successfully downloaded file after reconnection: %s", filename)
+		return decompressStream(resp, filename), nil
+	}
+	
 	return nil, fmt.Errorf("file %s not found on ftp host %s with extensions %v: %w", filename, f.host, extensionsToTry, lastErr)
 }
 
