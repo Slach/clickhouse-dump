@@ -413,18 +413,20 @@ func testAzureBlobStorage(ctx context.Context, t *testing.T, clickhouseContainer
 
 	// Create container in Azurite before test
 	endpoint := fmt.Sprintf("http://%s:%s/devstoreaccount1", azuriteHost, azuritePort.Port())
-	
+
 	// Initialize HTTP client to create container
 	req, err := http.NewRequest("PUT", endpoint+"/testcontainer?restype=container", nil)
 	require.NoError(t, err, "Failed to create HTTP request")
-	
+
 	resp, err := http.DefaultClient.Do(req)
 	if err == nil && resp.Body != nil {
-		resp.Body.Close()
+		respBody, readErr := io.ReadAll(resp.Body)
+		require.NoError(t, readErr, "Unexpected error during read creation`testcontainer` response: %s", respBody)
+		t.Logf("Create `testcontainer` response:\n%s", respBody)
 	}
-	
+
 	t.Logf("Created test container in Azurite at %s", endpoint)
-	
+
 	// For Azurite (local testing) use special credentials and endpoint
 	runMainTestScenario(ctx, t, clickhouseContainer, map[string]string{
 		"storage-type":      "azblob",
@@ -584,7 +586,7 @@ func startAzuriteContainer(ctx context.Context) (testcontainers.Container, error
 		Name:         "clickhouse-dump-test-azurite",
 		Image:        "mcr.microsoft.com/azure-storage/azurite:latest",
 		ExposedPorts: []string{"10000/tcp"},
-		Cmd:          []string{"azurite-blob", "--blobHost", "0.0.0.0", "--loose"},
+		Cmd:          []string{"azurite", "--debug", "/dev/stderr", "-l", "/data", "--blobHost", "0.0.0.0", "--blobKeepAliveTimeout", "600", "--disableTelemetry"},
 		WaitingFor:   wait.ForListeningPort("10000/tcp").WithStartupTimeout(30 * time.Second),
 	}
 	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
