@@ -588,7 +588,7 @@ func startFTPContainer(ctx context.Context) (testcontainers.Container, error) {
 	req := testcontainers.ContainerRequest{
 		Name:         "clickhouse-dump-test-ftp",
 		Image:        "fauria/vsftpd:latest",
-		ExposedPorts: []string{"21/tcp", "20000-20001/tcp"},
+		ExposedPorts: []string{"21/tcp", "20000/tcp", "20001/tcp"},
 		Env: map[string]string{
 			"FTP_USER":      "testuser",
 			"FTP_PASS":      "testpass",
