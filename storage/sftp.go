@@ -28,12 +28,7 @@ func (s *SFTPStorage) debugf(format string, args ...interface{}) {
 }
 
 // NewSFTPStorage creates a new SFTP storage client.
-func NewSFTPStorage(host, user, password string) (*SFTPStorage, error) {
-	return NewSFTPStorageWithDebug(host, user, password, false)
-}
-
-// NewSFTPStorageWithDebug creates a new SFTP storage client with debug logging.
-func NewSFTPStorageWithDebug(host, user, password string, debug bool) (*SFTPStorage, error) {
+func NewSFTPStorage(host, user, password string, debug bool) (*SFTPStorage, error) {
 	if host == "" || user == "" { // Password might be empty if using key auth (not implemented here)
 		return nil, fmt.Errorf("sftp host and user cannot be empty")
 	}

@@ -35,7 +35,7 @@ func NewDumper(config *Config) (*Dumper, error) {
 	case "azblob":
 		s, err = storage.NewAzBlobStorage(config.StorageConfig["account"], config.StorageConfig["key"], config.StorageConfig["container"], config.StorageConfig["endpoint"], config.Debug)
 	case "sftp":
-		s, err = storage.NewSFTPStorageWithDebug(config.StorageConfig["host"], config.StorageConfig["user"], config.StorageConfig["password"], config.Debug)
+		s, err = storage.NewSFTPStorage(config.StorageConfig["host"], config.StorageConfig["user"], config.StorageConfig["password"], config.Debug)
 	case "ftp":
 		s, err = storage.NewFTPStorage(config.StorageConfig["host"], config.StorageConfig["user"], config.StorageConfig["password"], config.Debug)
 	default:
