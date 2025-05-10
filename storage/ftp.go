@@ -131,7 +131,11 @@ func (f *FTPStorage) Upload(filename string, reader io.Reader, format string, le
 // Download retrieves a file from FTP and returns a reader for its decompressed content.
 // It tries common compression extensions (.gz, .zstd) if the base filename doesn't exist.
 func (f *FTPStorage) Download(filename string) (io.ReadCloser, error) {
-	extensionsToTry := []string{".gz", ".zstd", ""} // Try compressed first, then raw
+	// Don't add extensions if the filename already has a compression extension
+	extensionsToTry := []string{""}
+	if !strings.HasSuffix(filename, ".gz") && !strings.HasSuffix(filename, ".zstd") {
+		extensionsToTry = []string{".gz", ".zstd", ""}
+	}
 
 	f.debugf("Attempting to download file: %s (will try extensions: %v)", filename, extensionsToTry)
 
@@ -156,13 +160,31 @@ func (f *FTPStorage) Download(filename string) (io.ReadCloser, error) {
 		f.debugf("Failed to download %s: %v", remoteFilename, retrErr)
 		lastErr = fmt.Errorf("failed attempt to download %s from ftp host %s: %w", remoteFilename, f.host, retrErr)
 
-		if strings.Contains(retrErr.Error(), "550") || strings.Contains(strings.ToLower(retrErr.Error()), ftp.StatusText(ftp.StatusFileUnavailable)) {
+		// Check for 550 (File not found) or similar errors
+		if strings.Contains(retrErr.Error(), "550") || 
+		   strings.Contains(strings.ToLower(retrErr.Error()), strings.ToLower(ftp.StatusText(ftp.StatusFileUnavailable))) {
 			f.debugf("File %s not found (550), trying next extension", remoteFilename)
 			continue
 		}
+		
+		// Check for 229 (Entering Extended Passive Mode) - this is not an error
+		if strings.Contains(retrErr.Error(), "229") {
+			f.debugf("Received 229 response (passive mode) for %s, retrying", remoteFilename)
+			// Try again with the same extension
+			resp, retryErr := f.client.Retr(remoteFilename)
+			if retryErr == nil {
+				// Success on retry!
+				f.debugf("Successfully downloaded file on retry: %s", remoteFilename)
+				decompressedStream := decompressStream(resp, remoteFilename)
+				return decompressedStream, nil
+			}
+			// If retry also failed, continue to next extension
+			f.debugf("Retry also failed for %s: %v", remoteFilename, retryErr)
+			continue
+		}
 
-		// If it's not a recognized "not found" error, return it immediately
-		f.debugf("Encountered non-404 error for %s: %v", remoteFilename, retrErr)
+		// If it's not a recognized "not found" error or passive mode message, return it immediately
+		f.debugf("Encountered non-recoverable error for %s: %v", remoteFilename, retrErr)
 		return nil, lastErr
 	}
 
