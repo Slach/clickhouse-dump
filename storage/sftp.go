@@ -3,6 +3,7 @@ package storage
 import (
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"os"
 	"path/filepath"
@@ -18,7 +19,7 @@ type SFTPStorage struct {
 	conn   *ssh.Client // Keep SSH connection to close it
 	host   string      // Store host for logging
 	user   string
-	debug  bool        // Debug flag
+	debug  bool // Debug flag
 }
 
 func (s *SFTPStorage) debugf(format string, args ...interface{}) {
@@ -59,7 +60,9 @@ func NewSFTPStorage(host, user, password string, debug bool) (*SFTPStorage, erro
 	// Create SFTP client from SSH connection
 	client, err := sftp.NewClient(conn)
 	if err != nil {
-		conn.Close() // Close SSH connection if SFTP client creation fails
+		if closeErr := conn.Close(); closeErr != nil {
+			log.Printf("can't close sftp connection: %v", closeErr)
+		}
 		return nil, fmt.Errorf("failed to create sftp client for host %s: %w", host, err)
 	}
 
@@ -70,11 +73,11 @@ func NewSFTPStorage(host, user, password string, debug bool) (*SFTPStorage, erro
 		user:   user,
 		debug:  debug,
 	}
-	
+
 	if debug {
 		log.Printf("[sftp:debug] Connected to SFTP server %s as user %s", host, user)
 	}
-	
+
 	return s, nil
 }
 
@@ -148,7 +151,7 @@ func (s *SFTPStorage) Download(filename string) (io.ReadCloser, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to download %s from sftp host %s: %w", filename, s.host, err)
 	}
-	
+
 	// Success! Wrap the file reader with decompression.
 	// The caller must close the returned reader, which will close the underlying sftp.File.
 	return decompressStream(file, filename), nil
