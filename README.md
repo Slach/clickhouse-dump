@@ -1,6 +1,8 @@
 # ClickHouse Dump
 
-A powerful tool for dumping and restoring ClickHouse databases to/from various storage backends.
+A simple tool for sql dumping and restoring ClickHouse databases to/from various storage backends. 
+Main motivation is create simple tool for export/import small (less 10Gb) data via different clickhouse-servers, without direct access to disk.
+Use https://github.com/Altinity/clickhouse-backup for production backup.
 
 ## Features
 
