@@ -206,69 +206,22 @@ func (f *FTPStorage) List(prefix string, recursive bool) ([]string, error) {
 
 	f.debugf("Listing files with prefix: %s (recursive: %v)", prefix, recursive)
 
-	// Get current working directory
-	cwd, err := f.client.CurrentDir()
-	if err != nil {
-		f.debugf("Failed to get current directory: %v", err)
-		return nil, fmt.Errorf("failed to get current directory: %w", err)
-	}
-	f.debugf("Current directory: %s", cwd)
-
 	// Normalize prefix - remove leading slash for FTP paths
 	prefix = strings.TrimPrefix(prefix, "/")
 
-	// Get all entries from the root directory
-	entries, err := f.client.List("/")
-	if err != nil {
-		f.debugf("Failed to list root directory: %v", err)
-		return nil, fmt.Errorf("failed to list root directory: %w", err)
-	}
-
-	// Process entries
-	for _, entry := range entries {
-		// Skip special directories
-		if entry.Name == "." || entry.Name == ".." {
-			continue
+	// Use Walk to recursively list all files
+	walker := f.client.Walk(prefix)
+	for walker.Next() {
+		if err := walker.Err(); err != nil {
+			f.debugf("Error walking path: %v", err)
+			continue // Skip errors and continue
 		}
 
-		// If entry is a directory that matches our prefix
-		if entry.Type == ftp.EntryTypeFolder && (prefix == "" || strings.HasPrefix(entry.Name, prefix) || strings.HasPrefix(prefix, entry.Name)) {
-			// List all files in this directory
-			f.debugf("Changing to directory: %s", entry.Name)
-			if err := f.client.ChangeDir(entry.Name); err != nil {
-				f.debugf("Failed to change to directory %s: %v", entry.Name, err)
-				continue // Skip this directory but continue with others
-			}
-
-			// List all files in the directory
-			dirEntries, err := f.client.List(".")
-			if err != nil {
-				f.debugf("Failed to list directory %s: %v", entry.Name, err)
-				// Return to root directory
-				if err := f.client.ChangeDir("/"); err != nil {
-					f.debugf("Failed to return to root directory: %v", err)
-				}
-				continue // Skip this directory but continue with others
-			}
-
-			// Add all files from this directory
-			for _, dirEntry := range dirEntries {
-				if dirEntry.Type == ftp.EntryTypeFile {
-					fullPath := filepath.Join(entry.Name, dirEntry.Name)
-					f.debugf("Adding file: %s", fullPath)
-					matchingFiles = append(matchingFiles, fullPath)
-				}
-			}
-
-			// Return to root directory
-			if err := f.client.ChangeDir("/"); err != nil {
-				f.debugf("Failed to return to root directory: %v", err)
-				return matchingFiles, nil // Return what we have so far
-			}
-		} else if entry.Type == ftp.EntryTypeFile && (prefix == "" || strings.HasPrefix(entry.Name, prefix)) {
-			// Add matching files from root
-			f.debugf("Adding file from root: %s", entry.Name)
-			matchingFiles = append(matchingFiles, entry.Name)
+		entry := walker.Entry()
+		// Skip directories if we only want files
+		if entry.Type == ftp.EntryTypeFile {
+			f.debugf("Adding file: %s", walker.Path())
+			matchingFiles = append(matchingFiles, walker.Path())
 		}
 	}
 
