@@ -28,6 +28,10 @@ type FTPStorage struct {
 	debug    bool   // Debug flag
 }
 
+func (f *FTPStorage) IsDebug() bool {
+	return f.debug
+}
+
 // reconnect closes the current connection and establishes a new one
 func (f *FTPStorage) reconnect() error {
 	// Close existing connection if any
@@ -62,6 +66,10 @@ func (f *FTPStorage) reconnect() error {
 
 // NewFTPStorage creates a new FTP storage client.
 func NewFTPStorage(host, user, password string, debug bool) (*FTPStorage, error) {
+	// Check environment variable if debug wasn't explicitly set
+	if !debug && os.Getenv("LOG_LEVEL") == "debug" {
+		debug = true
+	}
 	if host == "" || user == "" { // Password can potentially be empty for anonymous
 		return nil, fmt.Errorf("ftp host and user cannot be empty")
 	}

@@ -22,6 +22,10 @@ type SFTPStorage struct {
 	debug  bool
 }
 
+func (s *SFTPStorage) IsDebug() bool {
+	return s.debug
+}
+
 func (s *SFTPStorage) debugf(format string, args ...interface{}) {
 	if s.debug {
 		log.Printf("[sftp:debug] "+format, args...)
@@ -30,6 +34,10 @@ func (s *SFTPStorage) debugf(format string, args ...interface{}) {
 
 // NewSFTPStorage creates a new SFTP storage client.
 func NewSFTPStorage(host, user, password string, debug bool) (*SFTPStorage, error) {
+	// Check environment variable if debug wasn't explicitly set
+	if !debug && os.Getenv("LOG_LEVEL") == "debug" {
+		debug = true
+	}
 	s := &SFTPStorage{
 		host:  host,
 		user:  user,

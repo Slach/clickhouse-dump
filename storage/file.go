@@ -15,8 +15,16 @@ type FileStorage struct {
 	debug    bool
 }
 
+func (f *FileStorage) IsDebug() bool {
+	return f.debug
+}
+
 // NewFileStorage creates a new FileStorage instance
 func NewFileStorage(basePath string, debug bool) (*FileStorage, error) {
+	// Check environment variable if debug wasn't explicitly set
+	if !debug && os.Getenv("LOG_LEVEL") == "debug" {
+		debug = true
+	}
 	f := &FileStorage{
 		basePath: basePath,
 		debug:    debug,

@@ -125,9 +125,17 @@ type GCSStorage struct {
 }
 
 // NewGCSStorage creates a new Google Cloud Storage client.
+func (g *GCSStorage) IsDebug() bool {
+	return g.debug
+}
+
 func NewGCSStorage(bucketName, endpoint, credentialsFile string, debug bool) (*GCSStorage, error) {
 	if bucketName == "" {
 		return nil, fmt.Errorf("gcs bucket name cannot be empty")
+	}
+	// Check environment variable if debug wasn't explicitly set
+	if !debug && os.Getenv("LOG_LEVEL") == "debug" {
+		debug = true
 	}
 	ctx := context.Background()
 	if debug {
