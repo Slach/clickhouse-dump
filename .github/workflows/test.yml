@@ -22,7 +22,7 @@ jobs:
 
     - name: Run tests with coverage
       run: |
-        go test -v -failfast -parallel 4 -coverprofile=coverage.out -covermode=atomic ./...
+        go test -v -failfast -parallel 4 -coverprofile=coverage.out -covermode=atomic -coverpkg=github.com/Slach/clickhouse-dump/... ./...
         
     - name: Upload coverage to Coveralls
       uses: coverallsapp/github-action@v2
