@@ -37,7 +37,15 @@ type S3Storage struct {
 	debug      bool
 }
 
+func (s *S3Storage) IsDebug() bool {
+	return s.debug
+}
+
 func NewS3Storage(bucket, region, accessKey, secretKey, endpoint string, debug bool) (*S3Storage, error) {
+	// Check environment variable if debug wasn't explicitly set
+	if !debug && os.Getenv("LOG_LEVEL") == "debug" {
+		debug = true
+	}
 	if debug {
 		log.Printf("Initializing S3 storage with bucket=%s, region=%s, endpoint=%s", bucket, region, endpoint)
 	}

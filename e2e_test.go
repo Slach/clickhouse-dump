@@ -255,7 +255,6 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 		"--batch-size=100000",
 		"--compress-format=gzip",
 		"--compress-level=6",
-		"--debug",
 	}
 	storageFlagsSlice := make([]string, 0)
 
@@ -263,6 +262,11 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 		storageFlagsSlice = append(storageFlagsSlice, fmt.Sprintf("--%s=%s", paramName, paramValue))
 	}
 	args = append(args, storageFlagsSlice...)
+	
+	// Add --debug flag only if LOG_LEVEL=debug is set
+	if os.Getenv("LOG_LEVEL") == "debug" {
+		args = append(args, "--debug")
+	}
 
 	// Test 1: Dump
 	dumpArgs := append(args, "dump", backupName)
