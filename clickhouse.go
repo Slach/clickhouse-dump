@@ -33,6 +33,9 @@ func (c *ClickHouseClient) ExecuteQuery(query string) ([]byte, error) {
 
 func (c *ClickHouseClient) ExecuteQueryStreaming(query string, compressFormat string) (io.ReadCloser, string, error) {
 	url := fmt.Sprintf("http://%s:%d/", c.config.Host, c.config.Port)
+	if compressFormat != "" {
+		url += "?enable_http_compression=1"
+	}
 	req, reqErr := http.NewRequest("POST", url, strings.NewReader(query))
 	if reqErr != nil {
 		return nil, "", reqErr
@@ -40,7 +43,7 @@ func (c *ClickHouseClient) ExecuteQueryStreaming(query string, compressFormat st
 
 	req.SetBasicAuth(c.config.User, c.config.Password)
 	req.Header.Set("Content-Type", "text/plain")
-	
+
 	// Add Accept-Encoding header if compression format is specified
 	if compressFormat != "" {
 		switch strings.ToLower(compressFormat) {
@@ -50,7 +53,7 @@ func (c *ClickHouseClient) ExecuteQueryStreaming(query string, compressFormat st
 			req.Header.Set("Accept-Encoding", "zstd")
 		}
 	}
-	
+
 	resp, reqErr := c.client.Do(req)
 	if reqErr != nil {
 		return nil, "", reqErr
@@ -69,7 +72,7 @@ func (c *ClickHouseClient) ExecuteQueryStreaming(query string, compressFormat st
 
 	// Check if compression was used in the response
 	contentEncoding := resp.Header.Get("Content-Encoding")
-	
+
 	return resp.Body, contentEncoding, nil
 }
 
