@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -78,8 +79,8 @@ func (cegt customEndpointGCSTransport) RoundTrip(r *http.Request) (*http.Respons
 		if !strings.HasPrefix(currentPath, "/storage/v1/") {
 			newPath = "/storage/v1" + currentPath
 		}
-	} else if !strings.HasPrefix(currentPath, "/storage/v1/") && 
-		!strings.HasPrefix(currentPath, "/upload/") && 
+	} else if !strings.HasPrefix(currentPath, "/storage/v1/") &&
+		!strings.HasPrefix(currentPath, "/upload/") &&
 		strings.Count(currentPath, "/") >= 2 {
 		// Rewrite /bucket/object to /storage/v1/b/bucket/o/object
 		parts := strings.SplitN(strings.TrimPrefix(currentPath, "/"), "/", 2)
@@ -124,11 +125,11 @@ type GCSStorage struct {
 	debug      bool            // Debug logging flag
 }
 
-// NewGCSStorage creates a new Google Cloud Storage client.
 func (g *GCSStorage) IsDebug() bool {
 	return g.debug
 }
 
+// NewGCSStorage creates a new Google Cloud Storage client.
 func NewGCSStorage(bucketName, endpoint, credentialsFile string, debug bool) (*GCSStorage, error) {
 	if bucketName == "" {
 		return nil, fmt.Errorf("gcs bucket name cannot be empty")
@@ -265,7 +266,7 @@ func (g *GCSStorage) Upload(filename string, reader io.Reader, format string, le
 // UploadWithExtension uploads pre-compressed data to GCS with the appropriate extension
 func (g *GCSStorage) UploadWithExtension(filename string, reader io.Reader, contentEncoding string) error {
 	ctx := context.Background()
-	
+
 	var ext string
 	switch strings.ToLower(contentEncoding) {
 	case "gzip":
@@ -273,11 +274,11 @@ func (g *GCSStorage) UploadWithExtension(filename string, reader io.Reader, cont
 	case "zstd":
 		ext = ".zstd"
 	}
-	
+
 	objectName := filename + ext
 	obj := g.bucket.Object(objectName)
 	writer := obj.NewWriter(ctx)
-	
+
 	// Set Content-Encoding for the object
 	if contentEncoding != "" {
 		writer.ContentEncoding = contentEncoding
@@ -370,14 +371,4 @@ func (g *GCSStorage) Close() error {
 		return g.client.Close()
 	}
 	return nil
-}
-
-func countChar(s string, c rune) int {
-	count := 0
-	for _, char := range s {
-		if char == c {
-			count++
-		}
-	}
-	return count
 }

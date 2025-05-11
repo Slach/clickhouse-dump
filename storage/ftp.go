@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -179,7 +180,7 @@ func (f *FTPStorage) UploadWithExtension(filename string, reader io.Reader, cont
 	case "zstd":
 		ext = ".zstd"
 	}
-	
+
 	remoteFilename := filename + ext
 
 	f.debugf("Uploading pre-compressed file: %s (encoding: %s)", remoteFilename, contentEncoding)
