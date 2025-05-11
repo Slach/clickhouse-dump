@@ -512,9 +512,25 @@ func testFileStorage(ctx context.Context, t *testing.T, clickhouseContainer test
 	}, testCase, "test_file_"+testCase)
 }
 
+func sanitizeContainerName(name string) string {
+	// Replace invalid characters with underscores
+	replacer := strings.NewReplacer(
+		"/", "_",
+		"\\", "_",
+		":", "_",
+		"*", "_",
+		"?", "_",
+		"\"", "_",
+		"<", "_",
+		">", "_",
+		"|", "_",
+	)
+	return replacer.Replace(name)
+}
+
 func startClickHouseContainer(ctx context.Context, testCase string) (testcontainers.Container, error) {
 	req := testcontainers.ContainerRequest{
-		Name:         fmt.Sprintf("clickhouse-dump-test-clickhouse-%s", testCase),
+		Name:         sanitizeContainerName(fmt.Sprintf("clickhouse-dump-test-clickhouse-%s", testCase)),
 		Image:        "clickhouse/clickhouse-server:latest",
 		ExposedPorts: []string{"8123/tcp"},
 		Env: map[string]string{
@@ -531,7 +547,7 @@ func startClickHouseContainer(ctx context.Context, testCase string) (testcontain
 
 func startMinioContainer(ctx context.Context, testCase string) (testcontainers.Container, error) {
 	req := testcontainers.ContainerRequest{
-		Name:         fmt.Sprintf("clickhouse-dump-test-minio-%s", testCase),
+		Name:         sanitizeContainerName(fmt.Sprintf("clickhouse-dump-test-minio-%s", testCase)),
 		Image:        "bitnami/minio:latest",
 		ExposedPorts: []string{"9000/tcp"},
 		Env: map[string]string{
@@ -557,7 +573,7 @@ func startMinioContainer(ctx context.Context, testCase string) (testcontainers.C
 
 func startFakeGCSContainer(ctx context.Context, testCase string) (testcontainers.Container, error) {
 	req := testcontainers.ContainerRequest{
-		Name:         fmt.Sprintf("clickhouse-dump-test-gcs-%s", testCase),
+		Name:         sanitizeContainerName(fmt.Sprintf("clickhouse-dump-test-gcs-%s", testCase)),
 		Image:        "fsouza/fake-gcs-server:latest",
 		ExposedPorts: []string{"4443/tcp"},
 		Entrypoint:   []string{"/bin/sh"},
@@ -575,7 +591,7 @@ func startFakeGCSContainer(ctx context.Context, testCase string) (testcontainers
 
 func startAzuriteContainer(ctx context.Context, testCase string) (testcontainers.Container, error) {
 	req := testcontainers.ContainerRequest{
-		Name:         fmt.Sprintf("clickhouse-dump-test-azurite-%s", testCase),
+		Name:         sanitizeContainerName(fmt.Sprintf("clickhouse-dump-test-azurite-%s", testCase)),
 		Image:        "mcr.microsoft.com/azure-storage/azurite:latest",
 		ExposedPorts: []string{"10000/tcp"},
 		Cmd:          []string{"azurite", "--debug", "/dev/stderr", "-l", "/data", "--blobHost", "0.0.0.0", "--blobKeepAliveTimeout", "600", "--disableTelemetry"},
@@ -590,7 +606,7 @@ func startAzuriteContainer(ctx context.Context, testCase string) (testcontainers
 
 func startFTPContainer(ctx context.Context, testCase string) (testcontainers.Container, error) {
 	req := testcontainers.ContainerRequest{
-		Name:         fmt.Sprintf("clickhouse-dump-test-ftp-%s", testCase),
+		Name:         sanitizeContainerName(fmt.Sprintf("clickhouse-dump-test-ftp-%s", testCase)),
 		Image:        "fauria/vsftpd:latest",
 		ExposedPorts: []string{"21/tcp", "20000:20000/tcp", "20001:20001/tcp"},
 		Env: map[string]string{
@@ -612,7 +628,7 @@ func startFTPContainer(ctx context.Context, testCase string) (testcontainers.Con
 
 func startSFTPContainer(ctx context.Context, testCase string) (testcontainers.Container, error) {
 	req := testcontainers.ContainerRequest{
-		Name:         fmt.Sprintf("clickhouse-dump-test-sftp-%s", testCase),
+		Name:         sanitizeContainerName(fmt.Sprintf("clickhouse-dump-test-sftp-%s", testCase)),
 		Image:        "atmoz/sftp:latest",
 		ExposedPorts: []string{"22/tcp"},
 		Cmd:          []string{"testuser:testpass:::upload"},
