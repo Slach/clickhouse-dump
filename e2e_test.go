@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"github.com/Slach/clickhouse-dump/storage"
 	"io"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -26,6 +28,7 @@ func logFailMessage(msg string) string {
 }
 
 func TestE2E(t *testing.T) {
+	rand.Seed(time.Now().UnixNano())
 	t.Parallel() // Enable parallel execution for all subtests
 
 	testCases := []string{
@@ -610,17 +613,28 @@ func startAzuriteContainer(ctx context.Context, containerName string) (testconta
 }
 
 func startFTPContainer(ctx context.Context, containerName string) (testcontainers.Container, error) {
+	// Generate random ports for PASV range to avoid conflicts in parallel tests
+	minPort := 30000 + rand.Intn(10000) // Random port between 30000-40000
+	maxPort := minPort + 1              // Use exactly 2 ports for PASV
+
+	// Dynamically expose the ports
+	exposedPorts := []string{
+		"21/tcp",
+		fmt.Sprintf("%d:%d/tcp", minPort, minPort),
+		fmt.Sprintf("%d:%d/tcp", maxPort, maxPort),
+	}
+
 	req := testcontainers.ContainerRequest{
 		Name:         sanitizeContainerName(fmt.Sprintf("clickhouse-dump-test-ftp-%s", containerName)),
 		Image:        "fauria/vsftpd:latest",
-		ExposedPorts: []string{"21/tcp", "20000:20000/tcp", "20001:20001/tcp"},
+		ExposedPorts: exposedPorts,
 		Env: map[string]string{
 			"FTP_USER":      "testuser",
 			"FTP_PASS":      "testpass",
 			"PASV_ENABLE":   "YES",
 			"PASV_ADDRESS":  "0.0.0.0", // Use 0.0.0.0 to allow connections from any IP
-			"PASV_MIN_PORT": "20000",
-			"PASV_MAX_PORT": "20001",
+			"PASV_MIN_PORT": strconv.Itoa(minPort),
+			"PASV_MAX_PORT": strconv.Itoa(maxPort),
 		},
 		WaitingFor: wait.ForListeningPort("21/tcp").WithStartupTimeout(30 * time.Second),
 	}
