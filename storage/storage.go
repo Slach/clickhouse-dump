@@ -12,8 +12,6 @@ import (
 
 // RemoteStorage defines the interface for interacting with different storage backends.
 type RemoteStorage interface {
-	// IsDebug returns true if debug logging is enabled
-	IsDebug() bool
 	// Upload uploads data from the reader to the specified filename.
 	// The format and level parameters control compression.
 	// The actual remote filename might include a compression extension (e.g., .gz).

@@ -7,7 +7,6 @@ import (
 	"io"
 	"log"
 	"net/url"
-	"os"
 	"strings"
 )
 
@@ -15,10 +14,6 @@ type AzBlobStorage struct {
 	containerURL azblob.ContainerURL
 	accountName  string // Store for potential use/logging
 	debug        bool   // Debug flag
-}
-
-func (a *AzBlobStorage) IsDebug() bool {
-	return a.debug
 }
 
 // debugf logs debug messages if debug is enabled
@@ -30,10 +25,6 @@ func (a *AzBlobStorage) debugf(format string, args ...interface{}) {
 
 // NewAzBlobStorage creates a new Azure Blob Storage client.
 func NewAzBlobStorage(accountName, accountKey, containerName, endpoint string, debug bool) (*AzBlobStorage, error) {
-	// Check environment variable if debug wasn't explicitly set
-	if !debug && os.Getenv("LOG_LEVEL") == "debug" {
-		debug = true
-	}
 	if accountName == "" || accountKey == "" || containerName == "" {
 		return nil, fmt.Errorf("azure storage account name, key, and container name cannot be empty")
 	}

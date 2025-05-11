@@ -15,13 +15,15 @@ type FileStorage struct {
 	debug    bool
 }
 
-func (f *FileStorage) IsDebug() bool {
-	return f.debug
+// debugf logs only if debug is enabled
+func (f *FileStorage) debugf(format string, args ...interface{}) {
+	if f.debug {
+		log.Printf("[file:debug] "+format, args...)
+	}
 }
 
 // NewFileStorage creates a new FileStorage instance
 func NewFileStorage(basePath string, debug bool) (*FileStorage, error) {
-	// Check environment variable if debug wasn't explicitly set
 	if !debug && os.Getenv("LOG_LEVEL") == "debug" {
 		debug = true
 	}
@@ -39,13 +41,6 @@ func NewFileStorage(basePath string, debug bool) (*FileStorage, error) {
 	}
 	f.debugf("Initialized file storage at: %s", basePath)
 	return f, nil
-}
-
-// debugf logs only if debug is enabled
-func (f *FileStorage) debugf(format string, args ...interface{}) {
-	if f.debug {
-		log.Printf("[file:debug] "+format, args...)
-	}
 }
 
 // Upload writes data to a local file
@@ -107,7 +102,7 @@ func (f *FileStorage) UploadWithExtension(filename string, reader io.Reader, con
 	if !strings.HasPrefix(filename, f.basePath) {
 		fullPath = filepath.Join(f.basePath, filename)
 	}
-	
+
 	// Add extension based on compression type
 	var ext string
 	switch strings.ToLower(contentEncoding) {
@@ -116,11 +111,11 @@ func (f *FileStorage) UploadWithExtension(filename string, reader io.Reader, con
 	case "zstd":
 		ext = ".zstd"
 	}
-	
+
 	if ext != "" {
 		fullPath = fullPath + ext
 	}
-	
+
 	f.debugf("Uploading pre-compressed file: %s (encoding: %s)", fullPath, contentEncoding)
 
 	// Ensure directory exists

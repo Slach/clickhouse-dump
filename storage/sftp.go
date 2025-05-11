@@ -22,10 +22,6 @@ type SFTPStorage struct {
 	debug  bool
 }
 
-func (s *SFTPStorage) IsDebug() bool {
-	return s.debug
-}
-
 func (s *SFTPStorage) debugf(format string, args ...interface{}) {
 	if s.debug {
 		log.Printf("[sftp:debug] "+format, args...)
@@ -34,10 +30,6 @@ func (s *SFTPStorage) debugf(format string, args ...interface{}) {
 
 // NewSFTPStorage creates a new SFTP storage client.
 func NewSFTPStorage(host, user, password string, debug bool) (*SFTPStorage, error) {
-	// Check environment variable if debug wasn't explicitly set
-	if !debug && os.Getenv("LOG_LEVEL") == "debug" {
-		debug = true
-	}
 	s := &SFTPStorage{
 		host:  host,
 		user:  user,
@@ -66,7 +58,7 @@ func NewSFTPStorage(host, user, password string, debug bool) (*SFTPStorage, erro
 			// TODO: Add support for key-based authentication
 		},
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(), // FIXME: Not secure for production
-		Timeout:         10 * time.Second,            // Add connection timeout
+		Timeout:         10 * time.Second,
 	}
 
 	// Dial SSH connection
@@ -196,7 +188,7 @@ func (s *SFTPStorage) UploadWithExtension(filename string, reader io.Reader, con
 	case "zstd":
 		ext = ".zstd"
 	}
-	
+
 	remoteFilename := filename + ext
 
 	s.debugf("Uploading pre-compressed file to %s (encoding: %s)", remoteFilename, contentEncoding)

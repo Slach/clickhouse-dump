@@ -37,15 +37,7 @@ type S3Storage struct {
 	debug      bool
 }
 
-func (s *S3Storage) IsDebug() bool {
-	return s.debug
-}
-
 func NewS3Storage(bucket, region, accessKey, secretKey, endpoint string, debug bool) (*S3Storage, error) {
-	// Check environment variable if debug wasn't explicitly set
-	if !debug && os.Getenv("LOG_LEVEL") == "debug" {
-		debug = true
-	}
 	if debug {
 		log.Printf("Initializing S3 storage with bucket=%s, region=%s, endpoint=%s", bucket, region, endpoint)
 	}
@@ -68,7 +60,6 @@ func NewS3Storage(bucket, region, accessKey, secretKey, endpoint string, debug b
 	if err != nil {
 		return nil, err
 	}
-
 	// Configure debug logging if enabled
 	if debug {
 		cfg.Logger = newS3Logger()
@@ -85,18 +76,16 @@ func NewS3Storage(bucket, region, accessKey, secretKey, endpoint string, debug b
 
 	client := s3.NewFromConfig(cfg, clientOpts...)
 
-	s3Storage := &S3Storage{
+	if debug {
+		log.Printf("S3 storage initialized successfully")
+	}
+	return &S3Storage{
 		bucket:     bucket,
 		client:     client,
 		uploader:   manager.NewUploader(client),
 		downloader: manager.NewDownloader(client),
 		debug:      debug,
-	}
-
-	if debug {
-		log.Printf("S3 storage initialized successfully")
-	}
-	return s3Storage, nil
+	}, nil
 }
 
 func (s *S3Storage) Upload(filename string, reader io.Reader, format string, level int) error {
@@ -118,20 +107,20 @@ func (s *S3Storage) UploadWithExtension(filename string, reader io.Reader, conte
 	case "zstd":
 		ext = ".zstd"
 	}
-	
+
 	s3Key := strings.TrimPrefix(filename, "/") + ext
-	
+
 	// Set the appropriate Content-Encoding for the object
 	uploadInput := &s3.PutObjectInput{
 		Bucket: aws.String(s.bucket),
 		Key:    aws.String(s3Key),
 		Body:   reader,
 	}
-	
+
 	if contentEncoding != "" {
 		uploadInput.ContentEncoding = aws.String(contentEncoding)
 	}
-	
+
 	_, err := s.uploader.Upload(context.Background(), uploadInput)
 	return err
 }

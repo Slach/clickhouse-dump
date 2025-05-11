@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"time"
 
@@ -125,18 +124,10 @@ type GCSStorage struct {
 	debug      bool            // Debug logging flag
 }
 
-func (g *GCSStorage) IsDebug() bool {
-	return g.debug
-}
-
 // NewGCSStorage creates a new Google Cloud Storage client.
 func NewGCSStorage(bucketName, endpoint, credentialsFile string, debug bool) (*GCSStorage, error) {
 	if bucketName == "" {
 		return nil, fmt.Errorf("gcs bucket name cannot be empty")
-	}
-	// Check environment variable if debug wasn't explicitly set
-	if !debug && os.Getenv("LOG_LEVEL") == "debug" {
-		debug = true
 	}
 	ctx := context.Background()
 	if debug {
@@ -235,6 +226,7 @@ func NewGCSStorage(bucketName, endpoint, credentialsFile string, debug bool) (*G
 		bucketName: bucketName,
 		client:     client,
 		endpoint:   endpoint,
+		debug:      debug,
 	}, nil
 }
 

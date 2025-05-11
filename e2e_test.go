@@ -271,8 +271,7 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 	}
 	args = append(args, storageFlagsSlice...)
 
-	// Add --debug flag only if LOG_LEVEL=debug is set
-	if os.Getenv("LOG_LEVEL") == "debug" {
+	if _, isDebug := os.LookupEnv("DEBUG"); isDebug {
 		args = append(args, "--debug")
 	}
 

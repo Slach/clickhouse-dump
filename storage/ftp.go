@@ -5,20 +5,12 @@ import (
 	"io"
 	"log"
 	"net"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/jlaffaye/ftp"
 )
-
-// debugf logs debug messages if debug is enabled
-func (f *FTPStorage) debugf(format string, args ...interface{}) {
-	if f.debug {
-		log.Printf("[ftp:debug] "+format, args...)
-	}
-}
 
 // FTPStorage stores connection details and provides methods for FTP operations
 type FTPStorage struct {
@@ -29,8 +21,10 @@ type FTPStorage struct {
 	debug    bool   // Debug flag
 }
 
-func (f *FTPStorage) IsDebug() bool {
-	return f.debug
+func (f *FTPStorage) debugf(format string, args ...interface{}) {
+	if f.debug {
+		log.Printf("[ftp:debug] "+format, args...)
+	}
 }
 
 // reconnect closes the current connection and establishes a new one
@@ -67,10 +61,6 @@ func (f *FTPStorage) reconnect() error {
 
 // NewFTPStorage creates a new FTP storage client.
 func NewFTPStorage(host, user, password string, debug bool) (*FTPStorage, error) {
-	// Check environment variable if debug wasn't explicitly set
-	if !debug && os.Getenv("LOG_LEVEL") == "debug" {
-		debug = true
-	}
 	if host == "" || user == "" { // Password can potentially be empty for anonymous
 		return nil, fmt.Errorf("ftp host and user cannot be empty")
 	}
