@@ -46,7 +46,7 @@ func TestE2E(t *testing.T) {
 	for _, storageType := range storageTypes {
 		for _, testCase := range testCases {
 			t.Run(fmt.Sprintf("%s_%s", storageType, testCase), func(t *testing.T) {
-				clickhouseContainer, err := startClickHouseContainer(ctx)
+				clickhouseContainer, err := startClickHouseContainer(ctx, t.Name())
 				require.NoError(t, err, "Failed to start ClickHouse container")
 				defer func() {
 					if !t.Failed() {
@@ -262,7 +262,7 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 		storageFlagsSlice = append(storageFlagsSlice, fmt.Sprintf("--%s=%s", paramName, paramValue))
 	}
 	args = append(args, storageFlagsSlice...)
-	
+
 	// Add --debug flag only if LOG_LEVEL=debug is set
 	if os.Getenv("LOG_LEVEL") == "debug" {
 		args = append(args, "--debug")
@@ -329,7 +329,7 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 
 func testS3Storage(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container, testCase string) {
 	backupName := "test_backup_" + testCase
-	minioContainer, err := startMinioContainer(ctx)
+	minioContainer, err := startMinioContainer(ctx, t.Name())
 	require.NoError(t, err, "Failed to start Minio container")
 	defer func() {
 		if !t.Failed() {
@@ -363,7 +363,7 @@ func testS3Storage(ctx context.Context, t *testing.T, clickhouseContainer testco
 
 func testGCSStorage(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container, testCase string) {
 	backupName := "test_gcs_" + testCase
-	gcsContainer, err := startFakeGCSContainer(ctx)
+	gcsContainer, err := startFakeGCSContainer(ctx, t.Name())
 	require.NoError(t, err, "Failed to start fake GCS container")
 	defer func() {
 		if !t.Failed() {
@@ -394,7 +394,7 @@ func testGCSStorage(ctx context.Context, t *testing.T, clickhouseContainer testc
 
 func testAzureBlobStorage(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container, testCase string) {
 	backupName := "test_azblob_" + testCase
-	azuriteContainer, err := startAzuriteContainer(ctx)
+	azuriteContainer, err := startAzuriteContainer(ctx, t.Name())
 	require.NoError(t, err, "Failed to start Azurite container")
 	defer func() {
 		if !t.Failed() {
@@ -432,7 +432,7 @@ func testAzureBlobStorage(ctx context.Context, t *testing.T, clickhouseContainer
 
 func testFTPStorage(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container, testCase string) {
 	backupName := "test_ftp_" + testCase
-	ftpContainer, err := startFTPContainer(ctx)
+	ftpContainer, err := startFTPContainer(ctx, t.Name())
 	require.NoError(t, err, "Failed to start FTP container")
 	defer func() {
 		if !t.Failed() {
@@ -464,7 +464,7 @@ func testFTPStorage(ctx context.Context, t *testing.T, clickhouseContainer testc
 
 func testSFTPStorage(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container, testCase string) {
 	backupName := "test_sftp_" + testCase
-	sftpContainer, err := startSFTPContainer(ctx)
+	sftpContainer, err := startSFTPContainer(ctx, t.Name())
 	require.NoError(t, err, "Failed to start SFTP container")
 	defer func() {
 		if !t.Failed() {
@@ -512,7 +512,7 @@ func testFileStorage(ctx context.Context, t *testing.T, clickhouseContainer test
 	}, testCase, "test_file_"+testCase)
 }
 
-func startClickHouseContainer(ctx context.Context) (testcontainers.Container, error) {
+func startClickHouseContainer(ctx context.Context, testCase string) (testcontainers.Container, error) {
 	req := testcontainers.ContainerRequest{
 		Name:         fmt.Sprintf("clickhouse-dump-test-clickhouse-%s", testCase),
 		Image:        "clickhouse/clickhouse-server:latest",
@@ -529,7 +529,7 @@ func startClickHouseContainer(ctx context.Context) (testcontainers.Container, er
 	})
 }
 
-func startMinioContainer(ctx context.Context) (testcontainers.Container, error) {
+func startMinioContainer(ctx context.Context, testCase string) (testcontainers.Container, error) {
 	req := testcontainers.ContainerRequest{
 		Name:         fmt.Sprintf("clickhouse-dump-test-minio-%s", testCase),
 		Image:        "bitnami/minio:latest",
@@ -555,7 +555,7 @@ func startMinioContainer(ctx context.Context) (testcontainers.Container, error) 
 	})
 }
 
-func startFakeGCSContainer(ctx context.Context) (testcontainers.Container, error) {
+func startFakeGCSContainer(ctx context.Context, testCase string) (testcontainers.Container, error) {
 	req := testcontainers.ContainerRequest{
 		Name:         fmt.Sprintf("clickhouse-dump-test-gcs-%s", testCase),
 		Image:        "fsouza/fake-gcs-server:latest",
@@ -573,7 +573,7 @@ func startFakeGCSContainer(ctx context.Context) (testcontainers.Container, error
 	})
 }
 
-func startAzuriteContainer(ctx context.Context) (testcontainers.Container, error) {
+func startAzuriteContainer(ctx context.Context, testCase string) (testcontainers.Container, error) {
 	req := testcontainers.ContainerRequest{
 		Name:         fmt.Sprintf("clickhouse-dump-test-azurite-%s", testCase),
 		Image:        "mcr.microsoft.com/azure-storage/azurite:latest",
@@ -588,7 +588,7 @@ func startAzuriteContainer(ctx context.Context) (testcontainers.Container, error
 	})
 }
 
-func startFTPContainer(ctx context.Context) (testcontainers.Container, error) {
+func startFTPContainer(ctx context.Context, testCase string) (testcontainers.Container, error) {
 	req := testcontainers.ContainerRequest{
 		Name:         fmt.Sprintf("clickhouse-dump-test-ftp-%s", testCase),
 		Image:        "fauria/vsftpd:latest",
@@ -610,7 +610,7 @@ func startFTPContainer(ctx context.Context) (testcontainers.Container, error) {
 	})
 }
 
-func startSFTPContainer(ctx context.Context) (testcontainers.Container, error) {
+func startSFTPContainer(ctx context.Context, testCase string) (testcontainers.Container, error) {
 	req := testcontainers.ContainerRequest{
 		Name:         fmt.Sprintf("clickhouse-dump-test-sftp-%s", testCase),
 		Image:        "atmoz/sftp:latest",
