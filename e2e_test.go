@@ -26,7 +26,7 @@ func logFailMessage(msg string) string {
 }
 
 func TestE2E(t *testing.T) {
-	ctx := context.Background()
+	t.Parallel() // Enable parallel execution for all subtests
 
 	testCases := []string{
 		"default",
@@ -45,9 +45,15 @@ func TestE2E(t *testing.T) {
 	}
 
 	for _, storageType := range storageTypes {
+		storageType := storageType // Capture range variable
 		for _, testCase := range testCases {
+			testCase := testCase // Capture range variable
 			t.Run(fmt.Sprintf("%s_%s", storageType, testCase), func(t *testing.T) {
-				clickhouseContainer, err := startClickHouseContainer(ctx, t.Name())
+				t.Parallel() // Enable parallel execution for this subtest
+				ctx := context.Background()
+				// Use unique container names by including test name and timestamp
+				containerName := fmt.Sprintf("%s-%s-%d", t.Name(), storageType, time.Now().UnixNano())
+				clickhouseContainer, err := startClickHouseContainer(ctx, containerName)
 				require.NoError(t, err, "Failed to start ClickHouse container")
 				defer func() {
 					if !t.Failed() {
@@ -65,15 +71,21 @@ func TestE2E(t *testing.T) {
 
 				switch storageType {
 				case "s3":
-					testS3Storage(ctx, t, clickhouseContainer, testCase)
+					// Use unique container names for storage containers too
+					storageContainerName := fmt.Sprintf("%s-%s-%d", t.Name(), storageType, time.Now().UnixNano())
+					testS3Storage(ctx, t, clickhouseContainer, testCase, storageContainerName)
 				case "gcs":
-					testGCSStorage(ctx, t, clickhouseContainer, testCase)
+					storageContainerName := fmt.Sprintf("%s-%s-%d", t.Name(), storageType, time.Now().UnixNano())
+					testGCSStorage(ctx, t, clickhouseContainer, testCase, storageContainerName)
 				case "azblob":
-					testAzureBlobStorage(ctx, t, clickhouseContainer, testCase)
+					storageContainerName := fmt.Sprintf("%s-%s-%d", t.Name(), storageType, time.Now().UnixNano())
+					testAzureBlobStorage(ctx, t, clickhouseContainer, testCase, storageContainerName)
 				case "ftp":
-					testFTPStorage(ctx, t, clickhouseContainer, testCase)
+					storageContainerName := fmt.Sprintf("%s-%s-%d", t.Name(), storageType, time.Now().UnixNano())
+					testFTPStorage(ctx, t, clickhouseContainer, testCase, storageContainerName)
 				case "sftp":
-					testSFTPStorage(ctx, t, clickhouseContainer, testCase)
+					storageContainerName := fmt.Sprintf("%s-%s-%d", t.Name(), storageType, time.Now().UnixNano())
+					testSFTPStorage(ctx, t, clickhouseContainer, testCase, storageContainerName)
 				case "file":
 					testFileStorage(ctx, t, clickhouseContainer, testCase)
 				default:
@@ -328,9 +340,9 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 	}
 }
 
-func testS3Storage(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container, testCase string) {
+func testS3Storage(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container, testCase string, containerName string) {
 	backupName := "test_backup_" + testCase
-	minioContainer, err := startMinioContainer(ctx, t.Name())
+	minioContainer, err := startMinioContainer(ctx, containerName)
 	require.NoError(t, err, "Failed to start Minio container")
 	defer func() {
 		if !t.Failed() {
