@@ -51,7 +51,7 @@ func compressStream(reader io.Reader, format string, level int) (io.Reader, stri
 	}
 
 	ext := ""
-	var compressedReader io.Reader = reader // Default to original reader
+	var compressedReader = reader // Default to original reader
 
 	pr, pw := io.Pipe() // Create pipe for async compression
 
@@ -161,7 +161,7 @@ type errorReaderCloser struct {
 	err error
 }
 
-func (e *errorReaderCloser) Read(p []byte) (n int, err error) {
+func (e *errorReaderCloser) Read(_ []byte) (n int, err error) {
 	return 0, e.err
 }
 

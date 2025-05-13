@@ -98,7 +98,7 @@ func NewSFTPStorage(host, user, password string, debug bool) (*SFTPStorage, erro
 // Otherwise, compressFormat and compressLevel are used for client-side compression.
 func (s *SFTPStorage) Upload(filename string, reader io.Reader, compressFormat string, compressLevel int, contentEncoding string) error {
 	remoteFilename := filename
-	var finalReader io.Reader = reader
+	var finalReader = reader
 
 	if contentEncoding != "" {
 		s.debugf("SFTP Upload: pre-compressed data with contentEncoding: %s for remote file %s", contentEncoding, remoteFilename)

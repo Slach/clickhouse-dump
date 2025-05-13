@@ -37,6 +37,12 @@ type S3Storage struct {
 	debug      bool
 }
 
+func (s *S3Storage) debugf(format string, args ...interface{}) {
+	if s.debug {
+		log.Printf("[s3:debug] "+format, args...)
+	}
+}
+
 func NewS3Storage(bucket, region, accessKey, secretKey, endpoint string, debug bool) (*S3Storage, error) {
 	if debug {
 		log.Printf("Initializing S3 storage with bucket=%s, region=%s, endpoint=%s", bucket, region, endpoint)
@@ -66,7 +72,7 @@ func NewS3Storage(bucket, region, accessKey, secretKey, endpoint string, debug b
 		cfg.ClientLogMode = aws.LogRequest | aws.LogResponse | aws.LogRetries
 	}
 
-	clientOpts := []func(*s3.Options){}
+	var clientOpts []func(*s3.Options)
 	if endpoint != "" {
 		clientOpts = append(clientOpts, func(o *s3.Options) {
 			o.BaseEndpoint = aws.String(endpoint)
@@ -93,7 +99,7 @@ func NewS3Storage(bucket, region, accessKey, secretKey, endpoint string, debug b
 // Otherwise, compressFormat and compressLevel are used for client-side compression.
 func (s *S3Storage) Upload(filename string, reader io.Reader, compressFormat string, compressLevel int, contentEncoding string) error {
 	s3Key := strings.TrimPrefix(filename, "/")
-	var finalReader io.Reader = reader
+	var finalReader = reader
 	var s3ObjectContentEncoding *string // For S3 metadata
 
 	if contentEncoding != "" {

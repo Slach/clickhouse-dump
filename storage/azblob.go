@@ -13,8 +13,10 @@ import (
 
 type AzBlobStorage struct {
 	containerURL azblob.ContainerURL
-	accountName  string // Store for potential use/logging
-	debug        bool   // Debug flag
+	debug        bool // Debug flag
+	// Store for potential use/logging
+	accountName   string
+	containerName string
 }
 
 // debugf logs debug messages if debug is enabled
@@ -105,7 +107,7 @@ func NewAzBlobStorage(accountName, accountKey, containerName, endpoint string, d
 func (a *AzBlobStorage) Upload(filename string, reader io.Reader, compressFormat string, compressLevel int, contentEncoding string) error {
 	ctx := context.Background()
 	blobName := filename
-	var finalReader io.Reader = reader
+	var finalReader = reader
 	httpHeaders := azblob.BlobHTTPHeaders{}
 
 	if contentEncoding != "" {
@@ -149,7 +151,7 @@ func (a *AzBlobStorage) Upload(filename string, reader io.Reader, compressFormat
 	_, err := azblob.UploadStreamToBlockBlob(ctx, finalReader, blobURL, uploadOptions)
 	if err != nil {
 		a.debugf("Failed to upload blob %s: %v", blobName, err)
-		return fmt.Errorf("failed to upload %s to azure container %s: %w", blobName, a.containerURL.Path(containerName), err)
+		return fmt.Errorf("failed to upload %s to azure container %s: %w", blobName, a.containerName, err)
 	}
 	a.debugf("Successfully uploaded blob: %s", blobName)
 	return nil
@@ -167,11 +169,10 @@ func (a *AzBlobStorage) Download(filename string, noClientDecompression bool) (i
 	response, err := blobURL.Download(ctx, 0, azblob.CountToEnd, azblob.BlobAccessConditions{}, false, azblob.ClientProvidedKeyOptions{})
 	if err != nil {
 		a.debugf("Failed to download blob %s: %v", filename, err)
-		// TODO: Implement retry for .gz, .zst if needed, though typically filename is exact.
-		return nil, fmt.Errorf("failed to download %s from azure container %s: %w", filename, a.containerURL.Path(filename), err)
+		return nil, fmt.Errorf("failed to download %s from azure container %s: %w", filename, a.containerName, err)
 	}
 
-	bodyStream := response.Body(azblob.RetryReaderOptions{MaxRetryRequests: 3}) // Use retry reader
+	bodyStream := response.Body(azblob.RetryReaderOptions{MaxRetryRequests: 3})
 
 	if noClientDecompression {
 		a.debugf("AzBlob Download: client-side decompression disabled for blob %s", filename)

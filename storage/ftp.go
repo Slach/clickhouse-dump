@@ -117,7 +117,7 @@ func NewFTPStorage(host, user, password string, debug bool) (*FTPStorage, error)
 // Otherwise, compressFormat and compressLevel are used for client-side compression.
 func (f *FTPStorage) Upload(filename string, reader io.Reader, compressFormat string, compressLevel int, contentEncoding string) error {
 	remoteFilename := filename
-	var finalReader io.Reader = reader
+	var finalReader = reader
 
 	if contentEncoding != "" {
 		f.debugf("FTP Upload: pre-compressed data with contentEncoding: %s for remote file %s", contentEncoding, remoteFilename)

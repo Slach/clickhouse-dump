@@ -52,8 +52,8 @@ func (f *FileStorage) Upload(filename string, reader io.Reader, compressFormat s
 		targetPath = filepath.Join(f.basePath, filename)
 	}
 
-	var finalReader io.Reader = reader
-	var finalPath string = targetPath
+	var finalReader = reader
+	var finalPath = targetPath
 	usedCompression := false
 
 	if contentEncoding != "" {

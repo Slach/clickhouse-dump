@@ -124,6 +124,12 @@ type GCSStorage struct {
 	debug      bool            // Debug logging flag
 }
 
+func (g *GCSStorage) debugf(format string, args ...interface{}) {
+	if g.debug {
+		log.Printf("[gcs:debug] "+format, args...)
+	}
+}
+
 // NewGCSStorage creates a new Google Cloud Storage client.
 func NewGCSStorage(bucketName, endpoint, credentialsFile string, debug bool) (*GCSStorage, error) {
 	if bucketName == "" {
@@ -236,7 +242,7 @@ func NewGCSStorage(bucketName, endpoint, credentialsFile string, debug bool) (*G
 func (g *GCSStorage) Upload(filename string, reader io.Reader, compressFormat string, compressLevel int, contentEncoding string) error {
 	ctx := context.Background()
 	objectName := filename
-	var finalReader io.Reader = reader
+	var finalReader = reader
 	var gcsObjectContentEncoding string // For GCS metadata
 
 	if contentEncoding != "" {
@@ -248,7 +254,7 @@ func (g *GCSStorage) Upload(filename string, reader io.Reader, compressFormat st
 			gcsObjectContentEncoding = "gzip"
 		case "zstd":
 			objectName += ".zstd"
-			gcsObjectContentEncoding = "zstd" // GCS supports this
+			gcsObjectContentEncoding = "zstd"
 		default:
 			g.debugf("GCS Upload: unknown contentEncoding '%s' for object %s, uploading as is", contentEncoding, objectName)
 			// objectName remains unchanged
