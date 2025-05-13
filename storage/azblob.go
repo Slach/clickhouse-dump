@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
+	"github.com/Azure/azure-pipeline-go/pipeline"
 	"github.com/Azure/azure-storage-blob-go/azblob"
 	"io"
 	"log"
@@ -23,6 +24,10 @@ func (a *AzBlobStorage) debugf(format string, args ...interface{}) {
 	}
 }
 
+func (a *AzBlobStorage) azblobDebugLog(level pipeline.LogLevel, msg string) {
+	a.debugf("[azblob:%v] %s", level, msg)
+}
+
 // NewAzBlobStorage creates a new Azure Blob Storage client.
 func NewAzBlobStorage(accountName, accountKey, containerName, endpoint string, debug bool) (*AzBlobStorage, error) {
 	if accountName == "" || accountKey == "" || containerName == "" {
@@ -33,8 +38,22 @@ func NewAzBlobStorage(accountName, accountKey, containerName, endpoint string, d
 		return nil, fmt.Errorf("failed to create azure shared key credential: %w", err)
 	}
 
+	storage := &AzBlobStorage{
+		accountName: accountName,
+		debug:       debug,
+	}
+	options := azblob.PipelineOptions{}
+	if debug {
+		options.Log = pipeline.LogOptions{
+			Log: storage.azblobDebugLog,
+			ShouldLog: func(level pipeline.LogLevel) bool {
+				return true
+			},
+		}
+	}
+
 	// Use default pipeline options
-	p := azblob.NewPipeline(credential, azblob.PipelineOptions{})
+	p := azblob.NewPipeline(credential, options)
 
 	// Construct the container URL
 	// For Azurite (local testing), use the custom endpoint if provided
@@ -43,11 +62,11 @@ func NewAzBlobStorage(accountName, accountKey, containerName, endpoint string, d
 		serviceURL = endpoint
 	}
 
-	u, err := url.Parse(fmt.Sprintf("%s/%s", serviceURL, containerName))
+	parsedURL, err := url.Parse(fmt.Sprintf("%s/%s", serviceURL, containerName))
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse azure container URL: %w", err)
 	}
-	containerURL := azblob.NewContainerURL(*u, p)
+	containerURL := azblob.NewContainerURL(*parsedURL, p)
 
 	// Verify container exists, create if not exists
 	ctx := context.Background()
@@ -71,11 +90,7 @@ func NewAzBlobStorage(accountName, accountKey, containerName, endpoint string, d
 		}
 	}
 
-	storage := &AzBlobStorage{
-		containerURL: containerURL,
-		accountName:  accountName,
-		debug:        debug,
-	}
+	storage.containerURL = containerURL
 
 	if debug {
 		log.Printf("[azblob:debug] Successfully initialized Azure Blob Storage client for account %s, container %s", accountName, containerName)
