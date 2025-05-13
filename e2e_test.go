@@ -569,7 +569,7 @@ func startMinioContainer(ctx context.Context, containerName string) (testcontain
 				"sh", "-c",
 				"ls -la /bitnami/minio/data/testbucket/ && curl -f http://localhost:9000/minio/health/live",
 			},
-		).WithStartupTimeout(5 * time.Second).WithPollInterval(1 * time.Second),
+		).WithStartupTimeout(10 * time.Second).WithPollInterval(1 * time.Second),
 	}
 	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
@@ -586,7 +586,7 @@ func startFakeGCSContainer(ctx context.Context, containerName string) (testconta
 		Entrypoint:   []string{"/bin/sh"},
 		Cmd:          []string{"-c", "mkdir -p /data/testbucket && fake-gcs-server -data /data -scheme http -port 4443"},
 		WaitingFor: wait.ForExec([]string{"nc", "127.0.0.1", "4443", "-z"}).
-			WithStartupTimeout(5 * time.Second).
+			WithStartupTimeout(10 * time.Second).
 			WithPollInterval(1 * time.Second),
 	}
 	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
@@ -602,7 +602,7 @@ func startAzuriteContainer(ctx context.Context, containerName string) (testconta
 		Image:        "mcr.microsoft.com/azure-storage/azurite:latest",
 		ExposedPorts: []string{"10000/tcp"},
 		Cmd:          []string{"azurite", "--debug", "/dev/stderr", "-l", "/data", "--blobHost", "0.0.0.0", "--blobKeepAliveTimeout", "600", "--disableTelemetry"},
-		WaitingFor:   wait.ForListeningPort("10000/tcp").WithStartupTimeout(5 * time.Second),
+		WaitingFor:   wait.ForListeningPort("10000/tcp").WithStartupTimeout(10 * time.Second),
 	}
 	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
@@ -635,7 +635,7 @@ func startFTPContainer(ctx context.Context, containerName string) (testcontainer
 			"PASV_MIN_PORT": strconv.Itoa(minPort),
 			"PASV_MAX_PORT": strconv.Itoa(maxPort),
 		},
-		WaitingFor: wait.ForListeningPort("21/tcp").WithStartupTimeout(5 * time.Second),
+		WaitingFor: wait.ForListeningPort("21/tcp").WithStartupTimeout(10 * time.Second),
 	}
 	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
@@ -650,7 +650,7 @@ func startSFTPContainer(ctx context.Context, containerName string) (testcontaine
 		Image:        "atmoz/sftp:latest",
 		ExposedPorts: []string{"22/tcp"},
 		Cmd:          []string{"testuser:testpass:::upload"},
-		WaitingFor:   wait.ForListeningPort("22/tcp").WithStartupTimeout(5 * time.Second),
+		WaitingFor:   wait.ForListeningPort("22/tcp").WithStartupTimeout(10 * time.Second),
 	}
 	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
