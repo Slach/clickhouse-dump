@@ -598,7 +598,7 @@ func startFakeGCSContainer(ctx context.Context, containerName string) (testconta
 
 func startAzuriteContainer(ctx context.Context, containerName string) (testcontainers.Container, error) {
 	req := testcontainers.ContainerRequest{
-		Name:         sanitizeContainerName(fmt.Sprintf("clickhouse-dump-test-azurite-%s", containerName)),
+		Name:         sanitizeContainerName(containerName),
 		Image:        "mcr.microsoft.com/azure-storage/azurite:latest",
 		ExposedPorts: []string{"10000/tcp"},
 		Cmd:          []string{"azurite", "--debug", "/dev/stderr", "-l", "/data", "--blobHost", "0.0.0.0", "--blobKeepAliveTimeout", "600", "--disableTelemetry"},
