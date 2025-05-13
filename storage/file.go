@@ -122,8 +122,8 @@ func (f *FileStorage) Upload(filename string, reader io.Reader, compressFormat s
 // Download reads data from a local file.
 // If noClientDecompression is true, data is returned as is.
 // Otherwise, decompressStream is used.
-func (f *FileStorage) Download(fileName string, noServerCompression bool) (io.ReadCloser, error) {
-	f.debugf("Attempting to download file: %s (noServerCompression: %t)", fileName, noServerCompression)
+func (f *FileStorage) Download(fileName string) (io.ReadCloser, error) {
+	f.debugf("attempting to download file: %s ", fileName)
 	fullPath := fileName
 	if !strings.HasPrefix(fileName, f.basePath) {
 		fullPath = filepath.Join(f.basePath, fileName)
@@ -135,14 +135,7 @@ func (f *FileStorage) Download(fileName string, noServerCompression bool) (io.Re
 	}
 
 	f.debugf("Successfully opened file: %s", fullPath)
-	if noServerCompression == false {
-		f.debugf("Client side decompression disabled, returning raw file stream for %s", fullPath)
-		return file, nil
-	}
-
-	// Success! Wrap the file reader with decompression.
-	f.debugf("Attempting client side decompression for %s", fullPath)
-	return decompressStream(file, fullPath), nil // decompressStream uses fullPath to determine extension
+	return decompressStream(file, fullPath), nil
 }
 
 // List returns files matching the prefix in the base path

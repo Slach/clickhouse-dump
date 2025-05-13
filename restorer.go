@@ -96,7 +96,7 @@ func (r *Restorer) Restore() error {
 	log.Printf("Found %d database files to restore.", len(dbFiles))
 	for _, dbFile := range dbFiles {
 		log.Printf("Restoring database from %s...", dbFile)
-		reader, downloadErr := r.storage.Download(dbFile, true)
+		reader, downloadErr := r.storage.Download(dbFile)
 		if downloadErr != nil {
 			return fmt.Errorf("failed to download database file %s: %w", dbFile, downloadErr)
 		}
@@ -118,7 +118,7 @@ func (r *Restorer) Restore() error {
 	log.Printf("Found %d schema files to restore.", len(schemaFiles))
 	for _, schemaFile := range schemaFiles {
 		log.Printf("Restoring schema from %s...", schemaFile)
-		reader, downloadErr := r.storage.Download(schemaFile, true)
+		reader, downloadErr := r.storage.Download(schemaFile)
 		if downloadErr != nil {
 			return fmt.Errorf("failed to download schema file %s: %w", schemaFile, downloadErr)
 		}
@@ -141,7 +141,7 @@ func (r *Restorer) Restore() error {
 	for _, dataFile := range dataFiles {
 		log.Printf("Restoring data from %s...", dataFile)
 		// Всегда запрашиваем распаковку на стороне клиента для файлов данных
-		reader, downloadErr := r.storage.Download(dataFile, true)
+		reader, downloadErr := r.storage.Download(dataFile)
 		if downloadErr != nil {
 			return fmt.Errorf("failed to download data file %s: %w", dataFile, downloadErr)
 		}
@@ -269,13 +269,12 @@ func (r *Restorer) executeSingleStatement(query string) error {
 
 		if compressFormat == "gzip" {
 			level := r.config.CompressLevel
-			// Убедимся, что уровень сжатия корректен для gzip
 			if level < gzip.BestSpeed || level > gzip.BestCompression {
 				level = gzip.DefaultCompression
 			}
 			gw, _ := gzip.NewWriterLevel(&compressedBody, level)
 			_, copyErr := io.WriteString(gw, query)
-			closeErr := gw.Close() // Важно закрыть для сброса буферов
+			closeErr := gw.Close()
 			if copyErr != nil {
 				return fmt.Errorf("failed to write query to gzip writer: %w", copyErr)
 			}
@@ -287,7 +286,7 @@ func (r *Restorer) executeSingleStatement(query string) error {
 			zstdLevel := zstd.EncoderLevelFromZstd(r.config.CompressLevel)
 			zw, _ := zstd.NewWriter(&compressedBody, zstd.WithEncoderLevel(zstdLevel))
 			_, copyErr := io.WriteString(zw, query)
-			closeErr := zw.Close() // Важно закрыть для сброса буферов
+			closeErr := zw.Close()
 			if copyErr != nil {
 				return fmt.Errorf("failed to write query to zstd writer: %w", copyErr)
 			}
@@ -301,12 +300,10 @@ func (r *Restorer) executeSingleStatement(query string) error {
 		_, err = r.client.ExecuteQueryWithBody(bytes.NewReader(compressedBody.Bytes()), contentEncoding, query)
 
 	} else {
-		// log.Printf("Executing query: %s", query) // Для отладки можно раскомментировать
 		_, err = r.client.ExecuteQuery(query)
 	}
 
 	if err != nil {
-		// Ошибка от ExecuteQuery/ExecuteQueryWithBody уже содержит детали запроса и статус
 		return err
 	}
 	return nil

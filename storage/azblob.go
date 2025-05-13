@@ -108,10 +108,8 @@ func (a *AzBlobStorage) Upload(filename string, reader io.Reader, compressFormat
 	ctx := context.Background()
 	blobName := filename
 	var finalReader = reader
-	httpHeaders := azblob.BlobHTTPHeaders{}
-
 	if contentEncoding != "" {
-		a.debugf("AzBlob Upload: pre-compressed data with contentEncoding: %s for blob %s", contentEncoding, blobName)
+		a.debugf("pre-compressed data with contentEncoding: %s for blob %s", contentEncoding, blobName)
 		actualEncoding := strings.ToLower(contentEncoding)
 		switch actualEncoding {
 		case "gzip":
@@ -119,33 +117,21 @@ func (a *AzBlobStorage) Upload(filename string, reader io.Reader, compressFormat
 		case "zstd":
 			blobName += ".zstd"
 		default:
-			a.debugf("AzBlob Upload: unknown contentEncoding '%s' for blob %s, uploading as is", contentEncoding, blobName)
-			// blobName remains unchanged
+			a.debugf("unknown contentEncoding '%s' for blob %s, uploading as is", contentEncoding, blobName)
 		}
 	} else if compressFormat != "" && compressFormat != "none" {
-		a.debugf("AzBlob Upload: compressing data with format: %s, level: %d for blob %s", compressFormat, compressLevel, blobName)
+		a.debugf("compressing data with format: %s, level: %d for blob %s", compressFormat, compressLevel, blobName)
 		var ext string
 		finalReader, ext = compressStream(reader, compressFormat, compressLevel)
 		blobName += ext
-		switch strings.ToLower(compressFormat) {
-		case "gzip":
-			httpHeaders.ContentEncoding = "gzip"
-		case "zstd":
-			httpHeaders.ContentEncoding = "zstd"
-		}
 	} else {
-		a.debugf("AzBlob Upload: uploading data uncompressed for blob %s", blobName)
+		a.debugf("uploading data uncompressed for blob %s", blobName)
 	}
 
-	a.debugf("AzBlob Upload: final blob name: %s", blobName)
+	a.debugf("final blob name: %s", blobName)
 	blobURL := a.containerURL.NewBlockBlobURL(blobName)
 
 	uploadOptions := azblob.UploadStreamToBlockBlobOptions{}
-	if httpHeaders.ContentEncoding != "" {
-		uploadOptions.BlobHTTPHeaders = httpHeaders
-		a.debugf("AzBlob Upload: setting ContentEncoding HTTP header to '%s' for blob %s", httpHeaders.ContentEncoding, blobName)
-	}
-
 	_, err := azblob.UploadStreamToBlockBlob(ctx, finalReader, blobURL, uploadOptions)
 	if err != nil {
 		a.debugf("Failed to upload blob %s: %v", blobName, err)
@@ -158,9 +144,9 @@ func (a *AzBlobStorage) Upload(filename string, reader io.Reader, compressFormat
 // Download retrieves a blob from Azure Blob Storage.
 // If noClientDecompression is true, the raw blob stream is returned.
 // Otherwise, decompressStream is used based on the filename's extension.
-func (a *AzBlobStorage) Download(filename string, noServerCompression bool) (io.ReadCloser, error) {
+func (a *AzBlobStorage) Download(filename string) (io.ReadCloser, error) {
 	ctx := context.Background()
-	a.debugf("AzBlob Download: attempting to download blob: %s (noServerCompression: %t)", filename, noServerCompression)
+	a.debugf("attempting to download blob: %s", filename)
 	blobURL := a.containerURL.NewBlockBlobURL(filename)
 
 	// Directly attempt download
@@ -172,15 +158,6 @@ func (a *AzBlobStorage) Download(filename string, noServerCompression bool) (io.
 
 	bodyStream := response.Body(azblob.RetryReaderOptions{MaxRetryRequests: 3})
 
-	if noServerCompression == false {
-		a.debugf("AzBlob Download: client-side decompression disabled for blob %s", filename)
-		return bodyStream, nil
-	}
-
-	// Attempt to decompress. `decompressStream` uses the filename for extension detection.
-	// Azure SDK's Download method with `azblob.BlobAccessConditions{IfMatch: response.ETag()}` and checking `response.ContentEncoding()`
-	// could be used for more advanced handling if Azure performs server-side decompression based on Accept-Encoding (which it typically doesn't for raw blob download).
-	a.debugf("AzBlob Download: attempting client-side decompression for blob %s", filename)
 	return decompressStream(bodyStream, filename), nil
 }
 

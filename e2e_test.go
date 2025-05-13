@@ -624,7 +624,7 @@ func startFTPContainer(ctx context.Context, containerName string) (testcontainer
 	}
 
 	req := testcontainers.ContainerRequest{
-		Name:         sanitizeContainerName(fmt.Sprintf("clickhouse-dump-test-ftp-%s", containerName)),
+		Name:         sanitizeContainerName(containerName),
 		Image:        "fauria/vsftpd:latest",
 		ExposedPorts: exposedPorts,
 		Env: map[string]string{
@@ -646,7 +646,7 @@ func startFTPContainer(ctx context.Context, containerName string) (testcontainer
 
 func startSFTPContainer(ctx context.Context, containerName string) (testcontainers.Container, error) {
 	req := testcontainers.ContainerRequest{
-		Name:         sanitizeContainerName(fmt.Sprintf("clickhouse-dump-test-sftp-%s", containerName)),
+		Name:         sanitizeContainerName(containerName),
 		Image:        "atmoz/sftp:latest",
 		ExposedPorts: []string{"22/tcp"},
 		Cmd:          []string{"testuser:testpass:::upload"},

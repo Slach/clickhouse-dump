@@ -159,9 +159,9 @@ func (tfc *tempFileCloser) Close() error {
 // Download retrieves an object from S3.
 // If noClientDecompression is true, the raw object stream is returned.
 // Otherwise, decompressStream is used based on the filename's extension.
-func (s *S3Storage) Download(filename string, noServerCompression bool) (io.ReadCloser, error) {
+func (s *S3Storage) Download(filename string) (io.ReadCloser, error) {
 	s3Key := strings.TrimPrefix(filename, "/")
-	s.debugf("S3 Download: attempting to download key: %s (noServerCompression: %t)", s3Key, noServerCompression)
+	s.debugf("attempting to download key: %s", s3Key)
 
 	// Create a temporary file for download
 	tempFile, err := os.CreateTemp("", "s3-download-*")
@@ -184,15 +184,7 @@ func (s *S3Storage) Download(filename string, noServerCompression bool) (io.Read
 			return nil, fmt.Errorf("failed to seek temporary file: %w", seekErr)
 		}
 
-		// Wrap the file in a decompressor and custom closer to delete the temporary file
-		var streamToReturn io.ReadCloser = tempFile // tempFile is an io.ReadCloser
-		if noServerCompression == false {
-			s.debugf("S3 Download: attempting client-side decompression for key %s (downloaded to %s)", s3Key, tempFile.Name())
-			streamToReturn = decompressStream(tempFile, s3Key) // s3Key (original filename) is used for extension detection
-		} else {
-			s.debugf("S3 Download: client-side decompression disabled for key %s (downloaded to %s)", s3Key, tempFile.Name())
-		}
-		return &tempFileCloser{ReadCloser: streamToReturn, name: tempFile.Name()}, nil
+		return &tempFileCloser{ReadCloser: decompressStream(tempFile, s3Key), name: tempFile.Name()}, nil
 	}
 
 	// Download failed, clean up the current tempFile

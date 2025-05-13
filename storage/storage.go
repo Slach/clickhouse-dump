@@ -23,13 +23,8 @@ type RemoteStorage interface {
 
 	// Download retrieves the content of the specified filename.
 	// Implementations should automatically handle decompression based on common
-	// extensions (.gz, .zstd) if the exact filename isn't found or if the
-	// downloaded object indicates compression. It should try filename.gz,
-	// filename.zstd, and filename itself.
-	// If noClientDecompression is false, the raw (potentially compressed) stream is returned.
-	// Otherwise, an attempt is made to decompress the stream based on the filename's extension.
-	// Returns a reader for the (potentially decompressed) content.
-	Download(filename string, noServerCompression bool) (io.ReadCloser, error)
+	// extensions (.gz, .zstd)
+	Download(filename string) (io.ReadCloser, error)
 
 	// List returns a list of filenames in the storage backend matching the prefix.
 	// The returned filenames might include compression extensions.

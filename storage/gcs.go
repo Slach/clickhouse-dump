@@ -285,35 +285,18 @@ func (g *GCSStorage) Upload(filename string, reader io.Reader, compressFormat st
 // Download retrieves an object from GCS.
 // If noClientDecompression is true, the raw object stream is returned.
 // Otherwise, decompressStream is used based on the filename's extension and object's ContentEncoding.
-func (g *GCSStorage) Download(filename string, noServerCompression bool) (io.ReadCloser, error) {
+func (g *GCSStorage) Download(filename string) (io.ReadCloser, error) {
 	ctx := context.Background()
-	g.debugf("GCS Download: attempting to download object: %s (noServerCompression: %t)", filename, noServerCompression)
+	g.debugf("attempting to download object: %s", filename)
 	obj := g.bucket.Object(filename)
 
 	// Attempt to create a reader for the object
 	reader, err := obj.NewReader(ctx)
 	if err != nil {
-		// TODO: Implement retry logic for .gz, .zst extensions if filename not found,
-		// similar to how other storages might handle it, or rely on GCS's ContentEncoding.
-		// For now, we assume `filename` is the exact object name.
 		return nil, fmt.Errorf("failed to create reader for gcs object %s in bucket %s: %w", filename, g.bucketName, err)
 	}
 
-	// If client-side decompression is disabled, return the raw reader.
-	if noServerCompression == false {
-		g.debugf("GCS Download: client-side decompression disabled for object %s", filename)
-		return reader, nil
-	}
-
-	// Attempt to decompress. `decompressStream` will use the filename to check for .gz/.zstd extensions.
-	// GCS SDK's reader also respects ContentEncoding from the object's metadata for certain encodings (like gzip)
-	// and might return an already decompressed stream. `decompressStream` should handle this gracefully.
-	g.debugf("GCS Download: attempting client-side decompression for object %s", filename)
-	// The `filename` passed to `decompressStream` is crucial for it to detect extension-based compression.
-	// If GCS already decompressed (e.g. due to `Accept-Encoding: gzip` and object `Content-Encoding: gzip`),
-	// `decompressStream` on an uncompressed stream with a `.gz` filename might error or misbehave.
-	// However, our `decompressStream` checks magic numbers, so it should be safe.
-	// The `reader.attrs.ContentEncoding` could also be inspected here.
+	g.debugf("attempting client-side decompression for object %s", filename)
 	return decompressStream(reader, filename), nil
 }
 

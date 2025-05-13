@@ -95,18 +95,6 @@ func (c *ClickHouseClient) ExecuteQueryWithBody(body io.Reader, contentEncoding 
 		req.Header.Set("Content-Encoding", contentEncoding)
 	}
 
-	// Если мы хотим указать, что клиент принимает сжатый ответ (даже для INSERT)
-	// Это можно сделать на основе r.config.CompressFormat, если он доступен здесь
-	// или передан как параметр. Для INSERT ответы обычно маленькие.
-	// Например:
-	// if c.config.CompressFormat == "gzip" { // Предполагая доступ к config или его части
-	//    req.Header.Set("Accept-Encoding", "gzip")
-	//    // Также может потребоваться url += "?enable_http_compression=1"
-	// } else if c.config.CompressFormat == "zstd" {
-	//    req.Header.Set("Accept-Encoding", "zstd")
-	// }
-
-
 	resp, reqErr := c.client.Do(req)
 	if reqErr != nil {
 		return nil, reqErr

@@ -189,10 +189,8 @@ func (s *SFTPStorage) Upload(filename string, reader io.Reader, compressFormat s
 }
 
 // Download retrieves a file from SFTP.
-// If noClientDecompression is true, the raw file stream is returned.
-// Otherwise, decompressStream is used based on the filename's extension.
-func (s *SFTPStorage) Download(filename string, noServerCompression bool) (io.ReadCloser, error) {
-	s.debugf("SFTP Download: attempting to download file: %s (noServerCompression: %t)", filename, noServerCompression)
+func (s *SFTPStorage) Download(filename string) (io.ReadCloser, error) {
+	s.debugf("attempting to download file: %s", filename)
 
 	file, err := s.client.Open(filename)
 	if err != nil {
@@ -200,14 +198,6 @@ func (s *SFTPStorage) Download(filename string, noServerCompression bool) (io.Re
 		return nil, fmt.Errorf("failed to download %s from sftp host %s: %w", filename, s.host, err)
 	}
 	s.debugf("File opened successfully for download")
-
-	if noServerCompression == false {
-		s.debugf("SFTP Download: client-side decompression disabled for file %s", filename)
-		return file, nil // file is an sftp.File which is an io.ReadCloser
-	}
-
-	// Attempt to decompress. `decompressStream` uses the filename for extension detection.
-	s.debugf("SFTP Download: attempting client-side decompression for file: %s", filename)
 	return decompressStream(file, filename), nil
 }
 
