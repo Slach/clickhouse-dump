@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/Slach/clickhouse-dump/storage"
+	"hash/fnv"
 	"io"
 	"math/rand"
 	"net/http"
@@ -439,7 +440,7 @@ func testAzureBlobStorage(ctx context.Context, t *testing.T, clickhouseContainer
 
 func testFTPStorage(ctx context.Context, t *testing.T, clickhouseContainer testcontainers.Container, testCase string) {
 	backupName := "test_ftp_" + testCase
-	ftpContainer, err := startFTPContainer(ctx, fmt.Sprintf("ftp-%s-%d", t.Name(), time.Now().UnixNano()))
+	ftpContainer, err := startFTPContainer(ctx, t, fmt.Sprintf("ftp-%s-%d", t.Name(), time.Now().UnixNano()))
 	require.NoError(t, err, "Failed to start FTP container")
 	defer func() {
 		if !t.Failed() {
@@ -611,10 +612,13 @@ func startAzuriteContainer(ctx context.Context, containerName string) (testconta
 	})
 }
 
-func startFTPContainer(ctx context.Context, containerName string) (testcontainers.Container, error) {
-	// Generate random ports for PASV range to avoid conflicts in parallel tests
-	minPort := 30000 + rand.Intn(10000) // Random port between 30000-40000
-	maxPort := minPort + 1              // Use exactly 2 ports for PASV
+func startFTPContainer(ctx context.Context, t *testing.T, containerName string) (testcontainers.Container, error) {
+	// Generate ports for PASV range based on test name hash to avoid conflicts in parallel tests
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(t.Name())) // Error from Write is not critical here
+	hashValue := h.Sum32()
+	minPort := 30000 + int(hashValue%10000) // Port between 30000-39999
+	maxPort := minPort + 1                  // Use exactly 2 ports for PASV
 
 	// Dynamically expose the ports
 	exposedPorts := []string{
