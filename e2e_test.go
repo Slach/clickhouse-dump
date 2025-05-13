@@ -650,7 +650,7 @@ func startSFTPContainer(ctx context.Context, containerName string) (testcontaine
 		Image:        "atmoz/sftp:latest",
 		ExposedPorts: []string{"22/tcp"},
 		Cmd:          []string{"testuser:testpass:::upload"},
-		WaitingFor:   wait.ForListeningPort("22/tcp"),
+		WaitingFor:   wait.ForLog("Server listening on 0.0.0.0 port 22.").WithStartupTimeout(30 * time.Second),
 	}
 	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
