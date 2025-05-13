@@ -97,8 +97,9 @@ func (d *Dumper) dumpDatabaseSchema(dbName string) error {
 
 	filename := fmt.Sprintf("%s/%s/%s.database.sql", d.config.StorageConfig["path"], d.config.BackupName, dbName)
 
-	// For database schema, always use manual compression since we modified the content
-	return d.storage.Upload(filename, strings.NewReader(createStmt), d.config.CompressFormat, d.config.CompressLevel)
+	// For database schema, always use manual compression since we modified the content.
+	// contentEncoding is empty, so client-side compression will be applied.
+	return d.storage.Upload(filename, strings.NewReader(createStmt), d.config.CompressFormat, d.config.CompressLevel, "")
 }
 
 func (d *Dumper) Dump() error {
@@ -196,15 +197,10 @@ func (d *Dumper) dumpSchema(dbName, tableName string) error {
 
 	filename := fmt.Sprintf("%s/%s/%s/%s.schema.sql", d.config.StorageConfig["path"], d.config.BackupName, dbName, tableName)
 
-	// If ClickHouse already returned compressed data, pass it directly
-	if contentEncoding != "" && strings.ToLower(contentEncoding) == strings.ToLower(d.config.CompressFormat) {
-		// Data is already compressed in the required format, pass it directly
-		d.debugf("Using pre-compressed schema data from ClickHouse with %s encoding", contentEncoding)
-		return d.storage.UploadWithExtension(filename, body, contentEncoding)
-	}
-
-	// Otherwise compress the data ourselves
-	return d.storage.Upload(filename, body, d.config.CompressFormat, d.config.CompressLevel)
+	// Pass contentEncoding to Upload. If it's set, Upload will use it and ignore compressFormat/Level.
+	// Otherwise, Upload will use compressFormat/Level.
+	d.debugf("Uploading schema for %s.%s with contentEncoding: '%s', clientCompressFormat: '%s'", dbName, tableName, contentEncoding, d.config.CompressFormat)
+	return d.storage.Upload(filename, body, d.config.CompressFormat, d.config.CompressLevel, contentEncoding)
 }
 
 func (d *Dumper) dumpData(dbName, tableName string) error {
@@ -222,15 +218,10 @@ func (d *Dumper) dumpData(dbName, tableName string) error {
 
 	filename := fmt.Sprintf("%s/%s/%s/%s.data.sql", d.config.StorageConfig["path"], d.config.BackupName, dbName, tableName)
 
-	// If ClickHouse already returned compressed data, pass it directly
-	if contentEncoding != "" && strings.ToLower(contentEncoding) == strings.ToLower(d.config.CompressFormat) {
-		// Data is already compressed in the required format, pass it directly
-		d.debugf("Using pre-compressed data from ClickHouse with %s encoding", contentEncoding)
-		return d.storage.UploadWithExtension(filename, body, contentEncoding)
-	}
-
-	// Otherwise compress the data ourselves
-	return d.storage.Upload(filename, body, d.config.CompressFormat, d.config.CompressLevel)
+	// Pass contentEncoding to Upload. If it's set, Upload will use it and ignore compressFormat/Level.
+	// Otherwise, Upload will use compressFormat/Level.
+	d.debugf("Uploading data for %s.%s with contentEncoding: '%s', clientCompressFormat: '%s'", dbName, tableName, contentEncoding, d.config.CompressFormat)
+	return d.storage.Upload(filename, body, d.config.CompressFormat, d.config.CompressLevel, contentEncoding)
 }
 
 func (d *Dumper) debugf(msg string, args ...interface{}) {

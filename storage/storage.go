@@ -13,21 +13,23 @@ import (
 // RemoteStorage defines the interface for interacting with different storage backends.
 type RemoteStorage interface {
 	// Upload uploads data from the reader to the specified filename.
-	// The format and level parameters control compression.
-	// The actual remote filename might include a compression extension (e.g., .gz).
-	Upload(filename string, reader io.Reader, format string, level int) error
-
-	// UploadWithExtension uploads data from the reader to the specified filename with the given extension.
-	// This is used when the data is already compressed and we just need to add the extension.
-	UploadWithExtension(filename string, reader io.Reader, contentEncoding string) error
+	// If contentEncoding is provided (e.g., "gzip", "zstd"), the data is assumed to be
+	// already compressed in that format, and the corresponding extension (.gz, .zstd)
+	// will be appended to the filename. compressFormat and compressLevel are ignored in this case.
+	// Otherwise, if contentEncoding is empty, the data will be compressed using
+	// compressFormat and compressLevel before uploading, and the appropriate extension
+	// will be appended. If compressFormat is empty or "none", no compression is applied.
+	Upload(filename string, reader io.Reader, compressFormat string, compressLevel int, contentEncoding string) error
 
 	// Download retrieves the content of the specified filename.
 	// Implementations should automatically handle decompression based on common
 	// extensions (.gz, .zstd) if the exact filename isn't found or if the
 	// downloaded object indicates compression. It should try filename.gz,
 	// filename.zstd, and filename itself.
+	// If noClientDecompression is true, the raw (potentially compressed) stream is returned.
+	// Otherwise, an attempt is made to decompress the stream based on the filename's extension.
 	// Returns a reader for the (potentially decompressed) content.
-	Download(filename string) (io.ReadCloser, error)
+	Download(filename string, noClientDecompression bool) (io.ReadCloser, error)
 
 	// List returns a list of filenames in the storage backend matching the prefix.
 	// The returned filenames might include compression extensions.
@@ -41,8 +43,13 @@ type RemoteStorage interface {
 
 // compressStream wraps the reader with a compression writer based on format and level.
 // It returns the reader end of the pipe and the appropriate file extension.
+// If format is empty or "none", it returns the original reader and an empty extension.
 func compressStream(reader io.Reader, format string, level int) (io.Reader, string) {
 	format = strings.ToLower(format)
+	if format == "" || format == "none" {
+		return reader, ""
+	}
+
 	ext := ""
 	var compressedReader io.Reader = reader // Default to original reader
 
@@ -111,9 +118,10 @@ func (zrc *zstdReaderCloser) Close() error {
 
 // decompressStream wraps the reader with a decompression reader if the filename suggests compression.
 // It now returns an io.ReadCloser to ensure the underlying reader can be closed.
+// If no known compression extension is found, it returns the original reader.
 func decompressStream(reader io.ReadCloser, filename string) io.ReadCloser {
-	ext := GetCompressionExtension(filename)
-	switch ext {
+	compressionExtension := GetCompressionExtension(filename)
+	switch compressionExtension {
 	case ".gz":
 		gr, err := gzip.NewReader(reader)
 		if err != nil {

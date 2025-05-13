@@ -112,12 +112,33 @@ func NewFTPStorage(host, user, password string, debug bool) (*FTPStorage, error)
 	}, nil
 }
 
-// Upload compresses and uploads data to the specified filename (filename + compression extension) via FTP.
-func (f *FTPStorage) Upload(filename string, reader io.Reader, format string, level int) error {
-	compressedReader, ext := compressStream(reader, format, level)
-	remoteFilename := filename + ext
+// Upload uploads data via FTP.
+// If contentEncoding is provided, it's assumed data is pre-compressed.
+// Otherwise, compressFormat and compressLevel are used for client-side compression.
+func (f *FTPStorage) Upload(filename string, reader io.Reader, compressFormat string, compressLevel int, contentEncoding string) error {
+	remoteFilename := filename
+	var finalReader io.Reader = reader
 
-	f.debugf("Uploading file: %s (compression: %s level %d)", remoteFilename, format, level)
+	if contentEncoding != "" {
+		f.debugf("FTP Upload: pre-compressed data with contentEncoding: %s for remote file %s", contentEncoding, remoteFilename)
+		switch strings.ToLower(contentEncoding) {
+		case "gzip":
+			remoteFilename += ".gz"
+		case "zstd":
+			remoteFilename += ".zstd"
+		default:
+			f.debugf("FTP Upload: unknown contentEncoding '%s' for remote file %s, uploading as is", contentEncoding, remoteFilename)
+		}
+	} else if compressFormat != "" && compressFormat != "none" {
+		f.debugf("FTP Upload: compressing data with format: %s, level: %d for remote file %s", compressFormat, compressLevel, remoteFilename)
+		var ext string
+		finalReader, ext = compressStream(reader, compressFormat, compressLevel)
+		remoteFilename += ext
+	} else {
+		f.debugf("FTP Upload: uploading data uncompressed for remote file %s", remoteFilename)
+	}
+
+	f.debugf("FTP Upload: final remote path: %s", remoteFilename)
 
 	// Ensure directory exists
 	dir := filepath.Dir(remoteFilename)
@@ -151,7 +172,7 @@ func (f *FTPStorage) Upload(filename string, reader io.Reader, format string, le
 	}
 
 	f.debugf("Storing file: %s", remoteFilename)
-	err := f.client.Stor(remoteFilename, compressedReader)
+	err := f.client.Stor(remoteFilename, finalReader)
 	if err != nil {
 		f.debugf("Failed to upload %s: %v", remoteFilename, err)
 		return fmt.Errorf("failed to upload %s to ftp host %s: %w", remoteFilename, f.host, err)
@@ -161,74 +182,27 @@ func (f *FTPStorage) Upload(filename string, reader io.Reader, format string, le
 	return nil
 }
 
-// UploadWithExtension uploads pre-compressed data to the specified filename via FTP.
-func (f *FTPStorage) UploadWithExtension(filename string, reader io.Reader, contentEncoding string) error {
-	var ext string
-	switch strings.ToLower(contentEncoding) {
-	case "gzip":
-		ext = ".gz"
-	case "zstd":
-		ext = ".zstd"
-	}
-
-	remoteFilename := filename + ext
-
-	f.debugf("Uploading pre-compressed file: %s (encoding: %s)", remoteFilename, contentEncoding)
-
-	// Ensure directory exists
-	dir := filepath.Dir(remoteFilename)
-	if dir != "." && dir != "/" {
-		f.debugf("Creating directory structure: %s", dir)
-		// Split the path and create each directory
-		parts := strings.Split(strings.TrimPrefix(dir, "/"), "/")
-		currentPath := ""
-
-		for _, part := range parts {
-			if part == "" {
-				continue
-			}
-
-			if currentPath != "" {
-				currentPath += "/"
-			}
-			currentPath += part
-
-			f.debugf("Checking directory: %s", currentPath)
-			entries, err := f.client.List(currentPath)
-			if err != nil || len(entries) == 0 {
-				f.debugf("Creating directory: %s", currentPath)
-				mkdirErr := f.client.MakeDir(currentPath)
-				if mkdirErr != nil {
-					f.debugf("Failed to create directory %s: %v", currentPath, mkdirErr)
-					// Continue anyway - the directory might already exist
-				}
-			}
-		}
-	}
-
-	f.debugf("Storing pre-compressed file: %s", remoteFilename)
-	err := f.client.Stor(remoteFilename, reader)
-	if err != nil {
-		f.debugf("Failed to upload pre-compressed %s: %v", remoteFilename, err)
-		return fmt.Errorf("failed to upload pre-compressed %s to ftp host %s: %w", remoteFilename, f.host, err)
-	}
-
-	f.debugf("Successfully uploaded pre-compressed file: %s", remoteFilename)
-	return nil
-}
-
-// Download retrieves a file from FTP and returns a reader for its decompressed content.
-func (f *FTPStorage) Download(filename string) (io.ReadCloser, error) {
-	f.debugf("Attempting to download file: %s", filename)
+// Download retrieves a file from FTP.
+// If noClientDecompression is true, the raw file stream is returned.
+// Otherwise, decompressStream is used based on the filename's extension.
+func (f *FTPStorage) Download(filename string, noClientDecompression bool) (io.ReadCloser, error) {
+	f.debugf("FTP Download: attempting to download file: %s (noClientDecompression: %t)", filename, noClientDecompression)
+	// TODO: Implement retry for .gz, .zst if filename not found, if desired.
+	// For now, assumes `filename` is the exact remote path.
 
 	// Try direct download
 	resp, err := f.client.Retr(filename)
 	if err == nil {
-		f.debugf("Successfully downloaded file: %s", filename)
+		f.debugf("Successfully retrieved response for file: %s", filename)
+		if noClientDecompression {
+			f.debugf("FTP Download: client-side decompression disabled for file %s", filename)
+			return resp, nil // resp is an io.ReadCloser
+		}
+		f.debugf("FTP Download: attempting client-side decompression for file %s", filename)
 		return decompressStream(resp, filename), nil
 	}
 
-	f.debugf("Failed to download %s: %v", filename, err)
+	f.debugf("Failed to download %s directly: %v", filename, err)
 
 	// Check for passive mode responses - these are not errors
 	if strings.Contains(err.Error(), "229") || // Extended Passive Mode

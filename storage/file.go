@@ -43,127 +43,106 @@ func NewFileStorage(basePath string, debug bool) (*FileStorage, error) {
 	return f, nil
 }
 
-// Upload writes data to a local file
-func (f *FileStorage) Upload(filename string, reader io.Reader, format string, level int) error {
-	fullPath := filename
+// Upload writes data to a local file.
+// If contentEncoding is provided, it's assumed data is pre-compressed.
+// Otherwise, compressFormat and compressLevel are used.
+func (f *FileStorage) Upload(filename string, reader io.Reader, compressFormat string, compressLevel int, contentEncoding string) error {
+	targetPath := filename
 	if !strings.HasPrefix(filename, f.basePath) {
-		fullPath = filepath.Join(f.basePath, filename)
+		targetPath = filepath.Join(f.basePath, filename)
 	}
-	f.debugf("Uploading file: %s (compression: %s level %d)", fullPath, format, level)
+
+	var finalReader io.Reader = reader
+	var finalPath string = targetPath
+	usedCompression := false
+
+	if contentEncoding != "" {
+		f.debugf("Uploading pre-compressed file: %s (contentEncoding: %s)", targetPath, contentEncoding)
+		switch strings.ToLower(contentEncoding) {
+		case "gzip":
+			finalPath += ".gz"
+		case "zstd":
+			finalPath += ".zstd"
+		default:
+			f.debugf("Unknown contentEncoding '%s', uploading as is to %s", contentEncoding, targetPath)
+		}
+		// finalReader is already 'reader'
+	} else if compressFormat != "" && compressFormat != "none" {
+		f.debugf("Uploading file: %s (compression: %s, level: %d)", targetPath, compressFormat, compressLevel)
+		var ext string
+		finalReader, ext = compressStream(reader, compressFormat, compressLevel)
+		if ext != "" {
+			finalPath = targetPath + ext
+			usedCompression = true
+		}
+	} else {
+		f.debugf("Uploading file: %s (no compression)", targetPath)
+		// finalReader is 'reader', finalPath is 'targetPath'
+	}
 
 	// Ensure directory exists
-	dir := filepath.Dir(fullPath)
-	f.debugf("Creating directory: %s", dir)
+	dir := filepath.Dir(finalPath)
+	f.debugf("Creating directory for final path: %s", dir)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		f.debugf("Failed to create directory %s: %v", dir, err)
-		return fmt.Errorf("failed to create directory for %s: %w", fullPath, err)
+		return fmt.Errorf("failed to create directory for %s: %w", finalPath, err)
 	}
 
-	// Create the file
-	f.debugf("Creating file: %s", fullPath)
-	file, err := os.Create(fullPath)
+	// Create the file with the final path
+	f.debugf("Creating file: %s", finalPath)
+	file, err := os.Create(finalPath)
 	if err != nil {
-		f.debugf("Failed to create file %s: %v", fullPath, err)
-		return fmt.Errorf("failed to create file %s: %w", fullPath, err)
+		f.debugf("Failed to create file %s: %v", finalPath, err)
+		return fmt.Errorf("failed to create file %s: %w", finalPath, err)
 	}
 	defer func() {
 		if closeErr := file.Close(); closeErr != nil {
-			f.debugf("can't close %s: %v", fullPath, closeErr)
+			f.debugf("can't close %s: %v", finalPath, closeErr)
 		}
 	}()
 
-	// Compress and write the data
-	compressedReader, ext := compressStream(reader, format, level)
-	if ext != "" {
-		f.debugf("Applying compression (%s), renaming to %s%s", format, fullPath, ext)
-		// If compression was applied, rename the file to include extension
-		newPath := fullPath + ext
-		if err := os.Rename(fullPath, newPath); err != nil {
-			f.debugf("Failed to rename %s to %s: %v", fullPath, newPath, err)
-			return fmt.Errorf("failed to rename file: %w", err)
-		}
-		fullPath = newPath
+	if usedCompression {
+		f.debugf("Writing compressed data to file: %s", finalPath)
+	} else if contentEncoding != "" {
+		f.debugf("Writing pre-compressed data (contentEncoding: %s) to file: %s", contentEncoding, finalPath)
+	} else {
+		f.debugf("Writing uncompressed data to file: %s", finalPath)
 	}
 
-	f.debugf("Writing data to file: %s", fullPath)
-	_, err = io.Copy(file, compressedReader)
+	_, err = io.Copy(file, finalReader)
 	if err != nil {
-		f.debugf("Failed to write to file %s: %v", fullPath, err)
-		return fmt.Errorf("failed to write to file %s: %w", fullPath, err)
+		f.debugf("Failed to write to file %s: %v", finalPath, err)
+		return fmt.Errorf("failed to write to file %s: %w", finalPath, err)
 	}
 
-	f.debugf("Successfully uploaded file: %s", fullPath)
+	f.debugf("Successfully uploaded file: %s", finalPath)
 	return nil
 }
 
-// UploadWithExtension writes pre-compressed data to a local file with the appropriate extension
-func (f *FileStorage) UploadWithExtension(filename string, reader io.Reader, contentEncoding string) error {
-	fullPath := filename
-	if !strings.HasPrefix(filename, f.basePath) {
-		fullPath = filepath.Join(f.basePath, filename)
-	}
-
-	// Add extension based on compression type
-	var ext string
-	switch strings.ToLower(contentEncoding) {
-	case "gzip":
-		ext = ".gz"
-	case "zstd":
-		ext = ".zstd"
-	}
-
-	if ext != "" {
-		fullPath = fullPath + ext
-	}
-
-	f.debugf("Uploading pre-compressed file: %s (encoding: %s)", fullPath, contentEncoding)
-
-	// Ensure directory exists
-	dir := filepath.Dir(fullPath)
-	f.debugf("Creating directory: %s", dir)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		f.debugf("Failed to create directory %s: %v", dir, err)
-		return fmt.Errorf("failed to create directory for %s: %w", fullPath, err)
-	}
-
-	// Create the file
-	f.debugf("Creating file: %s", fullPath)
-	file, err := os.Create(fullPath)
-	if err != nil {
-		f.debugf("Failed to create file %s: %v", fullPath, err)
-		return fmt.Errorf("failed to create file %s: %w", fullPath, err)
-	}
-	defer func() {
-		if closeErr := file.Close(); closeErr != nil {
-			f.debugf("can't close %s: %v", fullPath, closeErr)
-		}
-	}()
-
-	f.debugf("Writing pre-compressed data to file: %s", fullPath)
-	_, err = io.Copy(file, reader)
-	if err != nil {
-		f.debugf("Failed to write to file %s: %v", fullPath, err)
-		return fmt.Errorf("failed to write to file %s: %w", fullPath, err)
-	}
-
-	f.debugf("Successfully uploaded pre-compressed file: %s", fullPath)
-	return nil
-}
-
-// Download reads data from a local file
-func (f *FileStorage) Download(fileName string) (io.ReadCloser, error) {
-	f.debugf("Attempting to download file: %s ", fileName)
+// Download reads data from a local file.
+// If noClientDecompression is true, data is returned as is.
+// Otherwise, decompressStream is used.
+func (f *FileStorage) Download(fileName string, noClientDecompression bool) (io.ReadCloser, error) {
+	f.debugf("Attempting to download file: %s (noClientDecompression: %t)", fileName, noClientDecompression)
+	fullPath := fileName
 	if !strings.HasPrefix(fileName, f.basePath) {
-		fileName = filepath.Join(f.basePath, fileName)
+		fullPath = filepath.Join(f.basePath, fileName)
 	}
-	f.debugf("Trying to open file: %s", fileName)
-	file, err := os.Open(fileName)
-	if err == nil {
-		f.debugf("Successfully opened file: %s", fileName)
-		// Success! Wrap the file reader with decompression.
-		return decompressStream(file, fileName), nil
+	f.debugf("Trying to open file: %s", fullPath)
+	file, err := os.Open(fullPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open file %s: %w", fullPath, err)
 	}
-	return nil, fmt.Errorf("failed to open file %s: %v", fileName, err)
+
+	f.debugf("Successfully opened file: %s", fullPath)
+	if noClientDecompression {
+		f.debugf("Client side decompression disabled, returning raw file stream for %s", fullPath)
+		return file, nil
+	}
+
+	// Success! Wrap the file reader with decompression.
+	f.debugf("Attempting client side decompression for %s", fullPath)
+	return decompressStream(file, fullPath), nil // decompressStream uses fullPath to determine extension
 }
 
 // List returns files matching the prefix in the base path

@@ -230,80 +230,99 @@ func NewGCSStorage(bucketName, endpoint, credentialsFile string, debug bool) (*G
 	}, nil
 }
 
-// Upload compresses and uploads data to the specified GCS object name (filename + compression extension).
-func (g *GCSStorage) Upload(filename string, reader io.Reader, format string, level int) error {
+// Upload uploads data to GCS.
+// If contentEncoding is provided, it's assumed data is pre-compressed, and GCS object's ContentEncoding metadata is set.
+// Otherwise, compressFormat and compressLevel are used for client-side compression.
+func (g *GCSStorage) Upload(filename string, reader io.Reader, compressFormat string, compressLevel int, contentEncoding string) error {
 	ctx := context.Background()
-	compressedReader, ext := compressStream(reader, format, level)
-	objectName := filename + ext
+	objectName := filename
+	var finalReader io.Reader = reader
+	var gcsObjectContentEncoding string // For GCS metadata
+
+	if contentEncoding != "" {
+		g.debugf("GCS Upload: pre-compressed data with contentEncoding: %s for object %s", contentEncoding, objectName)
+		actualEncoding := strings.ToLower(contentEncoding)
+		switch actualEncoding {
+		case "gzip":
+			objectName += ".gz"
+			gcsObjectContentEncoding = "gzip"
+		case "zstd":
+			objectName += ".zstd"
+			gcsObjectContentEncoding = "zstd" // GCS supports this
+		default:
+			g.debugf("GCS Upload: unknown contentEncoding '%s' for object %s, uploading as is", contentEncoding, objectName)
+			// objectName remains unchanged
+		}
+	} else if compressFormat != "" && compressFormat != "none" {
+		g.debugf("GCS Upload: compressing data with format: %s, level: %d for object %s", compressFormat, compressLevel, objectName)
+		var ext string
+		finalReader, ext = compressStream(reader, compressFormat, compressLevel)
+		objectName += ext
+		switch strings.ToLower(compressFormat) {
+		case "gzip":
+			gcsObjectContentEncoding = "gzip"
+		case "zstd":
+			gcsObjectContentEncoding = "zstd"
+		}
+	} else {
+		g.debugf("GCS Upload: uploading data uncompressed for object %s", objectName)
+	}
+
+	g.debugf("GCS Upload: final object name: %s", objectName)
 	obj := g.bucket.Object(objectName)
 	writer := obj.NewWriter(ctx)
-	// Can set metadata, content type etc. on writer here if needed
-	// writer.ContentType = "application/octet-stream"
 
-	_, err := io.Copy(writer, compressedReader)
+	if gcsObjectContentEncoding != "" {
+		writer.ContentEncoding = gcsObjectContentEncoding
+		g.debugf("GCS Upload: setting ContentEncoding metadata to '%s' for object %s", gcsObjectContentEncoding, objectName)
+	}
+	// writer.ContentType = "application/octet-stream" // Optional: set content type
+
+	_, err := io.Copy(writer, finalReader)
 	if err != nil {
-		// It's important to close the writer even on error to clean up resources.
-		_ = writer.Close() // Ignore close error if copy failed
+		_ = writer.Close() // Attempt to close writer even on error
 		return fmt.Errorf("failed to copy data to gcs object %s in bucket %s: %w", objectName, g.bucketName, err)
 	}
 
-	// Close the writer to finalize the upload
-	err = writer.Close()
+	err = writer.Close() // Close the writer to finalize the upload
 	if err != nil {
 		return fmt.Errorf("failed to close gcs writer for object %s in bucket %s: %w", objectName, g.bucketName, err)
 	}
 	return nil
 }
 
-// UploadWithExtension uploads pre-compressed data to GCS with the appropriate extension
-func (g *GCSStorage) UploadWithExtension(filename string, reader io.Reader, contentEncoding string) error {
+// Download retrieves an object from GCS.
+// If noClientDecompression is true, the raw object stream is returned.
+// Otherwise, decompressStream is used based on the filename's extension and object's ContentEncoding.
+func (g *GCSStorage) Download(filename string, noClientDecompression bool) (io.ReadCloser, error) {
 	ctx := context.Background()
-
-	var ext string
-	switch strings.ToLower(contentEncoding) {
-	case "gzip":
-		ext = ".gz"
-	case "zstd":
-		ext = ".zstd"
-	}
-
-	objectName := filename + ext
-	obj := g.bucket.Object(objectName)
-	writer := obj.NewWriter(ctx)
-
-	// Set Content-Encoding for the object
-	if contentEncoding != "" {
-		writer.ContentEncoding = contentEncoding
-	}
-
-	_, err := io.Copy(writer, reader)
-	if err != nil {
-		// It's important to close the writer even on error to clean up resources.
-		_ = writer.Close() // Ignore close error if copy failed
-		return fmt.Errorf("failed to copy pre-compressed data to gcs object %s in bucket %s: %w", objectName, g.bucketName, err)
-	}
-
-	// Close the writer to finalize the upload
-	err = writer.Close()
-	if err != nil {
-		return fmt.Errorf("failed to close gcs writer for pre-compressed object %s in bucket %s: %w", objectName, g.bucketName, err)
-	}
-	return nil
-}
-
-// Download retrieves an object from GCS and returns a reader for its decompressed content.
-func (g *GCSStorage) Download(filename string) (io.ReadCloser, error) {
-	ctx := context.Background()
+	g.debugf("GCS Download: attempting to download object: %s (noClientDecompression: %t)", filename, noClientDecompression)
 	obj := g.bucket.Object(filename)
 
 	// Attempt to create a reader for the object
 	reader, err := obj.NewReader(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to download %s from gcs bucket %s: %w", filename, g.bucketName, err)
+		// TODO: Implement retry logic for .gz, .zst extensions if filename not found,
+		// similar to how other storages might handle it, or rely on GCS's ContentEncoding.
+		// For now, we assume `filename` is the exact object name.
+		return nil, fmt.Errorf("failed to create reader for gcs object %s in bucket %s: %w", filename, g.bucketName, err)
 	}
 
-	// Success! Return the reader wrapped in our decompressor.
-	// The caller must close the returned reader.
+	// If client-side decompression is disabled, return the raw reader.
+	if noClientDecompression {
+		g.debugf("GCS Download: client-side decompression disabled for object %s", filename)
+		return reader, nil
+	}
+
+	// Attempt to decompress. `decompressStream` will use the filename to check for .gz/.zstd extensions.
+	// GCS SDK's reader also respects ContentEncoding from the object's metadata for certain encodings (like gzip)
+	// and might return an already decompressed stream. `decompressStream` should handle this gracefully.
+	g.debugf("GCS Download: attempting client-side decompression for object %s", filename)
+	// The `filename` passed to `decompressStream` is crucial for it to detect extension-based compression.
+	// If GCS already decompressed (e.g. due to `Accept-Encoding: gzip` and object `Content-Encoding: gzip`),
+	// `decompressStream` on an uncompressed stream with a `.gz` filename might error or misbehave.
+	// However, our `decompressStream` checks magic numbers, so it should be safe.
+	// The `reader.attrs.ContentEncoding` could also be inspected here.
 	return decompressStream(reader, filename), nil
 }
 

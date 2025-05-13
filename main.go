@@ -98,6 +98,12 @@ var app = &cli.App{
 			EnvVars: []string{"COMPRESS_LEVEL"},
 		},
 		&cli.BoolFlag{
+			Name:    "disable-client-side-decompression",
+			Usage:   "Disable automatic decompression on the client side during restore (data is returned as is from storage)",
+			EnvVars: []string{"DISABLE_CLIENT_SIDE_DECOMPRESSION"},
+			Value:   false,
+		},
+		&cli.BoolFlag{
 			Name:    "debug",
 			Usage:   "Enable debug logging",
 			EnvVars: []string{"DEBUG"},
@@ -251,6 +257,7 @@ func getConfig(c *cli.Context) (*Config, error) {
 		BatchSize:        c.Int("batch-size"),         // Used by dumper
 		CompressFormat:   c.String("compress-format"), // Used by dumper
 		CompressLevel:    c.Int("compress-level"),     // Used by dumper
+		DisableClientSideDecompression: c.Bool("disable-client-side-decompression"), // Used by restorer
 		StorageType:      strings.ToLower(c.String("storage-type")),
 		StorageConfig: map[string]string{
 			"host":      c.String("storage-host"),
