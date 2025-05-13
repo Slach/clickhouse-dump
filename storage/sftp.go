@@ -126,17 +126,13 @@ func (s *SFTPStorage) Upload(filename string, reader io.Reader, compressFormat s
 	dstFile, err := s.client.Create(remoteFilename)
 	if err != nil {
 		s.debugf("Failed to create remote file: %v", err)
-		// Check if directory needs to be created
 		if os.IsNotExist(err) || strings.Contains(err.Error(), "no such file") { // Error messages vary
-			// Attempt to create parent directory
 			parentDir := filepath.Dir(remoteFilename)
 			if parentDir != "." && parentDir != "/" {
 				// Ensure parent directory exists
 				s.debugf("Creating SFTP directory: %s", parentDir)
 				if mkdirErr := s.client.MkdirAll(parentDir); mkdirErr != nil {
 					s.debugf("Failed to create directory with MkdirAll: %v", mkdirErr)
-					// Try to create each directory in the path separately
-					// This helps with some SFTP servers that have permission restrictions
 					s.debugf("Attempting to create directories one by one")
 					dirs := strings.Split(strings.Trim(parentDir, "/"), "/")
 					currentPath := ""
@@ -148,13 +144,11 @@ func (s *SFTPStorage) Upload(filename string, reader io.Reader, compressFormat s
 							currentPath += "/"
 						}
 						currentPath += dir
-						// Try to create, ignore errors if directory already exists
 						s.debugf("Creating directory: %s", currentPath)
 						if err := s.client.Mkdir(currentPath); err != nil {
 							s.debugf("Directory creation returned: %v (may already exist)", err)
 						}
 					}
-					// Try again after attempting to create directories
 					s.debugf("Retrying file creation after directory creation")
 					dstFile, err = s.client.Create(remoteFilename)
 					if err != nil {
@@ -163,13 +157,11 @@ func (s *SFTPStorage) Upload(filename string, reader io.Reader, compressFormat s
 					}
 					s.debugf("File creation successful after directory creation")
 				} else {
-					// Retry creating the file
 					s.debugf("Directory creation successful, retrying file creation")
 					dstFile, err = s.client.Create(remoteFilename)
 				}
 			}
 		}
-		// If still error after potential mkdir
 		if err != nil {
 			s.debugf("Failed to create remote file after all attempts: %v", err)
 			return fmt.Errorf("failed to create remote file %s for sftp upload on %s: %w", remoteFilename, s.host, err)
@@ -193,18 +185,14 @@ func (s *SFTPStorage) Upload(filename string, reader io.Reader, compressFormat s
 	}
 	s.debugf("Successfully copied %d bytes to remote file %s", bytesWritten, remoteFilename)
 
-	// dstFile.Close() is handled by defer, but an explicit close here ensures it happens before function returns.
-	// However, defer is generally safer for all exit paths. The current defer is fine.
 	return nil
 }
 
 // Download retrieves a file from SFTP.
 // If noClientDecompression is true, the raw file stream is returned.
 // Otherwise, decompressStream is used based on the filename's extension.
-func (s *SFTPStorage) Download(filename string, noClientDecompression bool) (io.ReadCloser, error) {
-	s.debugf("SFTP Download: attempting to download file: %s (noClientDecompression: %t)", filename, noClientDecompression)
-	// TODO: Implement retry for .gz, .zst if filename not found, if desired.
-	// For now, assumes `filename` is the exact remote path.
+func (s *SFTPStorage) Download(filename string, noServerCompression bool) (io.ReadCloser, error) {
+	s.debugf("SFTP Download: attempting to download file: %s (noServerCompression: %t)", filename, noServerCompression)
 
 	file, err := s.client.Open(filename)
 	if err != nil {
@@ -213,9 +201,7 @@ func (s *SFTPStorage) Download(filename string, noClientDecompression bool) (io.
 	}
 	s.debugf("File opened successfully for download")
 
-	s.debugf("File opened successfully for download")
-
-	if noClientDecompression {
+	if noServerCompression == false {
 		s.debugf("SFTP Download: client-side decompression disabled for file %s", filename)
 		return file, nil // file is an sftp.File which is an io.ReadCloser
 	}

@@ -116,10 +116,8 @@ func (a *AzBlobStorage) Upload(filename string, reader io.Reader, compressFormat
 		switch actualEncoding {
 		case "gzip":
 			blobName += ".gz"
-			httpHeaders.ContentEncoding = "gzip"
 		case "zstd":
 			blobName += ".zstd"
-			httpHeaders.ContentEncoding = "zstd" // Azure supports this
 		default:
 			a.debugf("AzBlob Upload: unknown contentEncoding '%s' for blob %s, uploading as is", contentEncoding, blobName)
 			// blobName remains unchanged
@@ -160,9 +158,9 @@ func (a *AzBlobStorage) Upload(filename string, reader io.Reader, compressFormat
 // Download retrieves a blob from Azure Blob Storage.
 // If noClientDecompression is true, the raw blob stream is returned.
 // Otherwise, decompressStream is used based on the filename's extension.
-func (a *AzBlobStorage) Download(filename string, noClientDecompression bool) (io.ReadCloser, error) {
+func (a *AzBlobStorage) Download(filename string, noServerCompression bool) (io.ReadCloser, error) {
 	ctx := context.Background()
-	a.debugf("AzBlob Download: attempting to download blob: %s (noClientDecompression: %t)", filename, noClientDecompression)
+	a.debugf("AzBlob Download: attempting to download blob: %s (noServerCompression: %t)", filename, noServerCompression)
 	blobURL := a.containerURL.NewBlockBlobURL(filename)
 
 	// Directly attempt download
@@ -174,7 +172,7 @@ func (a *AzBlobStorage) Download(filename string, noClientDecompression bool) (i
 
 	bodyStream := response.Body(azblob.RetryReaderOptions{MaxRetryRequests: 3})
 
-	if noClientDecompression {
+	if noServerCompression == false {
 		a.debugf("AzBlob Download: client-side decompression disabled for blob %s", filename)
 		return bodyStream, nil
 	}

@@ -76,8 +76,8 @@ func (f *FileStorage) Upload(filename string, reader io.Reader, compressFormat s
 			usedCompression = true
 		}
 	} else {
-		f.debugf("Uploading file: %s (no compression)", targetPath)
 		// finalReader is 'reader', finalPath is 'targetPath'
+		f.debugf("Uploading file: %s (no compression)", targetPath)
 	}
 
 	// Ensure directory exists
@@ -122,8 +122,8 @@ func (f *FileStorage) Upload(filename string, reader io.Reader, compressFormat s
 // Download reads data from a local file.
 // If noClientDecompression is true, data is returned as is.
 // Otherwise, decompressStream is used.
-func (f *FileStorage) Download(fileName string, noClientDecompression bool) (io.ReadCloser, error) {
-	f.debugf("Attempting to download file: %s (noClientDecompression: %t)", fileName, noClientDecompression)
+func (f *FileStorage) Download(fileName string, noServerCompression bool) (io.ReadCloser, error) {
+	f.debugf("Attempting to download file: %s (noServerCompression: %t)", fileName, noServerCompression)
 	fullPath := fileName
 	if !strings.HasPrefix(fileName, f.basePath) {
 		fullPath = filepath.Join(f.basePath, fileName)
@@ -135,7 +135,7 @@ func (f *FileStorage) Download(fileName string, noClientDecompression bool) (io.
 	}
 
 	f.debugf("Successfully opened file: %s", fullPath)
-	if noClientDecompression {
+	if noServerCompression == false {
 		f.debugf("Client side decompression disabled, returning raw file stream for %s", fullPath)
 		return file, nil
 	}

@@ -93,7 +93,7 @@ func (r *Restorer) Restore() error {
 	log.Printf("Found %d database files to restore.", len(dbFiles))
 	for _, dbFile := range dbFiles {
 		log.Printf("Restoring database from %s...", dbFile)
-		reader, downloadErr := r.storage.Download(dbFile, r.config.DisableClientSideDecompression)
+		reader, downloadErr := r.storage.Download(dbFile, true)
 		if downloadErr != nil {
 			return fmt.Errorf("failed to download database file %s: %w", dbFile, downloadErr)
 		}
@@ -115,7 +115,7 @@ func (r *Restorer) Restore() error {
 	log.Printf("Found %d schema files to restore.", len(schemaFiles))
 	for _, schemaFile := range schemaFiles {
 		log.Printf("Restoring schema from %s...", schemaFile)
-		reader, downloadErr := r.storage.Download(schemaFile, r.config.DisableClientSideDecompression)
+		reader, downloadErr := r.storage.Download(schemaFile, true)
 		if downloadErr != nil {
 			return fmt.Errorf("failed to download schema file %s: %w", schemaFile, downloadErr)
 		}
@@ -137,7 +137,7 @@ func (r *Restorer) Restore() error {
 	log.Printf("Found %d data files to restore.", len(dataFiles))
 	for _, dataFile := range dataFiles {
 		log.Printf("Restoring data from %s...", dataFile)
-		reader, downloadErr := r.storage.Download(dataFile, r.config.DisableClientSideDecompression)
+		reader, downloadErr := r.storage.Download(dataFile, r.config.NoServerCompression)
 		if downloadErr != nil {
 			return fmt.Errorf("failed to download data file %s: %w", dataFile, downloadErr)
 		}

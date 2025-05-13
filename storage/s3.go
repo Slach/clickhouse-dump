@@ -100,7 +100,6 @@ func NewS3Storage(bucket, region, accessKey, secretKey, endpoint string, debug b
 func (s *S3Storage) Upload(filename string, reader io.Reader, compressFormat string, compressLevel int, contentEncoding string) error {
 	s3Key := strings.TrimPrefix(filename, "/")
 	var finalReader = reader
-	var s3ObjectContentEncoding *string // For S3 metadata
 
 	if contentEncoding != "" {
 		s.debugf("S3 Upload: pre-compressed data with contentEncoding: %s for key %s", contentEncoding, s3Key)
@@ -108,10 +107,8 @@ func (s *S3Storage) Upload(filename string, reader io.Reader, compressFormat str
 		switch actualEncoding {
 		case "gzip":
 			s3Key += ".gz"
-			s3ObjectContentEncoding = aws.String("gzip")
 		case "zstd":
 			s3Key += ".zstd"
-			s3ObjectContentEncoding = aws.String("zstd") // S3 might not natively understand zstd for ContentEncoding, but we set it.
 		default:
 			s.debugf("S3 Upload: unknown contentEncoding '%s' for key %s, uploading as is", contentEncoding, s3Key)
 			// s3Key remains unchanged, s3ObjectContentEncoding remains nil
@@ -121,14 +118,6 @@ func (s *S3Storage) Upload(filename string, reader io.Reader, compressFormat str
 		var ext string
 		finalReader, ext = compressStream(reader, compressFormat, compressLevel)
 		s3Key += ext
-		// Set ContentEncoding based on client-side compression for S3 metadata
-		switch strings.ToLower(compressFormat) {
-		case "gzip":
-			s3ObjectContentEncoding = aws.String("gzip")
-		case "zstd":
-			// As above, S3 might not use this, but good to set if we compressed it this way.
-			s3ObjectContentEncoding = aws.String("zstd")
-		}
 	} else {
 		s.debugf("S3 Upload: uploading data uncompressed for key %s", s3Key)
 	}
@@ -138,10 +127,6 @@ func (s *S3Storage) Upload(filename string, reader io.Reader, compressFormat str
 		Bucket: aws.String(s.bucket),
 		Key:    aws.String(s3Key),
 		Body:   finalReader,
-	}
-	if s3ObjectContentEncoding != nil {
-		uploadInput.ContentEncoding = s3ObjectContentEncoding
-		s.debugf("S3 Upload: setting ContentEncoding HTTP header to '%s' for key %s", *s3ObjectContentEncoding, s3Key)
 	}
 
 	_, err := s.uploader.Upload(context.Background(), uploadInput)
@@ -174,9 +159,9 @@ func (tfc *tempFileCloser) Close() error {
 // Download retrieves an object from S3.
 // If noClientDecompression is true, the raw object stream is returned.
 // Otherwise, decompressStream is used based on the filename's extension.
-func (s *S3Storage) Download(filename string, noClientDecompression bool) (io.ReadCloser, error) {
+func (s *S3Storage) Download(filename string, noServerCompression bool) (io.ReadCloser, error) {
 	s3Key := strings.TrimPrefix(filename, "/")
-	s.debugf("S3 Download: attempting to download key: %s (noClientDecompression: %t)", s3Key, noClientDecompression)
+	s.debugf("S3 Download: attempting to download key: %s (noServerCompression: %t)", s3Key, noServerCompression)
 
 	// Create a temporary file for download
 	tempFile, err := os.CreateTemp("", "s3-download-*")
@@ -201,7 +186,7 @@ func (s *S3Storage) Download(filename string, noClientDecompression bool) (io.Re
 
 		// Wrap the file in a decompressor and custom closer to delete the temporary file
 		var streamToReturn io.ReadCloser = tempFile // tempFile is an io.ReadCloser
-		if !noClientDecompression {
+		if noServerCompression == false {
 			s.debugf("S3 Download: attempting client-side decompression for key %s (downloaded to %s)", s3Key, tempFile.Name())
 			streamToReturn = decompressStream(tempFile, s3Key) // s3Key (original filename) is used for extension detection
 		} else {

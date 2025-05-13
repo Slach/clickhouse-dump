@@ -185,8 +185,8 @@ func (f *FTPStorage) Upload(filename string, reader io.Reader, compressFormat st
 // Download retrieves a file from FTP.
 // If noClientDecompression is true, the raw file stream is returned.
 // Otherwise, decompressStream is used based on the filename's extension.
-func (f *FTPStorage) Download(filename string, noClientDecompression bool) (io.ReadCloser, error) {
-	f.debugf("FTP Download: attempting to download file: %s (noClientDecompression: %t)", filename, noClientDecompression)
+func (f *FTPStorage) Download(filename string, noServerCompression bool) (io.ReadCloser, error) {
+	f.debugf("FTP Download: attempting to download file: %s (noServerCompression: %t)", filename, noServerCompression)
 	// TODO: Implement retry for .gz, .zst if filename not found, if desired.
 	// For now, assumes `filename` is the exact remote path.
 
@@ -194,7 +194,7 @@ func (f *FTPStorage) Download(filename string, noClientDecompression bool) (io.R
 	resp, err := f.client.Retr(filename)
 	if err == nil {
 		f.debugf("Successfully retrieved response for file: %s", filename)
-		if noClientDecompression {
+		if noServerCompression == false {
 			f.debugf("FTP Download: client-side decompression disabled for file %s", filename)
 			return resp, nil // resp is an io.ReadCloser
 		}

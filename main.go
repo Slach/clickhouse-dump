@@ -98,9 +98,9 @@ var app = &cli.App{
 			EnvVars: []string{"COMPRESS_LEVEL"},
 		},
 		&cli.BoolFlag{
-			Name:    "disable-client-side-decompression",
-			Usage:   "Disable automatic decompression on the client side during restore (data is returned as is from storage)",
-			EnvVars: []string{"DISABLE_CLIENT_SIDE_DECOMPRESSION"},
+			Name:    "no-server-compression",
+			Usage:   "Expect no automatic compression/decompression on the clickhouse-server side during dump and restore",
+			EnvVars: []string{"NO_SERVER_COMPRESSION"},
 			Value:   false,
 		},
 		&cli.BoolFlag{
@@ -246,19 +246,19 @@ func RunRestorer(c *cli.Context) error {
 func getConfig(c *cli.Context) (*Config, error) {
 	// Basic ClickHouse config
 	config := &Config{
-		Host:             c.String("host"),
-		Port:             c.Int("port"),
-		User:             c.String("user"),
-		Password:         c.String("password"),
-		Databases:        c.String("databases"),
-		ExcludeDatabases: c.String("exclude-databases"),
-		Tables:           c.String("tables"),
-		ExcludeTables:    c.String("exclude-tables"),
-		BatchSize:        c.Int("batch-size"),         // Used by dumper
-		CompressFormat:   c.String("compress-format"), // Used by dumper
-		CompressLevel:    c.Int("compress-level"),     // Used by dumper
-		DisableClientSideDecompression: c.Bool("disable-client-side-decompression"), // Used by restorer
-		StorageType:      strings.ToLower(c.String("storage-type")),
+		Host:                c.String("host"),
+		Port:                c.Int("port"),
+		User:                c.String("user"),
+		Password:            c.String("password"),
+		Databases:           c.String("databases"),
+		ExcludeDatabases:    c.String("exclude-databases"),
+		Tables:              c.String("tables"),
+		ExcludeTables:       c.String("exclude-tables"),
+		BatchSize:           c.Int("batch-size"),             // Used by dumper
+		CompressFormat:      c.String("compress-format"),     // Used by dumper
+		CompressLevel:       c.Int("compress-level"),         // Used by dumper
+		NoServerCompression: c.Bool("no-server-compression"), // Used by restorer
+		StorageType:         strings.ToLower(c.String("storage-type")),
 		StorageConfig: map[string]string{
 			"host":      c.String("storage-host"),
 			"user":      c.String("storage-user"),
