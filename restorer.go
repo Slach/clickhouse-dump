@@ -2,8 +2,6 @@ package main
 
 import (
 	"bufio"
-	"fmt"
-	"bufio"
 	"bytes"
 	"fmt"
 	"io"
