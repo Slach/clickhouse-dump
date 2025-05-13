@@ -17,7 +17,7 @@ require (
 	github.com/testcontainers/testcontainers-go v0.37.0
 	github.com/urfave/cli/v2 v2.27.6
 	golang.org/x/crypto v0.38.0
-	google.golang.org/api v0.232.0
+	google.golang.org/api v0.233.0
 )
 
 require (
