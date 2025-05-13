@@ -42,10 +42,13 @@ func (c *ClickHouseClient) ExecuteQueryStreaming(query string, compressFormat st
 	}
 
 	req.SetBasicAuth(c.config.User, c.config.Password)
-	req.Header.Set("Content-Type", "text/plain")
+	// Content-Type остается text/plain, так как это SQL по своей сути.
+	// Content-Encoding укажет на сжатие.
+	req.Header.Set("Content-Type", "text/plain; charset=utf-8")
 
-	// Add Accept-Encoding header if compression format is specified
+	// Add Accept-Encoding header if compression format is specified for the response
 	if compressFormat != "" {
+		url += "&enable_http_compression=1" // enable_http_compression=0 by default for POST without Accept-Encoding
 		switch strings.ToLower(compressFormat) {
 		case "gzip":
 			req.Header.Set("Accept-Encoding", "gzip")
@@ -74,6 +77,53 @@ func (c *ClickHouseClient) ExecuteQueryStreaming(query string, compressFormat st
 	contentEncoding := resp.Header.Get("Content-Encoding")
 
 	return resp.Body, contentEncoding, nil
+}
+
+// ExecuteQueryWithBody отправляет запрос с заданным телом и Content-Encoding.
+// queryForLog используется для логирования в случае ошибки.
+func (c *ClickHouseClient) ExecuteQueryWithBody(body io.Reader, contentEncoding string, queryForLog string) ([]byte, error) {
+	url := fmt.Sprintf("http://%s:%d/", c.config.Host, c.config.Port)
+
+	req, reqErr := http.NewRequest("POST", url, body)
+	if reqErr != nil {
+		return nil, reqErr
+	}
+
+	req.SetBasicAuth(c.config.User, c.config.Password)
+	req.Header.Set("Content-Type", "text/plain; charset=utf-8")
+	if contentEncoding != "" {
+		req.Header.Set("Content-Encoding", contentEncoding)
+	}
+
+	// Если мы хотим указать, что клиент принимает сжатый ответ (даже для INSERT)
+	// Это можно сделать на основе r.config.CompressFormat, если он доступен здесь
+	// или передан как параметр. Для INSERT ответы обычно маленькие.
+	// Например:
+	// if c.config.CompressFormat == "gzip" { // Предполагая доступ к config или его части
+	//    req.Header.Set("Accept-Encoding", "gzip")
+	//    // Также может потребоваться url += "?enable_http_compression=1"
+	// } else if c.config.CompressFormat == "zstd" {
+	//    req.Header.Set("Accept-Encoding", "zstd")
+	// }
+
+
+	resp, reqErr := c.client.Do(req)
+	if reqErr != nil {
+		return nil, reqErr
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		respText, respErr := io.ReadAll(resp.Body)
+		if respErr != nil {
+			respText = []byte(respErr.Error())
+		}
+		return nil, fmt.Errorf("HTTP request POST %s..., failed with status code: %d, response: %s", firstNChars(queryForLog, 255), resp.StatusCode, string(respText))
+	}
+
+	return io.ReadAll(resp.Body)
 }
 
 // Helper to get first N characters of a string for logging.

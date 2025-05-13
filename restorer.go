@@ -3,11 +3,16 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"bufio"
+	"bytes"
+	"fmt"
 	"io"
 	"log"
 	"strings"
 
 	"github.com/Slach/clickhouse-dump/storage"
+	"github.com/klauspost/compress/gzip"
+	"github.com/klauspost/compress/zstd"
 )
 
 type Restorer struct {
@@ -137,11 +142,13 @@ func (r *Restorer) Restore() error {
 	log.Printf("Found %d data files to restore.", len(dataFiles))
 	for _, dataFile := range dataFiles {
 		log.Printf("Restoring data from %s...", dataFile)
-		reader, downloadErr := r.storage.Download(dataFile, r.config.NoServerCompression)
+		// Всегда запрашиваем распаковку на стороне клиента для файлов данных
+		reader, downloadErr := r.storage.Download(dataFile, true)
 		if downloadErr != nil {
 			return fmt.Errorf("failed to download data file %s: %w", dataFile, downloadErr)
 		}
 		if restoreErr := r.restoreData(reader); restoreErr != nil {
+			// restoreData теперь возвращает более конкретную ошибку, включающую имя файла не требуется
 			return fmt.Errorf("failed to restore data from %s: %w", dataFile, restoreErr)
 		}
 		log.Printf("Successfully restored data from %s.", dataFile)
@@ -252,12 +259,56 @@ func (r *Restorer) executeStatementsFromStream(reader io.ReadCloser) error {
 	return nil
 }
 
-// executeSingleStatement executes a single SQL statement.
+// executeSingleStatement executes a single SQL statement, potentially compressing it before sending.
 func (r *Restorer) executeSingleStatement(query string) error {
-	// Optional: Add logging for the query being executed (be careful with sensitive data)
-	// log.Printf("Executing query: %s", query)
-	_, err := r.client.ExecuteQuery(query)
+	var err error
+	compressFormat := strings.ToLower(r.config.CompressFormat)
+
+	if compressFormat == "gzip" || compressFormat == "zstd" {
+		var compressedBody bytes.Buffer
+		var contentEncoding string
+		originalLength := len(query)
+
+		if compressFormat == "gzip" {
+			level := r.config.CompressLevel
+			// Убедимся, что уровень сжатия корректен для gzip
+			if level < gzip.BestSpeed || level > gzip.BestCompression {
+				level = gzip.DefaultCompression
+			}
+			gw, _ := gzip.NewWriterLevel(&compressedBody, level)
+			_, copyErr := io.WriteString(gw, query)
+			closeErr := gw.Close() // Важно закрыть для сброса буферов
+			if copyErr != nil {
+				return fmt.Errorf("failed to write query to gzip writer: %w", copyErr)
+			}
+			if closeErr != nil {
+				return fmt.Errorf("failed to close gzip writer: %w", closeErr)
+			}
+			contentEncoding = "gzip"
+		} else { // zstd
+			zstdLevel := zstd.EncoderLevelFromZstd(r.config.CompressLevel)
+			zw, _ := zstd.NewWriter(&compressedBody, zstd.WithEncoderLevel(zstdLevel))
+			_, copyErr := io.WriteString(zw, query)
+			closeErr := zw.Close() // Важно закрыть для сброса буферов
+			if copyErr != nil {
+				return fmt.Errorf("failed to write query to zstd writer: %w", copyErr)
+			}
+			if closeErr != nil {
+				return fmt.Errorf("failed to close zstd writer: %w", closeErr)
+			}
+			contentEncoding = "zstd"
+		}
+
+		log.Printf("Executing statement compressed with %s (original length %d, compressed length %d)...", contentEncoding, originalLength, compressedBody.Len())
+		_, err = r.client.ExecuteQueryWithBody(bytes.NewReader(compressedBody.Bytes()), contentEncoding, query)
+
+	} else {
+		// log.Printf("Executing query: %s", query) // Для отладки можно раскомментировать
+		_, err = r.client.ExecuteQuery(query)
+	}
+
 	if err != nil {
+		// Ошибка от ExecuteQuery/ExecuteQueryWithBody уже содержит детали запроса и статус
 		return err
 	}
 	return nil
