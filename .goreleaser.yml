@@ -36,7 +36,7 @@ nfpms:
       - rpm
     bindir: /usr/bin
     contents:
-      - src: "clickhouse-dump"
+      - src: "{{ .ArtifactPath }}"
         dst: /usr/bin/clickhouse-dump
 
 changelog:
