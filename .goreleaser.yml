@@ -1,3 +1,4 @@
+version: 2
 before:
   hooks:
     - go mod download
@@ -18,14 +19,14 @@ builds:
       - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
 
 archives:
-  - format: tar.gz
+  - formats: [ 'tar.gz' ]
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     files:
       - LICENSE
       - README.md
 
 nfpms:
-  - vendor: "ClickHousePro"
+  - vendor: "clickhouse.pro"
     homepage: "https://github.com/Slach/clickhouse-dump"
     maintainer: "Eugene Klimov <bloodjazman@gmail.com>"
     description: "Simple SQL dump and restore tool for ClickHouse®"
