@@ -9,7 +9,7 @@ jobs:
   goreleaser:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Необходимо для создания релизов и загрузки артефактов
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
