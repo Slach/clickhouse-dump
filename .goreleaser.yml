@@ -35,9 +35,6 @@ nfpms:
       - deb
       - rpm
     bindir: /usr/bin
-    contents:
-      - src: "{{ .ArtifactPath }}"
-        dst: /usr/bin/clickhouse-dump
 
 changelog:
   sort: asc
