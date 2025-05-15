@@ -79,17 +79,19 @@ func (f *FTPStorage) mkdirAllFTP(path string) error {
 			// Check if it's an error that can be ignored (e.g., directory already exists)
 			var ftpErr goftp.Error
 			if errors.As(err, &ftpErr) && ftpErr.Code() == 550 {
-				// To confirm it's an "already exists" situation, try to Stat it.
-				// If Stat shows it's a directory, we can ignore the Mkdir error.
-				f.debugf("Mkdir for %s returned 550: %s. Checking if it's a directory.", currentPathToMake, ftpErr.Message())
-				entry, statErr := f.client.Stat(currentPathToMake)
-				if statErr == nil && entry.IsDir() {
-					f.debugf("Directory %s already exists and is a directory. Continuing.", currentPathToMake)
+				// Fall back to LIST command when MLST/STAT fails
+				f.debugf("Mkdir for %s returned 550: %s. Attempting LIST to verify directory.", currentPathToMake, ftpErr.Message())
+				
+				// Try to list the directory contents
+				_, listErr := f.client.ReadDir(currentPathToMake)
+				if listErr == nil {
+					f.debugf("Directory %s exists (confirmed via LIST). Continuing.", currentPathToMake)
 					continue // Directory exists, proceed to next part
 				}
-				f.debugf("Stat for %s after Mkdir 550 error: statErr=%v, entryIsDir=%t. Propagating Mkdir error.", currentPathToMake, statErr, entry != nil && entry.IsDir())
-				// If Stat fails, or it's not a directory, the Mkdir error was likely not "already exists" or something is wrong.
-				return fmt.Errorf("failed to create directory %s (Mkdir error: %w; Stat check after 550: %v)", currentPathToMake, err, statErr)
+				
+				f.debugf("LIST for %s after Mkdir 550 error: %v. Propagating original Mkdir error.", currentPathToMake, listErr)
+				// If LIST fails, the directory likely doesn't exist or we can't access it
+				return fmt.Errorf("failed to create directory %s (Mkdir error: %w; LIST check after 550: %v)", currentPathToMake, err, listErr)
 			}
 			// For other errors, or if not a goftp.Error, return it directly.
 			return fmt.Errorf("failed to create directory %s: %w", currentPathToMake, err)
