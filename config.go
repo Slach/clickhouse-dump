@@ -17,4 +17,5 @@ type Config struct {
 	BackupName          string
 	NoServerCompression bool
 	Debug               bool
+	Parallel            int
 }

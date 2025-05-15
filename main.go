@@ -108,6 +108,12 @@ var app = &cli.App{
 			Usage:   "Enable debug logging",
 			EnvVars: []string{"DEBUG"},
 		},
+		&cli.IntFlag{
+			Name:    "parallel",
+			Value:   1,
+			Usage:   "Number of parallel table processing operations",
+			EnvVars: []string{"PARALLEL"},
+		},
 		// Storage Common Flags
 		&cli.StringFlag{
 			Name:     "storage-type",
@@ -271,8 +277,14 @@ func getConfig(c *cli.Context) (*Config, error) {
 			"endpoint":  c.String("storage-endpoint"),
 			"container": c.String("storage-container"),
 		},
-		Debug: c.Bool("debug"),
+		Debug:    c.Bool("debug"),
+		Parallel: c.Int("parallel"),
 	}
+
+	if config.Parallel < 1 {
+		return nil, fmt.Errorf("--parallel must be at least 1")
+	}
+
 	if config.ExcludeDatabases == "" {
 		config.ExcludeDatabases = "^system$|^INFORMATION_SCHEMA$|^information_schema$"
 	}

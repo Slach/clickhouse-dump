@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"strings"
+	"sync"
 
 	"github.com/Slach/clickhouse-dump/storage"
 	"github.com/klauspost/compress/gzip"
@@ -93,20 +94,49 @@ func (r *Restorer) Restore() error {
 		}
 	}
 
-	log.Printf("Found %d database files to restore.", len(dbFiles))
-	for _, dbFile := range dbFiles {
-		log.Printf("Restoring database from %s...", dbFile)
-		reader, downloadErr := r.storage.Download(dbFile)
-		if downloadErr != nil {
-			return fmt.Errorf("failed to download database file %s: %w", dbFile, downloadErr)
+	log.Printf("Found %d database files to restore. Parallelism: %d", len(dbFiles), r.config.Parallel)
+	if len(dbFiles) > 0 {
+		semDb := make(chan struct{}, r.config.Parallel)
+		var wgDb sync.WaitGroup
+		errChanDb := make(chan error, len(dbFiles))
+
+		for _, dbFile := range dbFiles {
+			wgDb.Add(1)
+			go func(dbf string) {
+				defer wgDb.Done()
+				semDb <- struct{}{}
+				defer func() { <-semDb }()
+
+				log.Printf("Restoring database from %s...", dbf)
+				reader, downloadErr := r.storage.Download(dbf)
+				if downloadErr != nil {
+					errChanDb <- fmt.Errorf("failed to download database file %s: %w", dbf, downloadErr)
+					return
+				}
+				// restoreSchema handles closing the reader
+				if restoreErr := r.restoreSchema(reader); restoreErr != nil {
+					errChanDb <- fmt.Errorf("failed to restore database from %s: %w", dbf, restoreErr)
+					return
+				}
+				log.Printf("Successfully restored database from %s.", dbf)
+			}(dbFile)
 		}
-		if restoreErr := r.restoreSchema(reader); restoreErr != nil {
-			return fmt.Errorf("failed to restore database from %s: %w", dbFile, restoreErr)
+		wgDb.Wait()
+		close(errChanDb)
+
+		var firstDbErr error
+		for errItem := range errChanDb {
+			if firstDbErr == nil {
+				firstDbErr = errItem
+			}
+			log.Printf("Error during database restoration: %v", errItem)
 		}
-		log.Printf("Successfully restored database from %s.", dbFile)
+		if firstDbErr != nil {
+			return fmt.Errorf("failed during database restoration: %w", firstDbErr)
+		}
 	}
 
-	// --- Restore Tables ---
+	// --- Restore Tables (Schemas) ---
 	var schemaFiles []string
 	schemaSuffix := ".schema.sql"
 	for _, file := range files {
@@ -115,17 +145,46 @@ func (r *Restorer) Restore() error {
 		}
 	}
 
-	log.Printf("Found %d schema files to restore.", len(schemaFiles))
-	for _, schemaFile := range schemaFiles {
-		log.Printf("Restoring schema from %s...", schemaFile)
-		reader, downloadErr := r.storage.Download(schemaFile)
-		if downloadErr != nil {
-			return fmt.Errorf("failed to download schema file %s: %w", schemaFile, downloadErr)
+	log.Printf("Found %d schema files to restore. Parallelism: %d", len(schemaFiles), r.config.Parallel)
+	if len(schemaFiles) > 0 {
+		semSchema := make(chan struct{}, r.config.Parallel)
+		var wgSchema sync.WaitGroup
+		errChanSchema := make(chan error, len(schemaFiles))
+
+		for _, schemaFile := range schemaFiles {
+			wgSchema.Add(1)
+			go func(sf string) {
+				defer wgSchema.Done()
+				semSchema <- struct{}{}
+				defer func() { <-semSchema }()
+
+				log.Printf("Restoring schema from %s...", sf)
+				reader, downloadErr := r.storage.Download(sf)
+				if downloadErr != nil {
+					errChanSchema <- fmt.Errorf("failed to download schema file %s: %w", sf, downloadErr)
+					return
+				}
+				// restoreSchema handles closing the reader
+				if restoreErr := r.restoreSchema(reader); restoreErr != nil {
+					errChanSchema <- fmt.Errorf("failed to restore schema from %s: %w", sf, restoreErr)
+					return
+				}
+				log.Printf("Successfully restored schema from %s.", sf)
+			}(schemaFile)
 		}
-		if restoreErr := r.restoreSchema(reader); restoreErr != nil {
-			return fmt.Errorf("failed to restore schema from %s: %w", schemaFile, restoreErr)
+		wgSchema.Wait()
+		close(errChanSchema)
+
+		var firstSchemaErr error
+		for errItem := range errChanSchema {
+			if firstSchemaErr == nil {
+				firstSchemaErr = errItem
+			}
+			log.Printf("Error during schema restoration: %v", errItem)
 		}
-		log.Printf("Successfully restored schema from %s.", schemaFile)
+		if firstSchemaErr != nil {
+			return fmt.Errorf("failed during schema restoration: %w", firstSchemaErr)
+		}
 	}
 
 	// --- Restore Data ---
@@ -137,19 +196,47 @@ func (r *Restorer) Restore() error {
 		}
 	}
 
-	log.Printf("Found %d data files to restore.", len(dataFiles))
-	for _, dataFile := range dataFiles {
-		log.Printf("Restoring data from %s...", dataFile)
-		// Всегда запрашиваем распаковку на стороне клиента для файлов данных
-		reader, downloadErr := r.storage.Download(dataFile)
-		if downloadErr != nil {
-			return fmt.Errorf("failed to download data file %s: %w", dataFile, downloadErr)
+	log.Printf("Found %d data files to restore. Parallelism: %d", len(dataFiles), r.config.Parallel)
+	if len(dataFiles) > 0 {
+		semData := make(chan struct{}, r.config.Parallel)
+		var wgData sync.WaitGroup
+		errChanData := make(chan error, len(dataFiles))
+
+		for _, dataFile := range dataFiles {
+			wgData.Add(1)
+			go func(df string) {
+				defer wgData.Done()
+				semData <- struct{}{}
+				defer func() { <-semData }()
+
+				log.Printf("Restoring data from %s...", df)
+				// Всегда запрашиваем распаковку на стороне клиента для файлов данных (через decompressStream в storage)
+				reader, downloadErr := r.storage.Download(df)
+				if downloadErr != nil {
+					errChanData <- fmt.Errorf("failed to download data file %s: %w", df, downloadErr)
+					return
+				}
+				// restoreData handles closing the reader
+				if restoreErr := r.restoreData(reader); restoreErr != nil {
+					errChanData <- fmt.Errorf("failed to restore data from %s: %w", df, restoreErr)
+					return
+				}
+				log.Printf("Successfully restored data from %s.", df)
+			}(dataFile)
 		}
-		if restoreErr := r.restoreData(reader); restoreErr != nil {
-			// restoreData теперь возвращает более конкретную ошибку, включающую имя файла не требуется
-			return fmt.Errorf("failed to restore data from %s: %w", dataFile, restoreErr)
+		wgData.Wait()
+		close(errChanData)
+
+		var firstDataErr error
+		for errItem := range errChanData {
+			if firstDataErr == nil {
+				firstDataErr = errItem
+			}
+			log.Printf("Error during data restoration: %v", errItem)
 		}
-		log.Printf("Successfully restored data from %s.", dataFile)
+		if firstDataErr != nil {
+			return fmt.Errorf("failed during data restoration: %w", firstDataErr)
+		}
 	}
 
 	log.Println("Restore completed successfully.")

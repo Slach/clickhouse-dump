@@ -86,6 +86,7 @@ clickhouse-dump restore BACKUP_NAME
 | Flag | Environment Variable | Default | Description |
 |------|---------------------|---------|-------------|
 | `--debug` | `DEBUG` | `false` | Enable debug logging |
+| `--parallel` | `PARALLEL` | `1` | Number of parallel table processing operations |
 
 ## Examples
 

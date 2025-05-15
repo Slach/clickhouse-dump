@@ -3,9 +3,11 @@ package main
 import (
 	_ "bytes"
 	"fmt"
-	"github.com/Slach/clickhouse-dump/storage"
 	"log"
 	"strings"
+	"sync"
+
+	"github.com/Slach/clickhouse-dump/storage"
 )
 
 type Dumper struct {
@@ -121,24 +123,70 @@ func (d *Dumper) Dump() error {
 		return err
 	}
 
-	totalTables := 0
-	for db := range dbTables {
-		totalTables += len(dbTables[db])
+	type tableDumpJob struct {
+		db    string
+		table string
 	}
-	log.Printf("found %d tables across %d databases for dump", totalTables, len(dbTables))
-
-	for db, tables := range dbTables {
-		for _, table := range tables {
-			if err := d.dumpSchema(db, table); err != nil {
-				return err
-			}
-			if err := d.dumpData(db, table); err != nil {
-				return err
-			}
+	var jobs []tableDumpJob
+	totalTablesCount := 0
+	for db, tablesInDb := range dbTables {
+		for _, table := range tablesInDb {
+			jobs = append(jobs, tableDumpJob{db: db, table: table})
+			totalTablesCount++
 		}
 	}
 
-	return nil
+	log.Printf("Found %d tables across %d databases for dump. Parallelism: %d", totalTablesCount, len(dbTables), d.config.Parallel)
+
+	if totalTablesCount == 0 {
+		log.Println("No tables to dump.")
+		return nil
+	}
+
+	sem := make(chan struct{}, d.config.Parallel)
+	var wg sync.WaitGroup
+	// Buffer size is totalTablesCount because each job (schema + data) can produce one error.
+	// If schema fails, data part is skipped, so at most one error per job.
+	errChan := make(chan error, totalTablesCount)
+
+	for _, job := range jobs {
+		wg.Add(1)
+		go func(j tableDumpJob) {
+			defer wg.Done()
+			sem <- struct{}{} // Acquire semaphore
+			d.debugf("Acquired semaphore for %s.%s", j.db, j.table)
+			defer func() {
+				<-sem // Release semaphore
+				d.debugf("Released semaphore for %s.%s", j.db, j.table)
+			}()
+
+			d.debugf("Dumping schema for %s.%s", j.db, j.table)
+			if dumpErr := d.dumpSchema(j.db, j.table); dumpErr != nil {
+				errChan <- fmt.Errorf("failed to dump schema for %s.%s: %w", j.db, j.table, dumpErr)
+				return // Don't proceed to data if schema fails for this table
+			}
+
+			d.debugf("Dumping data for %s.%s", j.db, j.table)
+			if dumpErr := d.dumpData(j.db, j.table); dumpErr != nil {
+				errChan <- fmt.Errorf("failed to dump data for %s.%s: %w", j.db, j.table, dumpErr)
+				return
+			}
+			log.Printf("Successfully dumped %s.%s", j.db, j.table)
+		}(job)
+	}
+
+	wg.Wait()
+	close(errChan)
+
+	var firstErr error
+	for errItem := range errChan {
+		if firstErr == nil {
+			firstErr = errItem
+		}
+		log.Printf("Error during dump: %v", errItem) // Log all errors
+	}
+
+	return firstErr
 }
 
 func (d *Dumper) getTables() (map[string][]string, error) {
