@@ -1,7 +1,6 @@
 package storage
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -28,14 +27,14 @@ func (l *ftpLoggerAdapter) Write(p []byte) (n int, err error) {
 
 // FTPStorage implements RemoteStorage for FTP servers.
 type FTPStorage struct {
-	client   *goftp.Client
-	host     string
-	user     string
-	password string
-	debug    bool
-	config   *goftp.Config
-	dirCache sync.Map // Thread-safe cache for created directories
-	mu       sync.Mutex // Mutex for directory operations
+	client        *goftp.Client
+	host          string
+	user          string
+	password      string
+	debug         bool
+	config        *goftp.Config
+	dirCache      map[string]struct{}
+	cacheDirMutex sync.RWMutex // Mutex for directory operations
 }
 
 func (f *FTPStorage) debugf(format string, args ...interface{}) {
@@ -73,25 +72,24 @@ func (f *FTPStorage) mkdirAllFTP(path string) error {
 			currentPathToMake = currentPathToMake + "/" + part
 		}
 
-		f.mu.Lock()
-		// Check cache first
-		if _, exists := f.dirCache.Load(currentPathToMake); exists {
-			f.debugf("Directory %s exists in cache, skipping creation", currentPathToMake)
-			f.mu.Unlock()
+		f.cacheDirMutex.RLock()
+		if _, exists := f.dirCache[currentPathToMake]; exists {
+			f.debugf("%s already created", currentPathToMake)
+			f.cacheDirMutex.RUnlock()
 			continue
 		}
 
-		f.debugf("Attempting to create directory: %s", currentPathToMake)
+		f.cacheDirMutex.Lock()
 		_, err := f.client.Mkdir(currentPathToMake)
 		if err != nil {
 			f.debugf("Directory creation error (likely exists): %v", err)
 		} else {
 			f.debugf("Successfully created directory: %s", currentPathToMake)
 		}
-		
+
 		// Mark directory as created in cache regardless of error
-		f.dirCache.Store(currentPathToMake, true)
-		f.mu.Unlock()
+		f.dirCache[currentPathToMake] = struct{}{}
+		f.cacheDirMutex.Unlock()
 	}
 	return nil
 }
