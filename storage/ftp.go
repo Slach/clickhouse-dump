@@ -81,35 +81,15 @@ func (f *FTPStorage) mkdirAllFTP(path string) error {
 			if errors.As(err, &ftpErr) && ftpErr.Code() == 550 {
 				f.debugf("Mkdir for %s returned 550: %s. Verifying directory existence.", currentPathToMake, ftpErr.Message())
 				
-				// Try different methods to verify directory exists
-				var verifyErr error
-				
-				// First try MLSD (modern listing)
-				_, mlErr := f.client.ReadDir(currentPathToMake)
-				if mlErr == nil {
-					f.debugf("Directory %s exists (confirmed via MLSD). Continuing.", currentPathToMake)
-					continue
-				}
-				verifyErr = fmt.Errorf("MLSD failed: %w", mlErr)
-				
-				// Fall back to LIST (traditional listing)
-				_, listErr := f.client.List(currentPathToMake)
-				if listErr == nil {
-					f.debugf("Directory %s exists (confirmed via LIST). Continuing.", currentPathToMake)
-					continue
-				}
-				verifyErr = fmt.Errorf("%v; LIST failed: %w", verifyErr, listErr)
-				
-				// Finally try STAT if available
+				// Try to stat the directory
 				if stat, statErr := f.client.Stat(currentPathToMake); statErr == nil && stat.IsDir() {
 					f.debugf("Directory %s exists (confirmed via STAT). Continuing.", currentPathToMake)
 					continue
 				} else if statErr != nil {
-					verifyErr = fmt.Errorf("%v; STAT failed: %w", verifyErr, statErr)
+					f.debugf("STAT failed for %s: %v. Propagating original Mkdir error.", currentPathToMake, statErr)
 				}
 				
-				f.debugf("All directory verification methods failed for %s: %v. Propagating original Mkdir error.", currentPathToMake, verifyErr)
-				return fmt.Errorf("failed to create directory %s (Mkdir error: %w; verification attempts: %v)", currentPathToMake, err, verifyErr)
+				return fmt.Errorf("failed to create directory %s (Mkdir error: %w; stat check: %v)", currentPathToMake, err, statErr)
 			}
 			// For other errors, or if not a goftp.Error, return it directly.
 			return fmt.Errorf("failed to create directory %s: %w", currentPathToMake, err)
