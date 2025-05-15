@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/Slach/clickhouse-dump/storage"
-	"hash/fnv"
 	"io"
 	"math/rand"
 	"net/http"
@@ -13,6 +12,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -616,13 +616,30 @@ func startAzuriteContainer(ctx context.Context, containerName string) (testconta
 	})
 }
 
+const (
+	ftpMinPort = 30000
+	ftpMaxPort = 39999
+	rangeSize  = 20
+)
+
+var nextFtpPortOffset int32 = 0
+
+func allocateFtpPortRange() (int, int, bool) {
+	offset := int(atomic.AddInt32(&nextFtpPortOffset, rangeSize)) - rangeSize
+	startPort := ftpMinPort + offset
+	endPort := startPort + rangeSize - 1
+	if endPort > ftpMaxPort {
+		return 0, 0, false // Out of ports
+	}
+	return startPort, endPort, true
+}
+
 func startFTPContainer(ctx context.Context, t *testing.T, containerName string) (testcontainers.Container, error) {
 	// Generate ports for PASV range based on test name hash to avoid conflicts in parallel tests
-	h := fnv.New32a()
-	_, _ = h.Write([]byte(t.Name())) // Error from Write is not critical here
-	hashValue := h.Sum32()
-	minPort := 30000 + int(hashValue%10000) // Port between 30000-39999
-	maxPort := minPort + 20                 // Use exactly 20 ports for PASV
+	minPort, maxPort, ok := allocateFtpPortRange()
+	if !ok {
+		t.Fatal("can't allocate FTP port range")
+	}
 
 	exposedPorts := []string{
 		"21/tcp",
