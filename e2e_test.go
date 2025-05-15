@@ -265,7 +265,7 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 		"--batch-size=100000",
 		"--compress-format=zstd",
 		"--compress-level=6",
-		"--parallel=4",
+		"--parallel=3",
 	}
 	storageFlagsSlice := make([]string, 0)
 
@@ -620,13 +620,14 @@ func startFTPContainer(ctx context.Context, t *testing.T, containerName string) 
 	_, _ = h.Write([]byte(t.Name())) // Error from Write is not critical here
 	hashValue := h.Sum32()
 	minPort := 30000 + int(hashValue%10000) // Port between 30000-39999
-	maxPort := minPort + 1                  // Use exactly 2 ports for PASV
+	maxPort := minPort + 20                 // Use exactly 20 ports for PASV
 
-	// Dynamically expose the ports
 	exposedPorts := []string{
 		"21/tcp",
-		fmt.Sprintf("%d:%d/tcp", minPort, minPort),
-		fmt.Sprintf("%d:%d/tcp", maxPort, maxPort),
+	}
+	// Dynamically expose the ports
+	for port := minPort; port <= maxPort; port++ {
+		exposedPorts = append(exposedPorts, fmt.Sprintf("%d:%d/tcp", port, port))
 	}
 
 	req := testcontainers.ContainerRequest{

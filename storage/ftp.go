@@ -27,14 +27,14 @@ func (l *ftpLoggerAdapter) Write(p []byte) (n int, err error) {
 
 // FTPStorage implements RemoteStorage for FTP servers.
 type FTPStorage struct {
-	client        *goftp.Client
-	host          string
-	user          string
-	password      string
-	debug         bool
-	config        *goftp.Config
-	dirCache      map[string]struct{}
-	cacheDirMutex sync.RWMutex // Mutex for directory operations
+	client         *goftp.Client
+	host           string
+	user           string
+	password       string
+	debug          bool
+	config         *goftp.Config
+	dirCache       map[string]struct{}
+	dirCacheMutext sync.RWMutex // Mutex for directory operations
 }
 
 func (f *FTPStorage) debugf(format string, args ...interface{}) {
@@ -72,14 +72,15 @@ func (f *FTPStorage) mkdirAllFTP(path string) error {
 			currentPathToMake = currentPathToMake + "/" + part
 		}
 
-		f.cacheDirMutex.RLock()
+		f.dirCacheMutext.RLock()
 		if _, exists := f.dirCache[currentPathToMake]; exists {
 			f.debugf("%s already created", currentPathToMake)
-			f.cacheDirMutex.RUnlock()
+			f.dirCacheMutext.RUnlock()
 			continue
 		}
+		f.dirCacheMutext.RUnlock()
 
-		f.cacheDirMutex.Lock()
+		f.dirCacheMutext.Lock()
 		_, err := f.client.Mkdir(currentPathToMake)
 		if err != nil {
 			f.debugf("Directory creation error (likely exists): %v", err)
@@ -89,7 +90,7 @@ func (f *FTPStorage) mkdirAllFTP(path string) error {
 
 		// Mark directory as created in cache regardless of error
 		f.dirCache[currentPathToMake] = struct{}{}
-		f.cacheDirMutex.Unlock()
+		f.dirCacheMutext.Unlock()
 	}
 	return nil
 }
@@ -129,12 +130,14 @@ func NewFTPStorage(host, user, password string, debug bool) (*FTPStorage, error)
 	}
 
 	return &FTPStorage{
-		client:   client,
-		host:     host,
-		user:     user,
-		password: password,
-		debug:    debug,
-		config:   &config,
+		client:         client,
+		host:           host,
+		user:           user,
+		password:       password,
+		debug:          debug,
+		config:         &config,
+		dirCacheMutext: sync.RWMutex{},
+		dirCache:       make(map[string]struct{}),
 	}, nil
 }
 
