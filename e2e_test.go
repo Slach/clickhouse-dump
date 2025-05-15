@@ -263,8 +263,9 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 		"--tables=" + tc.tables,
 		"--exclude-tables=" + tc.excludeTables,
 		"--batch-size=100000",
-		"--compress-format=gzip",
+		"--compress-format=zstd",
 		"--compress-level=6",
+		"--parallel=4",
 	}
 	storageFlagsSlice := make([]string, 0)
 
