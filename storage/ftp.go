@@ -47,7 +47,7 @@ func NewFTPStorage(host, user, password string, debug bool) (*FTPStorage, error)
 		log.Printf("[ftp:debug] Connecting to FTP server %s with user %s", host, user)
 	}
 
-	client, err := goftp.NewClient(config, host)
+	client, err := goftp.DialConfig(config, host)
 	if err != nil {
 		if debug {
 			log.Printf("[ftp:debug] Failed to connect to FTP server: %v", err)
@@ -96,7 +96,7 @@ func (f *FTPStorage) Upload(filename string, reader io.Reader, compressFormat st
 	dir := filepath.Dir(remoteFilename)
 	if dir != "." && dir != "/" {
 		f.debugf("Creating parent directories: %s", dir)
-		if err := f.client.Mkdir(dir); err != nil {
+		if _, err := f.client.Mkdir(dir); err != nil {
 			f.debugf("Failed to create directory: %v", err)
 			return fmt.Errorf("failed to create directory %s on ftp host %s: %w", dir, f.host, err)
 		}
@@ -120,11 +120,15 @@ func (f *FTPStorage) Download(filename string) (io.ReadCloser, error) {
 	pr, pw := io.Pipe()
 
 	go func() {
-		defer pw.Close()
+		defer func() {
+			if closeErr := pw.Close(); closeErr != nil {
+				log.Printf("can't close ftp pipe writer: %v", closeErr)
+			}
+		}()
 		err := f.client.Retrieve(filename, pw)
 		if err != nil {
 			f.debugf("Failed to download file: %v", err)
-			pw.CloseWithError(fmt.Errorf("failed to download %s from ftp host %s: %w", filename, f.host, err))
+			_ = pw.CloseWithError(fmt.Errorf("failed to download %s from ftp host %s: %w", filename, f.host, err))
 		}
 	}()
 
