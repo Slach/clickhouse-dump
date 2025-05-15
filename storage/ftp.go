@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -40,7 +41,6 @@ func (f *FTPStorage) debugf(format string, args ...interface{}) {
 	}
 }
 
-
 // mkdirAllFTP ensures the full directory path exists on the FTP server.
 // It creates directories recursively, ignoring errors if a directory already exists.
 func (f *FTPStorage) mkdirAllFTP(path string) error {
@@ -77,8 +77,8 @@ func (f *FTPStorage) mkdirAllFTP(path string) error {
 		_, err := f.client.Mkdir(currentPathToMake)
 		if err != nil {
 			// Check if it's an error that can be ignored (e.g., directory already exists)
-			// vsftpd typically returns 550 for "Create directory operation failed." if it exists.
-			if ftpErr, ok := err.(goftp.Error); ok && ftpErr.Code() == 550 {
+			var ftpErr goftp.Error
+			if errors.As(err, &ftpErr) && ftpErr.Code() == 550 {
 				// To confirm it's an "already exists" situation, try to Stat it.
 				// If Stat shows it's a directory, we can ignore the Mkdir error.
 				f.debugf("Mkdir for %s returned 550: %s. Checking if it's a directory.", currentPathToMake, ftpErr.Message())
