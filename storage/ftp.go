@@ -79,19 +79,37 @@ func (f *FTPStorage) mkdirAllFTP(path string) error {
 			// Check if it's an error that can be ignored (e.g., directory already exists)
 			var ftpErr goftp.Error
 			if errors.As(err, &ftpErr) && ftpErr.Code() == 550 {
-				// Fall back to LIST command when MLST/STAT fails
-				f.debugf("Mkdir for %s returned 550: %s. Attempting LIST to verify directory.", currentPathToMake, ftpErr.Message())
+				f.debugf("Mkdir for %s returned 550: %s. Verifying directory existence.", currentPathToMake, ftpErr.Message())
 				
-				// Try to list the directory contents
-				_, listErr := f.client.ReadDir(currentPathToMake)
+				// Try different methods to verify directory exists
+				var verifyErr error
+				
+				// First try MLSD (modern listing)
+				_, mlErr := f.client.ReadDir(currentPathToMake)
+				if mlErr == nil {
+					f.debugf("Directory %s exists (confirmed via MLSD). Continuing.", currentPathToMake)
+					continue
+				}
+				verifyErr = fmt.Errorf("MLSD failed: %w", mlErr)
+				
+				// Fall back to LIST (traditional listing)
+				_, listErr := f.client.List(currentPathToMake)
 				if listErr == nil {
 					f.debugf("Directory %s exists (confirmed via LIST). Continuing.", currentPathToMake)
-					continue // Directory exists, proceed to next part
+					continue
+				}
+				verifyErr = fmt.Errorf("%v; LIST failed: %w", verifyErr, listErr)
+				
+				// Finally try STAT if available
+				if stat, statErr := f.client.Stat(currentPathToMake); statErr == nil && stat.IsDir() {
+					f.debugf("Directory %s exists (confirmed via STAT). Continuing.", currentPathToMake)
+					continue
+				} else if statErr != nil {
+					verifyErr = fmt.Errorf("%v; STAT failed: %w", verifyErr, statErr)
 				}
 				
-				f.debugf("LIST for %s after Mkdir 550 error: %v. Propagating original Mkdir error.", currentPathToMake, listErr)
-				// If LIST fails, the directory likely doesn't exist or we can't access it
-				return fmt.Errorf("failed to create directory %s (Mkdir error: %w; LIST check after 550: %v)", currentPathToMake, err, listErr)
+				f.debugf("All directory verification methods failed for %s: %v. Propagating original Mkdir error.", currentPathToMake, verifyErr)
+				return fmt.Errorf("failed to create directory %s (Mkdir error: %w; verification attempts: %v)", currentPathToMake, err, verifyErr)
 			}
 			// For other errors, or if not a goftp.Error, return it directly.
 			return fmt.Errorf("failed to create directory %s: %w", currentPathToMake, err)
