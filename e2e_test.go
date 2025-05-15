@@ -252,6 +252,11 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 		t.Fatalf("unknown test case: %s", testCase)
 	}
 
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(t.Name()))
+	hashValue := h.Sum32()
+	compressionFormat := []string{"gzip", "zstd"}[uint(hashValue%2)]
+
 	// Build args from test case and storage flags
 	args := []string{
 		"clickhouse-dump",
@@ -263,7 +268,7 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 		"--tables=" + tc.tables,
 		"--exclude-tables=" + tc.excludeTables,
 		"--batch-size=100000",
-		"--compress-format=zstd",
+		"--compress-format=" + compressionFormat,
 		"--compress-level=6",
 		"--parallel=3",
 	}
