@@ -8,6 +8,7 @@ import (
 	"net"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/secsy/goftp"
@@ -34,6 +35,7 @@ type FTPStorage struct {
 	debug    bool
 	config   *goftp.Config
 	dirCache sync.Map // Thread-safe cache for created directories
+	mu       sync.Mutex // Mutex for directory operations
 }
 
 func (f *FTPStorage) debugf(format string, args ...interface{}) {
@@ -71,9 +73,11 @@ func (f *FTPStorage) mkdirAllFTP(path string) error {
 			currentPathToMake = currentPathToMake + "/" + part
 		}
 
+		f.mu.Lock()
 		// Check cache first
 		if _, exists := f.dirCache.Load(currentPathToMake); exists {
 			f.debugf("Directory %s exists in cache, skipping creation", currentPathToMake)
+			f.mu.Unlock()
 			continue
 		}
 
@@ -87,6 +91,7 @@ func (f *FTPStorage) mkdirAllFTP(path string) error {
 		
 		// Mark directory as created in cache regardless of error
 		f.dirCache.Store(currentPathToMake, true)
+		f.mu.Unlock()
 	}
 	return nil
 }
