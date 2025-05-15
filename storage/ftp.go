@@ -12,6 +12,7 @@ import (
 	"github.com/secsy/goftp"
 )
 
+// FTPStorage implements RemoteStorage for FTP servers.
 type FTPStorage struct {
 	client   *goftp.Client
 	host     string
@@ -27,6 +28,65 @@ func (f *FTPStorage) debugf(format string, args ...interface{}) {
 	}
 }
 
+// mkdirAllFTP ensures the full directory path exists on the FTP server.
+// It creates directories recursively, ignoring errors if a directory already exists.
+func (f *FTPStorage) mkdirAllFTP(path string) error {
+	f.debugf("Ensuring directory structure for %s", path)
+	isAbsolute := strings.HasPrefix(path, "/")
+	// Clean the path and trim surrounding slashes for splitting
+	// filepath.Clean is important for handling ".." or "//"
+	trimmedPath := strings.Trim(filepath.ToSlash(filepath.Clean(path)), "/")
+
+	if trimmedPath == "" || trimmedPath == "." {
+		f.debugf("Path %s requires no directory creation.", path)
+		return nil // No directory to create for root or current path itself
+	}
+
+	parts := strings.Split(trimmedPath, "/")
+	currentPathToMake := ""
+
+	for i, part := range parts {
+		if part == "" { // Should not happen with Clean and Trim
+			continue
+		}
+		if i == 0 {
+			if isAbsolute {
+				currentPathToMake = "/" + part
+			} else {
+				currentPathToMake = part
+			}
+		} else {
+			// Ensure we use forward slashes for FTP paths
+			currentPathToMake = currentPathToMake + "/" + part
+		}
+
+		f.debugf("Attempting to create/verify directory: %s", currentPathToMake)
+		_, err := f.client.Mkdir(currentPathToMake)
+		if err != nil {
+			// Check if it's an error that can be ignored (e.g., directory already exists)
+			// vsftpd typically returns 550 for "Create directory operation failed." if it exists.
+			if ftpErr, ok := err.(*goftp.Error); ok && ftpErr.Code() == 550 {
+				// To confirm it's an "already exists" situation, try to Stat it.
+				// If Stat shows it's a directory, we can ignore the Mkdir error.
+				f.debugf("Mkdir for %s returned 550: %s. Checking if it's a directory.", currentPathToMake, ftpErr.Message())
+				entry, statErr := f.client.Stat(currentPathToMake)
+				if statErr == nil && entry.IsDir() {
+					f.debugf("Directory %s already exists and is a directory. Continuing.", currentPathToMake)
+					continue // Directory exists, proceed to next part
+				}
+				f.debugf("Stat for %s after Mkdir 550 error: statErr=%v, entryIsDir=%t. Propagating Mkdir error.", currentPathToMake, statErr, entry != nil && entry.IsDir())
+				// If Stat fails or it's not a directory, the Mkdir error was likely not "already exists" or something is wrong.
+				return fmt.Errorf("failed to create directory %s (Mkdir error: %w; Stat check after 550: %v)", currentPathToMake, err, statErr)
+			}
+			// For other errors, or if not a goftp.Error, return it directly.
+			return fmt.Errorf("failed to create directory %s: %w", currentPathToMake, err)
+		}
+		f.debugf("Successfully created directory: %s", currentPathToMake)
+	}
+	return nil
+}
+
+// NewFTPStorage creates a new FTPStorage instance.
 func NewFTPStorage(host, user, password string, debug bool) (*FTPStorage, error) {
 	if host == "" || user == "" {
 		return nil, fmt.Errorf("ftp host and user cannot be empty")
@@ -93,12 +153,13 @@ func (f *FTPStorage) Upload(filename string, reader io.Reader, compressFormat st
 	f.debugf("FTP Upload: final remote path: %s", remoteFilename)
 
 	// Ensure parent directories exist
-	dir := filepath.Dir(remoteFilename)
+	dir := filepath.ToSlash(filepath.Dir(remoteFilename)) // Normalize to forward slashes
+
 	if dir != "." && dir != "/" {
-		f.debugf("Creating parent directories: %s", dir)
-		if _, err := f.client.Mkdir(dir); err != nil {
-			f.debugf("Failed to create directory: %v", err)
-			return fmt.Errorf("failed to create directory %s on ftp host %s: %w", dir, f.host, err)
+		f.debugf("Ensuring parent directories recursively for: %s", dir)
+		if err := f.mkdirAllFTP(dir); err != nil {
+			// mkdirAllFTP provides detailed error messages
+			return fmt.Errorf("failed to ensure directory structure for %s on ftp host %s: %w", dir, f.host, err)
 		}
 	}
 
@@ -141,17 +202,29 @@ func (f *FTPStorage) List(prefix string, recursive bool) ([]string, error) {
 	f.debugf("Listing files with prefix: %s (recursive: %v)", prefix, recursive)
 
 	// Normalize prefix
-	prefix = strings.TrimPrefix(prefix, "/")
+	prefix = filepath.ToSlash(strings.TrimPrefix(prefix, "/"))
+	if prefix == "." { // ReadDir(".") is fine, but if prefix was originally "/", it becomes "" after TrimPrefix, then "." by Clean.
+		prefix = "" // For ReadDir, "" usually means current directory, similar to "."
+	}
+
 
 	// Get listing
+	f.debugf("Reading directory: '%s'", prefix)
 	entries, err := f.client.ReadDir(prefix)
 	if err != nil {
-		f.debugf("Error listing directory: %v", err)
-		return nil, fmt.Errorf("error listing ftp directory %s on host %s: %w", prefix, f.host, err)
+		f.debugf("Error listing directory '%s': %v", prefix, err)
+		return nil, fmt.Errorf("error listing ftp directory '%s' on host %s: %w", prefix, f.host, err)
 	}
 
 	for _, entry := range entries {
-		path := filepath.Join(prefix, entry.Name())
+		// Construct path using forward slashes for FTP
+		var path string
+		if prefix == "" {
+			path = entry.Name()
+		} else {
+			path = prefix + "/" + entry.Name()
+		}
+
 
 		if entry.IsDir() {
 			if recursive {
