@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -649,12 +650,32 @@ func startFTPContainer(ctx context.Context, t *testing.T, containerName string) 
 }
 
 func startSFTPContainer(ctx context.Context, containerName string) (testcontainers.Container, error) {
+	scriptPath := filepath.Join(os.TempDir(), "generate-ssh-key.sh")
+	_ = os.WriteFile(scriptPath, []byte(`
+#!/bin/sh
+set -e
+mkdir -p /home/testuser/.ssh && ssh-keygen -t rsa -N '' -f /home/testuser/.ssh/id_rsa
+cp /home/testuser/.ssh/id_rsa.pub /home/testuser/.ssh/authorized_keys
+chown -R testuser:users /home/testuser/.ssh
+chmod 600 /home/testuser/.ssh/authorized_keys
+`), 0755)
+
 	req := testcontainers.ContainerRequest{
 		Name:         sanitizeContainerName(containerName),
 		Image:        "atmoz/sftp:latest",
 		ExposedPorts: []string{"22/tcp"},
 		Cmd:          []string{"testuser:testpass:::upload"},
-		WaitingFor:   wait.ForListeningPort("22/tcp").WithStartupTimeout(15 * time.Second),
+		Files: []testcontainers.ContainerFile{
+			{
+				HostFilePath:      scriptPath,
+				ContainerFilePath: "/etc/sftp.d/generate-testuser-key.sh",
+				FileMode:          0755,
+			},
+		},
+		WaitingFor: wait.ForExec([]string{
+			"bash", "-c",
+			"sftp -i /home/testuser/.ssh/id_rsa -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -P 22 testuser@localhost <<< 'ls'",
+		}).WithExitCode(0).WithStartupTimeout(15 * time.Second),
 	}
 	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
@@ -662,7 +683,6 @@ func startSFTPContainer(ctx context.Context, containerName string) (testcontaine
 		Reuse:            false,
 	})
 }
-
 func createTestTables(ctx context.Context, t *testing.T, container testcontainers.Container) error {
 	queries := []string{
 		`CREATE DATABASE IF NOT EXISTS test_db1`,
