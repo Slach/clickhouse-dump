@@ -1,4 +1,4 @@
-# ClickHouse Dump [![Coverage Status](https://coveralls.io/repos/github/Slach/clickhouse-dump/badge.svg?branch=main)](https://coveralls.io/github/Slach/clickhouse-dump?branch=main)
+# ClickHouse Dump [![Test](https://github.com/Slach/clickhouse-dump/actions/workflows/test.yml/badge.svg)](https://github.com/Slach/clickhouse-dump/actions/workflows/test.yml) [![Coverage Status](https://coveralls.io/repos/github/Slach/clickhouse-dump/badge.svg?branch=main)](https://coveralls.io/github/Slach/clickhouse-dump?branch=main)
 
 A simple tool for SQL dumping and restoring ClickHouse databases which support various storage backends. 
 Main motivation is creating simple tool for export/import small (less 10Gb) data via different clickhouse-servers, without direct access to disk in portable SQL format
