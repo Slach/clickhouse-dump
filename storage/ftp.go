@@ -80,16 +80,14 @@ func (f *FTPStorage) mkdirAllFTP(path string) error {
 			var ftpErr goftp.Error
 			if errors.As(err, &ftpErr) && ftpErr.Code() == 550 {
 				f.debugf("Mkdir for %s returned 550: %s. Verifying directory existence.", currentPathToMake, ftpErr.Message())
-				
+
 				// Try to stat the directory
-				if stat, statErr := f.client.Stat(currentPathToMake); statErr == nil && stat.IsDir() {
+				if _, statErr := f.client.Stat(currentPathToMake); statErr == nil {
 					f.debugf("Directory %s exists (confirmed via STAT). Continuing.", currentPathToMake)
 					continue
-				} else if statErr != nil {
-					f.debugf("STAT failed for %s: %v. Propagating original Mkdir error.", currentPathToMake, statErr)
+				} else {
+					return fmt.Errorf("failed to create directory %s (Mkdir error: %w; stat check: %v)", currentPathToMake, err, statErr)
 				}
-				
-				return fmt.Errorf("failed to create directory %s (Mkdir error: %w; stat check: %v)", currentPathToMake, err, statErr)
 			}
 			// For other errors, or if not a goftp.Error, return it directly.
 			return fmt.Errorf("failed to create directory %s: %w", currentPathToMake, err)
