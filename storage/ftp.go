@@ -65,7 +65,7 @@ func (f *FTPStorage) mkdirAllFTP(path string) error {
 		if err != nil {
 			// Check if it's an error that can be ignored (e.g., directory already exists)
 			// vsftpd typically returns 550 for "Create directory operation failed." if it exists.
-			if ftpErr, ok := err.(*goftp.Error); ok && ftpErr.Code() == 550 {
+			if ftpErr, ok := err.(goftp.Error); ok && ftpErr.Code() == 550 {
 				// To confirm it's an "already exists" situation, try to Stat it.
 				// If Stat shows it's a directory, we can ignore the Mkdir error.
 				f.debugf("Mkdir for %s returned 550: %s. Checking if it's a directory.", currentPathToMake, ftpErr.Message())
@@ -75,7 +75,7 @@ func (f *FTPStorage) mkdirAllFTP(path string) error {
 					continue // Directory exists, proceed to next part
 				}
 				f.debugf("Stat for %s after Mkdir 550 error: statErr=%v, entryIsDir=%t. Propagating Mkdir error.", currentPathToMake, statErr, entry != nil && entry.IsDir())
-				// If Stat fails or it's not a directory, the Mkdir error was likely not "already exists" or something is wrong.
+				// If Stat fails, or it's not a directory, the Mkdir error was likely not "already exists" or something is wrong.
 				return fmt.Errorf("failed to create directory %s (Mkdir error: %w; Stat check after 550: %v)", currentPathToMake, err, statErr)
 			}
 			// For other errors, or if not a goftp.Error, return it directly.
@@ -207,7 +207,6 @@ func (f *FTPStorage) List(prefix string, recursive bool) ([]string, error) {
 		prefix = "" // For ReadDir, "" usually means current directory, similar to "."
 	}
 
-
 	// Get listing
 	f.debugf("Reading directory: '%s'", prefix)
 	entries, err := f.client.ReadDir(prefix)
@@ -224,7 +223,6 @@ func (f *FTPStorage) List(prefix string, recursive bool) ([]string, error) {
 		} else {
 			path = prefix + "/" + entry.Name()
 		}
-
 
 		if entry.IsDir() {
 			if recursive {
