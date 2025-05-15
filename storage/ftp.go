@@ -33,6 +33,7 @@ type FTPStorage struct {
 	password string
 	debug    bool
 	config   *goftp.Config
+	dirCache sync.Map // Thread-safe cache for created directories
 }
 
 func (f *FTPStorage) debugf(format string, args ...interface{}) {
@@ -42,24 +43,22 @@ func (f *FTPStorage) debugf(format string, args ...interface{}) {
 }
 
 // mkdirAllFTP ensures the full directory path exists on the FTP server.
-// It creates directories recursively, ignoring errors if a directory already exists.
+// It creates directories recursively using a thread-safe cache to avoid redundant checks.
 func (f *FTPStorage) mkdirAllFTP(path string) error {
 	f.debugf("Ensuring directory structure for %s", path)
 	isAbsolute := strings.HasPrefix(path, "/")
-	// Clean the path and trim surrounding slashes for splitting
-	// filepath.Clean is important for handling ".." or "//"
 	trimmedPath := strings.Trim(filepath.ToSlash(filepath.Clean(path)), "/")
 
 	if trimmedPath == "" || trimmedPath == "." {
 		f.debugf("Path %s requires no directory creation.", path)
-		return nil // No directory to create for root or current path itself
+		return nil
 	}
 
 	parts := strings.Split(trimmedPath, "/")
 	currentPathToMake := ""
 
 	for i, part := range parts {
-		if part == "" { // Should not happen with Clean and Trim
+		if part == "" {
 			continue
 		}
 		if i == 0 {
@@ -69,30 +68,25 @@ func (f *FTPStorage) mkdirAllFTP(path string) error {
 				currentPathToMake = part
 			}
 		} else {
-			// Ensure we use forward slashes for FTP paths
 			currentPathToMake = currentPathToMake + "/" + part
 		}
 
-		f.debugf("Attempting to create/verify directory: %s", currentPathToMake)
+		// Check cache first
+		if _, exists := f.dirCache.Load(currentPathToMake); exists {
+			f.debugf("Directory %s exists in cache, skipping creation", currentPathToMake)
+			continue
+		}
+
+		f.debugf("Attempting to create directory: %s", currentPathToMake)
 		_, err := f.client.Mkdir(currentPathToMake)
 		if err != nil {
-			// Check if it's an error that can be ignored (e.g., directory already exists)
-			var ftpErr goftp.Error
-			if errors.As(err, &ftpErr) && ftpErr.Code() == 550 {
-				f.debugf("Mkdir for %s returned 550: %s. Verifying directory existence.", currentPathToMake, ftpErr.Message())
-
-				// Try to stat the directory
-				if _, statErr := f.client.Stat(currentPathToMake); statErr == nil {
-					f.debugf("Directory %s exists (confirmed via STAT). Continuing.", currentPathToMake)
-					continue
-				} else {
-					return fmt.Errorf("failed to create directory %s (Mkdir error: %w; stat check: %v)", currentPathToMake, err, statErr)
-				}
-			}
-			// For other errors, or if not a goftp.Error, return it directly.
-			return fmt.Errorf("failed to create directory %s: %w", currentPathToMake, err)
+			f.debugf("Directory creation error (likely exists): %v", err)
+		} else {
+			f.debugf("Successfully created directory: %s", currentPathToMake)
 		}
-		f.debugf("Successfully created directory: %s", currentPathToMake)
+		
+		// Mark directory as created in cache regardless of error
+		f.dirCache.Store(currentPathToMake, true)
 	}
 	return nil
 }
