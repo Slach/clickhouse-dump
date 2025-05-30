@@ -548,7 +548,7 @@ func startClickHouseContainer(ctx context.Context, containerName string) (testco
 		Env: map[string]string{
 			"CLICKHOUSE_SKIP_USER_SETUP": "1",
 		},
-		WaitingFor: wait.ForHTTP("/").WithPort("8123/tcp"),
+		WaitingFor: wait.ForHTTP("/").WithPort("8123/tcp").WithStartupTimeout(15 * time.Second).WithPollInterval(1 * time.Second),
 	}
 	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
@@ -559,8 +559,9 @@ func startClickHouseContainer(ctx context.Context, containerName string) (testco
 
 func startMinioContainer(ctx context.Context, containerName string) (testcontainers.Container, error) {
 	req := testcontainers.ContainerRequest{
-		Name:         sanitizeContainerName(containerName),
-		Image:        "bitnami/minio:latest",
+		Name: sanitizeContainerName(containerName),
+		// https://github.com/bitnami/containers/issues/81607
+		Image:        "bitnami/minio:2025.4.22",
 		ExposedPorts: []string{"9000/tcp"},
 		Env: map[string]string{
 			"MINIO_DEFAULT_BUCKETS": "testbucket",
