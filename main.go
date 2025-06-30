@@ -27,7 +27,7 @@ var app = &cli.Command{
 			Aliases:  []string{"H"},
 			Value:    "localhost",
 			Usage:    "ClickHouse host",
-			EnvVars:  []string{"CLICKHOUSE_HOST"},
+			Sources:  cli.EnvVars("CLICKHOUSE_HOST"),
 			Required: false, // Make optional if defaults are acceptable or env var used
 		},
 		&cli.IntFlag{
@@ -35,7 +35,7 @@ var app = &cli.Command{
 			Aliases:  []string{"p"},
 			Value:    8123,
 			Usage:    "ClickHouse HTTP port",
-			EnvVars:  []string{"CLICKHOUSE_PORT"},
+			Sources:  cli.EnvVars("CLICKHOUSE_PORT"),
 			Required: false,
 		},
 		&cli.StringFlag{
@@ -43,14 +43,14 @@ var app = &cli.Command{
 			Aliases:  []string{"u"},
 			Value:    "default",
 			Usage:    "ClickHouse user",
-			EnvVars:  []string{"CLICKHOUSE_USER"},
+			Sources:  cli.EnvVars("CLICKHOUSE_USER"),
 			Required: false,
 		},
 		&cli.StringFlag{
 			Name:     "password",
 			Aliases:  []string{"P"},
 			Usage:    "ClickHouse password",
-			EnvVars:  []string{"CLICKHOUSE_PASSWORD"},
+			Sources:  cli.EnvVars("CLICKHOUSE_PASSWORD"),
 			Required: false, // Often provided via env var
 		},
 		&cli.StringFlag{
@@ -58,115 +58,115 @@ var app = &cli.Command{
 			Aliases: []string{"d"},
 			Value:   ".*",
 			Usage:   "Regexp pattern for databases to include",
-			EnvVars: []string{"CLICKHOUSE_DATABASES"},
+			Sources: cli.EnvVars("CLICKHOUSE_DATABASES"),
 		},
 		&cli.StringFlag{
 			Name:    "exclude-databases",
 			Value:   "^system$|^INFORMATION_SCHEMA$|^information_schema$",
 			Usage:   "Regexp pattern for databases to exclude",
-			EnvVars: []string{"EXCLUDE_DATABASES"},
+			Sources: cli.EnvVars("EXCLUDE_DATABASES"),
 		},
 		&cli.StringFlag{
 			Name:    "tables",
 			Aliases: []string{"t"},
 			Value:   ".*",
 			Usage:   "Regexp pattern for tables to include",
-			EnvVars: []string{"TABLES"},
+			Sources: cli.EnvVars("TABLES"),
 		},
 		&cli.StringFlag{
 			Name:    "exclude-tables",
 			Value:   "",
 			Usage:   "Regexp pattern for tables to exclude",
-			EnvVars: []string{"EXCLUDE_TABLES"},
+			Sources: cli.EnvVars("EXCLUDE_TABLES"),
 		},
 		// Dump Specific Flags (can be moved to dump command if needed)
 		&cli.IntFlag{
 			Name:    "batch-size",
 			Value:   100000, // Adjusted default
 			Usage:   "Batch size for SQL Insert statements (dump only)",
-			EnvVars: []string{"BATCH_SIZE"},
+			Sources: cli.EnvVars("BATCH_SIZE"),
 		},
 		&cli.StringFlag{
 			Name:    "compress-format",
 			Value:   "gzip",
 			Usage:   "Compression format: gzip, zstd, or none (dump only)",
-			EnvVars: []string{"COMPRESS_FORMAT"},
+			Sources: cli.EnvVars("COMPRESS_FORMAT"),
 		},
 		&cli.IntFlag{
 			Name:    "compress-level",
 			Value:   6, // Default for gzip
 			Usage:   "Compression level (gzip: 1-9, zstd: 1-22) (dump only)",
-			EnvVars: []string{"COMPRESS_LEVEL"},
+			Sources: cli.EnvVars("COMPRESS_LEVEL"),
 		},
 		&cli.BoolFlag{
 			Name:    "debug",
 			Usage:   "Enable debug logging",
-			EnvVars: []string{"DEBUG"},
+			Sources: cli.EnvVars("DEBUG"),
 		},
 		&cli.IntFlag{
 			Name:    "parallel",
 			Value:   1,
 			Usage:   "Number of parallel table processing operations",
-			EnvVars: []string{"PARALLEL"},
+			Sources: cli.EnvVars("PARALLEL"),
 		},
 		// Storage Common Flags
 		&cli.StringFlag{
 			Name:     "storage-type",
 			Usage:    "Storage backend type: file, s3, gcs, azblob, sftp, ftp",
-			EnvVars:  []string{"STORAGE_TYPE"},
+			Sources:  cli.EnvVars("STORAGE_TYPE"),
 			Required: true, // Required for both dump and restore
 		},
 		// Storage Specific Flags (using map approach in getConfig)
 		&cli.StringFlag{
 			Name:    "storage-bucket",
 			Usage:   "S3/GCS bucket name",
-			EnvVars: []string{"STORAGE_BUCKET"},
+			Sources: cli.EnvVars("STORAGE_BUCKET"),
 		},
 		&cli.StringFlag{
 			Name:    "storage-region",
 			Usage:   "S3 region",
-			EnvVars: []string{"STORAGE_REGION"},
+			Sources: cli.EnvVars("STORAGE_REGION"),
 		},
 		&cli.StringFlag{
 			Name:    "storage-account",
 			Usage:   "Storage account name/access key (S3: access key ID, Azure: account name)",
-			EnvVars: []string{"AWS_ACCESS_KEY_ID", "STORAGE_ACCOUNT"},
+			Sources: cli.EnvVars("AWS_ACCESS_KEY_ID", "STORAGE_ACCOUNT"),
 		},
 		&cli.StringFlag{
 			Name:    "storage-key",
 			Usage:   "Storage secret key (S3: secret access key, Azure: account key, GCS: path to credentials JSON)",
-			EnvVars: []string{"AWS_SECRET_ACCESS_KEY", "STORAGE_KEY"},
+			Sources: cli.EnvVars("AWS_SECRET_ACCESS_KEY", "STORAGE_KEY"),
 		},
 		&cli.StringFlag{
 			Name:    "storage-endpoint",
 			Usage:   "Custom endpoint URL (S3: for MinIO/etc, GCS: for fake-gcs-server, Azure: for Azurite)",
-			EnvVars: []string{"STORAGE_ENDPOINT"},
+			Sources: cli.EnvVars("STORAGE_ENDPOINT"),
 		},
 		&cli.StringFlag{
 			Name:    "storage-container",
 			Usage:   "Azure Blob Storage container name",
-			EnvVars: []string{"STORAGE_CONTAINER"},
+			Sources: cli.EnvVars("STORAGE_CONTAINER"),
 		},
 		&cli.StringFlag{
 			Name:    "storage-host",
 			Usage:   "SFTP/FTP host (and optional port like host:port)",
-			EnvVars: []string{"STORAGE_HOST"},
+			Sources: cli.EnvVars("STORAGE_HOST"),
 		},
 		&cli.StringFlag{
 			Name:    "storage-user",
 			Usage:   "SFTP/FTP user",
-			EnvVars: []string{"STORAGE_USER"},
+			Sources: cli.EnvVars("STORAGE_USER"),
 		},
 		&cli.StringFlag{
 			Name:    "storage-password",
 			Usage:   "SFTP/FTP password",
-			EnvVars: []string{"STORAGE_PASSWORD"},
+			Sources: cli.EnvVars("STORAGE_PASSWORD"),
 		},
 		&cli.StringFlag{
 			Name:    "storage-path",
 			Usage:   "Base path in storage for dump/restore files",
 			Value:   "",
-			EnvVars: []string{"STORAGE_PATH"},
+			Sources: cli.EnvVars("STORAGE_PATH"),
 		},
 	},
 	Commands: []*cli.Command{
