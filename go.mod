@@ -16,7 +16,7 @@ require (
 	github.com/secsy/goftp v0.0.0-20200609142545-aa2de14babf4
 	github.com/stretchr/testify v1.10.0
 	github.com/testcontainers/testcontainers-go v0.37.0
-	github.com/urfave/cli/v2 v2.27.6
+	github.com/urfave/cli/v3 v3.0.0-alpha9
 	golang.org/x/crypto v0.38.0
 	google.golang.org/api v0.236.0
 )
