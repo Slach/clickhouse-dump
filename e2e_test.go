@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/Slach/clickhouse-dump/storage"
 	"io"
-	"math/rand"
 	"net/http"
 	"net/url"
 	"os"
