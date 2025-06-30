@@ -470,7 +470,7 @@ func testFTPStorage(ctx context.Context, t *testing.T, clickhouseContainer testc
 		"storage-host":     ftpHost + ":" + ftpPort.Port(),
 		"storage-user":     "testuser",
 		"storage-password": "testpass",
-		"storage-path":     "",
+		"storage-path":     "/",
 	}, testCase, backupName)
 }
 
