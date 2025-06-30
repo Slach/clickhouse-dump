@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"path"
 	"strings"
 	"sync"
 
@@ -76,8 +77,7 @@ func (r *Restorer) Restore() error {
 
 	// --- Restore Databases ---
 	// Handle path joining properly - storage path may or may not end with /
-	basePath := strings.TrimRight(r.config.StorageConfig["path"], "/")
-	backupPrefix := fmt.Sprintf("%s/%s", basePath, r.config.BackupName)
+	backupPrefix := path.Join(r.config.StorageConfig["path"], r.config.BackupName)
 	log.Printf("Listing storage items with prefix: %s (recursive)", backupPrefix)
 
 	files, err := r.storage.List(backupPrefix, true)

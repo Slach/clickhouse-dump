@@ -4,6 +4,7 @@ import (
 	_ "bytes"
 	"fmt"
 	"log"
+	"path"
 	"strings"
 	"sync"
 
@@ -97,7 +98,7 @@ func (d *Dumper) dumpDatabaseSchema(dbName string) error {
 	// Replace CREATE DATABASE with CREATE DATABASE IF NOT EXISTS
 	createStmt := strings.Replace(string(respBytes), "CREATE DATABASE", "CREATE DATABASE IF NOT EXISTS", 1)
 
-	filename := fmt.Sprintf("%s/%s/%s.database.sql", d.config.StorageConfig["path"], d.config.BackupName, dbName)
+	filename := path.Join(d.config.StorageConfig["path"], d.config.BackupName, fmt.Sprintf("%s.database.sql", dbName))
 
 	// For database schema, always use manual compression since we modified the content.
 	// contentEncoding is empty, so client-side compression will be applied.
@@ -243,7 +244,7 @@ func (d *Dumper) dumpSchema(dbName, tableName string) error {
 		}
 	}()
 
-	filename := fmt.Sprintf("%s/%s/%s/%s.schema.sql", d.config.StorageConfig["path"], d.config.BackupName, dbName, tableName)
+	filename := path.Join(d.config.StorageConfig["path"], d.config.BackupName, dbName, fmt.Sprintf("%s.schema.sql", tableName))
 
 	// Pass contentEncoding to Upload. If it's set, Upload will use it and ignore compressFormat/Level.
 	// Otherwise, Upload will use compressFormat/Level.
@@ -264,7 +265,7 @@ func (d *Dumper) dumpData(dbName, tableName string) error {
 		}
 	}()
 
-	filename := fmt.Sprintf("%s/%s/%s/%s.data.sql", d.config.StorageConfig["path"], d.config.BackupName, dbName, tableName)
+	filename := path.Join(d.config.StorageConfig["path"], d.config.BackupName, dbName, fmt.Sprintf("%s.data.sql", tableName))
 
 	// Pass contentEncoding to Upload. If it's set, Upload will use it and ignore compressFormat/Level.
 	// Otherwise, Upload will use compressFormat/Level.

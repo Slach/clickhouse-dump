@@ -440,7 +440,7 @@ func testAzureBlobStorage(ctx context.Context, t *testing.T, clickhouseContainer
 		"storage-account":   "devstoreaccount1",
 		"storage-key":       "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==",
 		"storage-container": "testcontainer",
-		"storage-path":      "/",
+		"storage-path":      "", // azblob does not work well with a path of "/", which becomes a leading slash in the object key
 		"storage-endpoint":  endpoint,
 	}, testCase, backupName)
 }
