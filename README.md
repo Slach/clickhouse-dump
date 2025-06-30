@@ -3,6 +3,8 @@
 A simple tool for SQL dumping and restoring ClickHouse databases which support various storage backends. 
 Main motivation is creating simple tool for export/import small (less 10Gb) data via different clickhouse-servers, without direct access to disk in portable SQL format
 
+**Requires ClickHouse version 24.10 or higher**
+
 ## Use https://github.com/Altinity/clickhouse-backup for production backup.
 
 ## Features

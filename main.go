@@ -207,6 +207,13 @@ func RunDumper(c *cli.Context) error {
 		return fmt.Errorf("configuration error: %w", err)
 	}
 	config.BackupName = backupName
+	
+	// Create ClickHouse client to check version
+	client := NewClickHouseClient(config)
+	if err := checkClickHouseVersion(client); err != nil {
+		return err
+	}
+	
 	dumper, err := NewDumper(config)
 	if err != nil {
 		return fmt.Errorf("failed to initialize dumper: %w", err)
@@ -232,6 +239,13 @@ func RunRestorer(c *cli.Context) error {
 		return fmt.Errorf("configuration error: %w", err)
 	}
 	config.BackupName = backupName
+	
+	// Create ClickHouse client to check version
+	client := NewClickHouseClient(config)
+	if err := checkClickHouseVersion(client); err != nil {
+		return err
+	}
+	
 	restorer, err := NewRestorer(config)
 	if err != nil {
 		return fmt.Errorf("failed to initialize restorer: %w", err)
@@ -240,6 +254,40 @@ func RunRestorer(c *cli.Context) error {
 	err = restorer.Restore()
 	// Restore() already logs success/failure details, just return error status
 	return err
+}
+
+// checkClickHouseVersion verifies that the ClickHouse server is at least version 24.10
+func checkClickHouseVersion(client *ClickHouseClient) error {
+	query := "SELECT version()"
+	respBytes, err := client.ExecuteQuery(query)
+	if err != nil {
+		return fmt.Errorf("failed to check ClickHouse version: %w", err)
+	}
+	
+	version := strings.TrimSpace(string(respBytes))
+	log.Printf("Connected to ClickHouse version: %s", version)
+	
+	// Extract major and minor version numbers
+	parts := strings.Split(version, ".")
+	if len(parts) < 2 {
+		return fmt.Errorf("unexpected ClickHouse version format: %s", version)
+	}
+	
+	var major, minor int
+	if _, err := fmt.Sscanf(parts[0], "%d", &major); err != nil {
+		return fmt.Errorf("failed to parse major version from %s: %w", version, err)
+	}
+	
+	if _, err := fmt.Sscanf(parts[1], "%d", &minor); err != nil {
+		return fmt.Errorf("failed to parse minor version from %s: %w", version, err)
+	}
+	
+	// Check if version is at least 24.10
+	if major < 24 || (major == 24 && minor < 10) {
+		return fmt.Errorf("unsupported ClickHouse version: %s. Minimum required version is 24.10", version)
+	}
+	
+	return nil
 }
 
 // getConfig extracts configuration from command line context, including storage details.
