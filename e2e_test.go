@@ -255,8 +255,7 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 	compressionFormat := []string{"gzip", "zstd"}[uint(time.Now().Nanosecond()%2)]
 
 	// Build args from test case and storage flags
-	args := []string{
-		"clickhouse-dump",
+	flags := []string{
 		"--host=" + host,
 		"--port=" + port.Port(),
 		"--user=default",
@@ -269,21 +268,22 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 		"--parallel=3",
 	}
 	if tc.excludeDatabases != "" {
-		args = append(args, "--exclude-databases="+tc.excludeDatabases)
+		flags = append(flags, "--exclude-databases="+tc.excludeDatabases)
 	}
 	storageFlagsSlice := make([]string, 0)
 
 	for paramName, paramValue := range storageFlags {
 		storageFlagsSlice = append(storageFlagsSlice, fmt.Sprintf("--%s=%s", paramName, paramValue))
 	}
-	args = append(args, storageFlagsSlice...)
+	flags = append(flags, storageFlagsSlice...)
 
 	if _, isDebug := os.LookupEnv("DEBUG"); isDebug {
-		args = append(args, "--debug")
+		flags = append(flags, "--debug")
 	}
 
 	// Test 1: Dump
-	dumpArgs := append(args, "dump", backupName)
+	dumpArgs := append([]string{"clickhouse-dump", "dump"}, flags...)
+	dumpArgs = append(dumpArgs, backupName)
 	t.Logf("dumpArgs=%#v", dumpArgs)
 	dumpErr := app.Run(ctx, dumpArgs)
 	require.NoError(t, dumpErr, "fail to execute dump command %v", dumpArgs)
@@ -296,7 +296,8 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 	require.NoError(t, clearTestTables(ctx, t, clickhouseContainer))
 
 	// Test 2: Restore
-	restoreArgs := append(args, "restore", backupName)
+	restoreArgs := append([]string{"clickhouse-dump", "restore"}, flags...)
+	restoreArgs = append(restoreArgs, backupName)
 	restoreErr := app.Run(ctx, restoreArgs)
 	t.Logf("restoreArgs=%#v", restoreArgs)
 	require.NoError(t, restoreErr, "fail to execute restore command %v", restoreArgs)
