@@ -541,9 +541,13 @@ func sanitizeContainerName(name string) string {
 }
 
 func startClickHouseContainer(ctx context.Context, containerName string) (testcontainers.Container, error) {
+	clickHouseVersion := os.Getenv("CLICKHOUSE_VERSION")
+	if clickHouseVersion == "" {
+		clickHouseVersion = "latest"
+	}
 	req := testcontainers.ContainerRequest{
 		Name:         sanitizeContainerName(containerName),
-		Image:        "clickhouse/clickhouse-server:latest",
+		Image:        "clickhouse/clickhouse-server:" + clickHouseVersion,
 		ExposedPorts: []string{"8123/tcp"},
 		Env: map[string]string{
 			"CLICKHOUSE_SKIP_USER_SETUP": "1",
