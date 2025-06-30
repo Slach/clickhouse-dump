@@ -283,7 +283,7 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 	// Test 1: Dump
 	dumpArgs := append(args, "dump", backupName)
 	t.Logf("dumpArgs=%#v", dumpArgs)
-	dumpErr := app.Run(dumpArgs)
+	dumpErr := app.Run(ctx, dumpArgs)
 	require.NoError(t, dumpErr, "fail to execute dump command %v", dumpArgs)
 	// Verify dump files were created
 	if storageFlags["storage-type"] == "file" {
@@ -295,7 +295,7 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 
 	// Test 2: Restore
 	restoreArgs := append(args, "restore", backupName)
-	restoreErr := app.Run(restoreArgs)
+	restoreErr := app.Run(ctx, restoreArgs)
 	t.Logf("restoreArgs=%#v", restoreArgs)
 	require.NoError(t, restoreErr, "fail to execute restore command %v", restoreArgs)
 
