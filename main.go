@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -15,7 +16,7 @@ var (
 	date    = "unknown"
 )
 
-var app = &cli.App{
+var app = &cli.Command{
 	Name:    "clickhouse-dump",
 	Usage:   "Dump and restore ClickHouse tables to/from remote storage",
 	Version: fmt.Sprintf("%s (commit %s, built at %s)", version, commit, date),
@@ -190,7 +191,7 @@ func main() {
 	log.SetOutput(os.Stderr)
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
-	err := app.Run(os.Args)
+	err := app.Run(context.Background(), os.Args)
 	if err != nil {
 		log.Fatal(err) // Use log.Fatal to print error and exit(1)
 	}
