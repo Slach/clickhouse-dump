@@ -197,13 +197,13 @@ func main() {
 	}
 }
 
-func RunDumper(c *cli.Context) error {
-	if c.Args().Len() == 0 {
+func RunDumper(ctx context.Context, cmd *cli.Command) error {
+	if cmd.Args().Len() == 0 {
 		return fmt.Errorf("backup name is required as argument")
 	}
-	backupName := c.Args().First()
+	backupName := cmd.Args().First()
 
-	config, err := getConfig(c)
+	config, err := getConfig(cmd)
 	if err != nil {
 		return fmt.Errorf("configuration error: %w", err)
 	}
@@ -229,13 +229,13 @@ func RunDumper(c *cli.Context) error {
 	return err
 }
 
-func RunRestorer(c *cli.Context) error {
-	if c.Args().Len() == 0 {
+func RunRestorer(ctx context.Context, cmd *cli.Command) error {
+	if cmd.Args().Len() == 0 {
 		return fmt.Errorf("backup name is required as argument")
 	}
-	backupName := c.Args().First()
+	backupName := cmd.Args().First()
 
-	config, err := getConfig(c)
+	config, err := getConfig(cmd)
 	if err != nil {
 		return fmt.Errorf("configuration error: %w", err)
 	}
@@ -292,35 +292,35 @@ func checkClickHouseVersion(client *ClickHouseClient) error {
 }
 
 // getConfig extracts configuration from command line context, including storage details.
-func getConfig(c *cli.Context) (*Config, error) {
+func getConfig(cmd *cli.Command) (*Config, error) {
 	// Basic ClickHouse config
 	config := &Config{
-		Host:             c.String("host"),
-		Port:             c.Int("port"),
-		User:             c.String("user"),
-		Password:         c.String("password"),
-		Databases:        c.String("databases"),
-		ExcludeDatabases: c.String("exclude-databases"),
-		Tables:           c.String("tables"),
-		ExcludeTables:    c.String("exclude-tables"),
-		BatchSize:        c.Int("batch-size"),
-		CompressFormat:   c.String("compress-format"),
-		CompressLevel:    c.Int("compress-level"),
-		StorageType:      strings.ToLower(c.String("storage-type")),
+		Host:             cmd.String("host"),
+		Port:             cmd.Int("port"),
+		User:             cmd.String("user"),
+		Password:         cmd.String("password"),
+		Databases:        cmd.String("databases"),
+		ExcludeDatabases: cmd.String("exclude-databases"),
+		Tables:           cmd.String("tables"),
+		ExcludeTables:    cmd.String("exclude-tables"),
+		BatchSize:        cmd.Int("batch-size"),
+		CompressFormat:   cmd.String("compress-format"),
+		CompressLevel:    cmd.Int("compress-level"),
+		StorageType:      strings.ToLower(cmd.String("storage-type")),
 		StorageConfig: map[string]string{
-			"host":      c.String("storage-host"),
-			"user":      c.String("storage-user"),
-			"password":  c.String("storage-password"),
-			"path":      c.String("storage-path"),
-			"bucket":    c.String("storage-bucket"),
-			"region":    c.String("storage-region"),
-			"account":   c.String("storage-account"),
-			"key":       c.String("storage-key"),
-			"endpoint":  c.String("storage-endpoint"),
-			"container": c.String("storage-container"),
+			"host":      cmd.String("storage-host"),
+			"user":      cmd.String("storage-user"),
+			"password":  cmd.String("storage-password"),
+			"path":      cmd.String("storage-path"),
+			"bucket":    cmd.String("storage-bucket"),
+			"region":    cmd.String("storage-region"),
+			"account":   cmd.String("storage-account"),
+			"key":       cmd.String("storage-key"),
+			"endpoint":  cmd.String("storage-endpoint"),
+			"container": cmd.String("storage-container"),
 		},
-		Debug:    c.Bool("debug"),
-		Parallel: c.Int("parallel"),
+		Debug:    cmd.Bool("debug"),
+		Parallel: cmd.Int("parallel"),
 	}
 
 	if config.Parallel < 1 {
