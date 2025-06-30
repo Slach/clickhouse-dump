@@ -369,7 +369,7 @@ func testS3Storage(ctx context.Context, t *testing.T, clickhouseContainer testco
 		"storage-type":     "s3",
 		"storage-bucket":   "testbucket",
 		"storage-region":   "us-east-1",
-		"storage-path":     "",
+		"storage-path":     "/",
 		"storage-endpoint": "http://" + minioHost + ":" + minioPort.Port(),
 		"storage-account":  "minioadmin",
 		"storage-key":      "minioadmin",
@@ -402,7 +402,7 @@ func testGCSStorage(ctx context.Context, t *testing.T, clickhouseContainer testc
 	runMainTestScenario(ctx, t, clickhouseContainer, map[string]string{
 		"storage-type":     "gcs",
 		"storage-bucket":   "testbucket",
-		"storage-path":     "",
+		"storage-path":     "/",
 		"storage-endpoint": "http://" + gcsHost + ":" + gcsPort.Port(), // fake-gcs-server uses http
 	}, testCase, backupName)
 }
@@ -440,7 +440,7 @@ func testAzureBlobStorage(ctx context.Context, t *testing.T, clickhouseContainer
 		"storage-account":   "devstoreaccount1",
 		"storage-key":       "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==",
 		"storage-container": "testcontainer",
-		"storage-path":      "",
+		"storage-path":      "/",
 		"storage-endpoint":  endpoint,
 	}, testCase, backupName)
 }
