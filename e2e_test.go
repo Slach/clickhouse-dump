@@ -261,13 +261,15 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 		"--port=" + port.Port(),
 		"--user=default",
 		"--databases=" + tc.databases,
-		"--exclude-databases=" + tc.excludeDatabases,
 		"--tables=" + tc.tables,
 		"--exclude-tables=" + tc.excludeTables,
 		"--batch-size=100000",
 		"--compress-format=" + compressionFormat,
 		"--compress-level=6",
 		"--parallel=3",
+	}
+	if tc.excludeDatabases != "" {
+		args = append(args, "--exclude-databases="+tc.excludeDatabases)
 	}
 	storageFlagsSlice := make([]string, 0)
 
