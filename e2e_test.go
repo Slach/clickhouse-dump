@@ -30,7 +30,6 @@ func logFailMessage(msg string) string {
 }
 
 func TestE2E(t *testing.T) {
-	rand.Seed(time.Now().UnixNano())
 	t.Parallel() // Enable parallel execution for all subtests
 
 	testCases := []string{
