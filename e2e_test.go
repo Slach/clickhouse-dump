@@ -255,13 +255,11 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 	compressionFormat := []string{"gzip", "zstd"}[uint(time.Now().Nanosecond()%2)]
 
 	// Build args from test case and storage flags
-	args := []string{
-		"clickhouse-dump",
+	flags := []string{
 		"--host=" + host,
 		"--port=" + port.Port(),
 		"--user=default",
 		"--databases=" + tc.databases,
-		"--exclude-databases=" + tc.excludeDatabases,
 		"--tables=" + tc.tables,
 		"--exclude-tables=" + tc.excludeTables,
 		"--batch-size=100000",
@@ -269,21 +267,25 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 		"--compress-level=6",
 		"--parallel=3",
 	}
+	if tc.excludeDatabases != "" {
+		flags = append(flags, "--exclude-databases="+tc.excludeDatabases)
+	}
 	storageFlagsSlice := make([]string, 0)
 
 	for paramName, paramValue := range storageFlags {
 		storageFlagsSlice = append(storageFlagsSlice, fmt.Sprintf("--%s=%s", paramName, paramValue))
 	}
-	args = append(args, storageFlagsSlice...)
+	flags = append(flags, storageFlagsSlice...)
 
 	if _, isDebug := os.LookupEnv("DEBUG"); isDebug {
-		args = append(args, "--debug")
+		flags = append(flags, "--debug")
 	}
 
 	// Test 1: Dump
-	dumpArgs := append(args, "dump", backupName)
+	dumpArgs := append([]string{"clickhouse-dump", "dump"}, flags...)
+	dumpArgs = append(dumpArgs, backupName)
 	t.Logf("dumpArgs=%#v", dumpArgs)
-	dumpErr := app.Run(dumpArgs)
+	dumpErr := app.Run(ctx, dumpArgs)
 	require.NoError(t, dumpErr, "fail to execute dump command %v", dumpArgs)
 	// Verify dump files were created
 	if storageFlags["storage-type"] == "file" {
@@ -294,8 +296,9 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 	require.NoError(t, clearTestTables(ctx, t, clickhouseContainer))
 
 	// Test 2: Restore
-	restoreArgs := append(args, "restore", backupName)
-	restoreErr := app.Run(restoreArgs)
+	restoreArgs := append([]string{"clickhouse-dump", "restore"}, flags...)
+	restoreArgs = append(restoreArgs, backupName)
+	restoreErr := app.Run(ctx, restoreArgs)
 	t.Logf("restoreArgs=%#v", restoreArgs)
 	require.NoError(t, restoreErr, "fail to execute restore command %v", restoreArgs)
 
@@ -366,7 +369,7 @@ func testS3Storage(ctx context.Context, t *testing.T, clickhouseContainer testco
 		"storage-type":     "s3",
 		"storage-bucket":   "testbucket",
 		"storage-region":   "us-east-1",
-		"storage-path":     "",
+		"storage-path":     "/",
 		"storage-endpoint": "http://" + minioHost + ":" + minioPort.Port(),
 		"storage-account":  "minioadmin",
 		"storage-key":      "minioadmin",
@@ -399,7 +402,7 @@ func testGCSStorage(ctx context.Context, t *testing.T, clickhouseContainer testc
 	runMainTestScenario(ctx, t, clickhouseContainer, map[string]string{
 		"storage-type":     "gcs",
 		"storage-bucket":   "testbucket",
-		"storage-path":     "",
+		"storage-path":     "/",
 		"storage-endpoint": "http://" + gcsHost + ":" + gcsPort.Port(), // fake-gcs-server uses http
 	}, testCase, backupName)
 }
@@ -437,7 +440,7 @@ func testAzureBlobStorage(ctx context.Context, t *testing.T, clickhouseContainer
 		"storage-account":   "devstoreaccount1",
 		"storage-key":       "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==",
 		"storage-container": "testcontainer",
-		"storage-path":      "",
+		"storage-path":      "/",
 		"storage-endpoint":  endpoint,
 	}, testCase, backupName)
 }
@@ -470,7 +473,7 @@ func testFTPStorage(ctx context.Context, t *testing.T, clickhouseContainer testc
 		"storage-host":     ftpHost + ":" + ftpPort.Port(),
 		"storage-user":     "testuser",
 		"storage-password": "testpass",
-		"storage-path":     "",
+		"storage-path":     "/",
 	}, testCase, backupName)
 }
 
@@ -541,9 +544,13 @@ func sanitizeContainerName(name string) string {
 }
 
 func startClickHouseContainer(ctx context.Context, containerName string) (testcontainers.Container, error) {
+	clickHouseVersion := os.Getenv("CLICKHOUSE_VERSION")
+	if clickHouseVersion == "" {
+		clickHouseVersion = "latest"
+	}
 	req := testcontainers.ContainerRequest{
 		Name:         sanitizeContainerName(containerName),
-		Image:        "clickhouse/clickhouse-server:latest",
+		Image:        "clickhouse/clickhouse-server:" + clickHouseVersion,
 		ExposedPorts: []string{"8123/tcp"},
 		Env: map[string]string{
 			"CLICKHOUSE_SKIP_USER_SETUP": "1",

@@ -1,12 +1,13 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
 	"strings"
 
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 )
 
 var (
@@ -15,7 +16,7 @@ var (
 	date    = "unknown"
 )
 
-var app = &cli.App{
+var app = &cli.Command{
 	Name:    "clickhouse-dump",
 	Usage:   "Dump and restore ClickHouse tables to/from remote storage",
 	Version: fmt.Sprintf("%s (commit %s, built at %s)", version, commit, date),
@@ -26,7 +27,7 @@ var app = &cli.App{
 			Aliases:  []string{"H"},
 			Value:    "localhost",
 			Usage:    "ClickHouse host",
-			EnvVars:  []string{"CLICKHOUSE_HOST"},
+			Sources:  cli.EnvVars("CLICKHOUSE_HOST"),
 			Required: false, // Make optional if defaults are acceptable or env var used
 		},
 		&cli.IntFlag{
@@ -34,7 +35,7 @@ var app = &cli.App{
 			Aliases:  []string{"p"},
 			Value:    8123,
 			Usage:    "ClickHouse HTTP port",
-			EnvVars:  []string{"CLICKHOUSE_PORT"},
+			Sources:  cli.EnvVars("CLICKHOUSE_PORT"),
 			Required: false,
 		},
 		&cli.StringFlag{
@@ -42,14 +43,14 @@ var app = &cli.App{
 			Aliases:  []string{"u"},
 			Value:    "default",
 			Usage:    "ClickHouse user",
-			EnvVars:  []string{"CLICKHOUSE_USER"},
+			Sources:  cli.EnvVars("CLICKHOUSE_USER"),
 			Required: false,
 		},
 		&cli.StringFlag{
 			Name:     "password",
 			Aliases:  []string{"P"},
 			Usage:    "ClickHouse password",
-			EnvVars:  []string{"CLICKHOUSE_PASSWORD"},
+			Sources:  cli.EnvVars("CLICKHOUSE_PASSWORD"),
 			Required: false, // Often provided via env var
 		},
 		&cli.StringFlag{
@@ -57,115 +58,115 @@ var app = &cli.App{
 			Aliases: []string{"d"},
 			Value:   ".*",
 			Usage:   "Regexp pattern for databases to include",
-			EnvVars: []string{"CLICKHOUSE_DATABASES"},
+			Sources: cli.EnvVars("CLICKHOUSE_DATABASES"),
 		},
 		&cli.StringFlag{
 			Name:    "exclude-databases",
 			Value:   "^system$|^INFORMATION_SCHEMA$|^information_schema$",
 			Usage:   "Regexp pattern for databases to exclude",
-			EnvVars: []string{"EXCLUDE_DATABASES"},
+			Sources: cli.EnvVars("EXCLUDE_DATABASES"),
 		},
 		&cli.StringFlag{
 			Name:    "tables",
 			Aliases: []string{"t"},
 			Value:   ".*",
 			Usage:   "Regexp pattern for tables to include",
-			EnvVars: []string{"TABLES"},
+			Sources: cli.EnvVars("TABLES"),
 		},
 		&cli.StringFlag{
 			Name:    "exclude-tables",
 			Value:   "",
 			Usage:   "Regexp pattern for tables to exclude",
-			EnvVars: []string{"EXCLUDE_TABLES"},
+			Sources: cli.EnvVars("EXCLUDE_TABLES"),
 		},
 		// Dump Specific Flags (can be moved to dump command if needed)
 		&cli.IntFlag{
 			Name:    "batch-size",
 			Value:   100000, // Adjusted default
 			Usage:   "Batch size for SQL Insert statements (dump only)",
-			EnvVars: []string{"BATCH_SIZE"},
+			Sources: cli.EnvVars("BATCH_SIZE"),
 		},
 		&cli.StringFlag{
 			Name:    "compress-format",
 			Value:   "gzip",
 			Usage:   "Compression format: gzip, zstd, or none (dump only)",
-			EnvVars: []string{"COMPRESS_FORMAT"},
+			Sources: cli.EnvVars("COMPRESS_FORMAT"),
 		},
 		&cli.IntFlag{
 			Name:    "compress-level",
 			Value:   6, // Default for gzip
 			Usage:   "Compression level (gzip: 1-9, zstd: 1-22) (dump only)",
-			EnvVars: []string{"COMPRESS_LEVEL"},
+			Sources: cli.EnvVars("COMPRESS_LEVEL"),
 		},
 		&cli.BoolFlag{
 			Name:    "debug",
 			Usage:   "Enable debug logging",
-			EnvVars: []string{"DEBUG"},
+			Sources: cli.EnvVars("DEBUG"),
 		},
 		&cli.IntFlag{
 			Name:    "parallel",
 			Value:   1,
 			Usage:   "Number of parallel table processing operations",
-			EnvVars: []string{"PARALLEL"},
+			Sources: cli.EnvVars("PARALLEL"),
 		},
 		// Storage Common Flags
 		&cli.StringFlag{
 			Name:     "storage-type",
 			Usage:    "Storage backend type: file, s3, gcs, azblob, sftp, ftp",
-			EnvVars:  []string{"STORAGE_TYPE"},
+			Sources:  cli.EnvVars("STORAGE_TYPE"),
 			Required: true, // Required for both dump and restore
 		},
 		// Storage Specific Flags (using map approach in getConfig)
 		&cli.StringFlag{
 			Name:    "storage-bucket",
 			Usage:   "S3/GCS bucket name",
-			EnvVars: []string{"STORAGE_BUCKET"},
+			Sources: cli.EnvVars("STORAGE_BUCKET"),
 		},
 		&cli.StringFlag{
 			Name:    "storage-region",
 			Usage:   "S3 region",
-			EnvVars: []string{"STORAGE_REGION"},
+			Sources: cli.EnvVars("STORAGE_REGION"),
 		},
 		&cli.StringFlag{
 			Name:    "storage-account",
 			Usage:   "Storage account name/access key (S3: access key ID, Azure: account name)",
-			EnvVars: []string{"AWS_ACCESS_KEY_ID", "STORAGE_ACCOUNT"},
+			Sources: cli.EnvVars("AWS_ACCESS_KEY_ID", "STORAGE_ACCOUNT"),
 		},
 		&cli.StringFlag{
 			Name:    "storage-key",
 			Usage:   "Storage secret key (S3: secret access key, Azure: account key, GCS: path to credentials JSON)",
-			EnvVars: []string{"AWS_SECRET_ACCESS_KEY", "STORAGE_KEY"},
+			Sources: cli.EnvVars("AWS_SECRET_ACCESS_KEY", "STORAGE_KEY"),
 		},
 		&cli.StringFlag{
 			Name:    "storage-endpoint",
 			Usage:   "Custom endpoint URL (S3: for MinIO/etc, GCS: for fake-gcs-server, Azure: for Azurite)",
-			EnvVars: []string{"STORAGE_ENDPOINT"},
+			Sources: cli.EnvVars("STORAGE_ENDPOINT"),
 		},
 		&cli.StringFlag{
 			Name:    "storage-container",
 			Usage:   "Azure Blob Storage container name",
-			EnvVars: []string{"STORAGE_CONTAINER"},
+			Sources: cli.EnvVars("STORAGE_CONTAINER"),
 		},
 		&cli.StringFlag{
 			Name:    "storage-host",
 			Usage:   "SFTP/FTP host (and optional port like host:port)",
-			EnvVars: []string{"STORAGE_HOST"},
+			Sources: cli.EnvVars("STORAGE_HOST"),
 		},
 		&cli.StringFlag{
 			Name:    "storage-user",
 			Usage:   "SFTP/FTP user",
-			EnvVars: []string{"STORAGE_USER"},
+			Sources: cli.EnvVars("STORAGE_USER"),
 		},
 		&cli.StringFlag{
 			Name:    "storage-password",
 			Usage:   "SFTP/FTP password",
-			EnvVars: []string{"STORAGE_PASSWORD"},
+			Sources: cli.EnvVars("STORAGE_PASSWORD"),
 		},
 		&cli.StringFlag{
 			Name:    "storage-path",
 			Usage:   "Base path in storage for dump/restore files",
 			Value:   "",
-			EnvVars: []string{"STORAGE_PATH"},
+			Sources: cli.EnvVars("STORAGE_PATH"),
 		},
 	},
 	Commands: []*cli.Command{
@@ -190,23 +191,30 @@ func main() {
 	log.SetOutput(os.Stderr)
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
-	err := app.Run(os.Args)
+	err := app.Run(context.Background(), os.Args)
 	if err != nil {
 		log.Fatal(err) // Use log.Fatal to print error and exit(1)
 	}
 }
 
-func RunDumper(c *cli.Context) error {
-	if c.Args().Len() == 0 {
+func RunDumper(ctx context.Context, cmd *cli.Command) error {
+	if cmd.Args().Len() == 0 {
 		return fmt.Errorf("backup name is required as argument")
 	}
-	backupName := c.Args().First()
+	backupName := cmd.Args().First()
 
-	config, err := getConfig(c)
+	config, err := getConfig(cmd)
 	if err != nil {
 		return fmt.Errorf("configuration error: %w", err)
 	}
 	config.BackupName = backupName
+
+	// Create ClickHouse client to check version
+	client := NewClickHouseClient(config)
+	if err := checkClickHouseVersion(client); err != nil {
+		return err
+	}
+
 	dumper, err := NewDumper(config)
 	if err != nil {
 		return fmt.Errorf("failed to initialize dumper: %w", err)
@@ -221,17 +229,24 @@ func RunDumper(c *cli.Context) error {
 	return err
 }
 
-func RunRestorer(c *cli.Context) error {
-	if c.Args().Len() == 0 {
+func RunRestorer(ctx context.Context, cmd *cli.Command) error {
+	if cmd.Args().Len() == 0 {
 		return fmt.Errorf("backup name is required as argument")
 	}
-	backupName := c.Args().First()
+	backupName := cmd.Args().First()
 
-	config, err := getConfig(c)
+	config, err := getConfig(cmd)
 	if err != nil {
 		return fmt.Errorf("configuration error: %w", err)
 	}
 	config.BackupName = backupName
+
+	// Create ClickHouse client to check version
+	client := NewClickHouseClient(config)
+	if err := checkClickHouseVersion(client); err != nil {
+		return err
+	}
+
 	restorer, err := NewRestorer(config)
 	if err != nil {
 		return fmt.Errorf("failed to initialize restorer: %w", err)
@@ -242,36 +257,70 @@ func RunRestorer(c *cli.Context) error {
 	return err
 }
 
+// checkClickHouseVersion verifies that the ClickHouse server is at least version 24.10
+func checkClickHouseVersion(client *ClickHouseClient) error {
+	query := "SELECT version()"
+	respBytes, err := client.ExecuteQuery(query)
+	if err != nil {
+		return fmt.Errorf("failed to check ClickHouse version: %w", err)
+	}
+
+	version := strings.TrimSpace(string(respBytes))
+	log.Printf("Connected to ClickHouse version: %s", version)
+
+	// Extract major and minor version numbers
+	parts := strings.Split(version, ".")
+	if len(parts) < 2 {
+		return fmt.Errorf("unexpected ClickHouse version format: %s", version)
+	}
+
+	var major, minor int
+	if _, err := fmt.Sscanf(parts[0], "%d", &major); err != nil {
+		return fmt.Errorf("failed to parse major version from %s: %w", version, err)
+	}
+
+	if _, err := fmt.Sscanf(parts[1], "%d", &minor); err != nil {
+		return fmt.Errorf("failed to parse minor version from %s: %w", version, err)
+	}
+
+	// Check if version is at least 24.10
+	if major < 24 || (major == 24 && minor < 10) {
+		return fmt.Errorf("unsupported ClickHouse version: %s. Minimum required version is 24.10", version)
+	}
+
+	return nil
+}
+
 // getConfig extracts configuration from command line context, including storage details.
-func getConfig(c *cli.Context) (*Config, error) {
+func getConfig(cmd *cli.Command) (*Config, error) {
 	// Basic ClickHouse config
 	config := &Config{
-		Host:             c.String("host"),
-		Port:             c.Int("port"),
-		User:             c.String("user"),
-		Password:         c.String("password"),
-		Databases:        c.String("databases"),
-		ExcludeDatabases: c.String("exclude-databases"),
-		Tables:           c.String("tables"),
-		ExcludeTables:    c.String("exclude-tables"),
-		BatchSize:        c.Int("batch-size"),
-		CompressFormat:   c.String("compress-format"),
-		CompressLevel:    c.Int("compress-level"),
-		StorageType:      strings.ToLower(c.String("storage-type")),
+		Host:             cmd.String("host"),
+		Port:             cmd.Int("port"),
+		User:             cmd.String("user"),
+		Password:         cmd.String("password"),
+		Databases:        cmd.String("databases"),
+		ExcludeDatabases: cmd.String("exclude-databases"),
+		Tables:           cmd.String("tables"),
+		ExcludeTables:    cmd.String("exclude-tables"),
+		BatchSize:        cmd.Int("batch-size"),
+		CompressFormat:   cmd.String("compress-format"),
+		CompressLevel:    cmd.Int("compress-level"),
+		StorageType:      strings.ToLower(cmd.String("storage-type")),
 		StorageConfig: map[string]string{
-			"host":      c.String("storage-host"),
-			"user":      c.String("storage-user"),
-			"password":  c.String("storage-password"),
-			"path":      c.String("storage-path"),
-			"bucket":    c.String("storage-bucket"),
-			"region":    c.String("storage-region"),
-			"account":   c.String("storage-account"),
-			"key":       c.String("storage-key"),
-			"endpoint":  c.String("storage-endpoint"),
-			"container": c.String("storage-container"),
+			"host":      cmd.String("storage-host"),
+			"user":      cmd.String("storage-user"),
+			"password":  cmd.String("storage-password"),
+			"path":      cmd.String("storage-path"),
+			"bucket":    cmd.String("storage-bucket"),
+			"region":    cmd.String("storage-region"),
+			"account":   cmd.String("storage-account"),
+			"key":       cmd.String("storage-key"),
+			"endpoint":  cmd.String("storage-endpoint"),
+			"container": cmd.String("storage-container"),
 		},
-		Debug:    c.Bool("debug"),
-		Parallel: c.Int("parallel"),
+		Debug:    cmd.Bool("debug"),
+		Parallel: cmd.Int("parallel"),
 	}
 
 	if config.Parallel < 1 {
