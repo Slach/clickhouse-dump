@@ -297,7 +297,6 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 	// Test 2: Restore
 	restoreArgs := append([]string{"clickhouse-dump", "restore"}, flags...)
 	restoreArgs = append(restoreArgs, backupName)
-	app := newCLIApp()
 	restoreErr := app.Run(ctx, restoreArgs)
 	t.Logf("restoreArgs=%#v", restoreArgs)
 	require.NoError(t, restoreErr, "fail to execute restore command %v", restoreArgs)
