@@ -10,7 +10,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.29.18
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.17.85
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.84.1
-	github.com/aws/smithy-go v1.22.4
+	github.com/aws/smithy-go v1.22.5
 	github.com/klauspost/compress v1.18.0
 	github.com/pkg/sftp v1.13.9
 	github.com/secsy/goftp v0.0.0-20200609142545-aa2de14babf4
