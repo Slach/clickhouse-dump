@@ -565,9 +565,8 @@ func startClickHouseContainer(ctx context.Context, containerName string) (testco
 
 func startMinioContainer(ctx context.Context, containerName string) (testcontainers.Container, error) {
 	req := testcontainers.ContainerRequest{
-		Name: sanitizeContainerName(containerName),
-		// https://github.com/bitnami/containers/issues/81607
-		Image:        "bitnami/minio:2025.4.22",
+		Name:         sanitizeContainerName(containerName),
+		Image:        "bitnami/minio:latest",
 		ExposedPorts: []string{"9000/tcp"},
 		Env: map[string]string{
 			"MINIO_DEFAULT_BUCKETS": "testbucket",
