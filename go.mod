@@ -7,8 +7,8 @@ require (
 	github.com/Azure/azure-pipeline-go v0.2.3
 	github.com/Azure/azure-storage-blob-go v0.15.0
 	github.com/aws/aws-sdk-go-v2 v1.38.0
-	github.com/aws/aws-sdk-go-v2/config v1.31.0
-	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.18.4
+	github.com/aws/aws-sdk-go-v2/config v1.31.1
+	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.18.5
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.87.0
 	github.com/aws/smithy-go v1.22.5
 	github.com/klauspost/compress v1.18.0
@@ -36,7 +36,7 @@ require (
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.53.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.0 // indirect
-	github.com/aws/aws-sdk-go-v2/credentials v1.18.4 // indirect
+	github.com/aws/aws-sdk-go-v2/credentials v1.18.5 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.3 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.3 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.3 // indirect
@@ -46,9 +46,9 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.8.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.3 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.28.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.33.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sts v1.37.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.28.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.33.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sts v1.37.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cncf/xds/go v0.0.0-20250501225837-2ac532fd4443 // indirect
