@@ -14,7 +14,7 @@ require (
 	github.com/klauspost/compress v1.18.0
 	github.com/pkg/sftp v1.13.9
 	github.com/secsy/goftp v0.0.0-20200609142545-aa2de14babf4
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.0
 	github.com/testcontainers/testcontainers-go v0.38.0
 	github.com/urfave/cli/v3 v3.4.1
 	golang.org/x/crypto v0.41.0
