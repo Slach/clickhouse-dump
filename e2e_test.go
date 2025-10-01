@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/Slach/clickhouse-dump/storage"
 	"io"
 	"net/http"
 	"net/url"
@@ -14,6 +13,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/Slach/clickhouse-dump/storage"
 
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
@@ -353,7 +354,7 @@ func testS3Storage(ctx context.Context, t *testing.T, clickhouseContainer testco
 			host, hostErr := minioContainer.Host(ctx)
 			port, portErr := minioContainer.MappedPort(ctx, "9000/tcp")
 			if hostErr == nil && portErr == nil {
-				t.Logf("Minio container %s is available at http://%s:%s (MINIO_ROOT_USER: minioadmin, MINIO_ROOT_PASSWORD: minioadmin)", minioContainer.GetContainerID(), host, port.Port())
+				t.Logf("Minio container %s is available at http://%s:%s (MINIO_ROOT_USER: minio_secret, MINIO_ROOT_PASSWORD: minio_secret)", minioContainer.GetContainerID(), host, port.Port())
 			}
 		}
 	}()
@@ -366,12 +367,12 @@ func testS3Storage(ctx context.Context, t *testing.T, clickhouseContainer testco
 
 	runMainTestScenario(ctx, t, clickhouseContainer, map[string]string{
 		"storage-type":     "s3",
-		"storage-bucket":   "testbucket",
+		"storage-bucket":   "clickhouse",
 		"storage-region":   "us-east-1",
 		"storage-path":     "/",
 		"storage-endpoint": "http://" + minioHost + ":" + minioPort.Port(),
-		"storage-account":  "minioadmin",
-		"storage-key":      "minioadmin",
+		"storage-account":  "minio_secret",
+		"storage-key":      "minio_secret",
 	}, testCase, backupName)
 }
 
@@ -566,19 +567,19 @@ func startClickHouseContainer(ctx context.Context, containerName string) (testco
 func startMinioContainer(ctx context.Context, containerName string) (testcontainers.Container, error) {
 	req := testcontainers.ContainerRequest{
 		Name:         sanitizeContainerName(containerName),
-		Image:        "bitnami/minio:latest",
+		Image:        "docker.io/minio/minio:latest",
 		ExposedPorts: []string{"9000/tcp"},
 		Env: map[string]string{
-			"MINIO_DEFAULT_BUCKETS": "testbucket",
-			"MINIO_ROOT_USER":       "minioadmin",
-			"MINIO_ROOT_PASSWORD":   "minioadmin",
-			"MINIO_SCHEME":          "http",
-			"BITNAMI_DEBUG":         "true",
+			"MINIO_ROOT_USER":     "minio_secret",
+			"MINIO_ROOT_PASSWORD": "minio_secret",
+			"MC_CONFIG_DIR":       "/root/.mc",
 		},
+		Entrypoint: []string{"/bin/bash"},
+		Cmd:        []string{"-c", "mkdir -p /minio/data/clickhouse && minio server /minio/data"},
 		WaitingFor: wait.ForExec(
 			[]string{
 				"sh", "-c",
-				"ls -la /bitnami/minio/data/testbucket/ && curl -f http://localhost:9000/minio/health/live",
+				"ls -lah /minio/data/clickhouse/ && curl -skL http://localhost:9000/",
 			},
 		).WithStartupTimeout(15 * time.Second).WithPollInterval(1 * time.Second),
 	}
