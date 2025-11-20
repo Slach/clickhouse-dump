@@ -260,11 +260,13 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 		"--user=default",
 		"--databases=" + tc.databases,
 		"--tables=" + tc.tables,
-		"--exclude-tables=" + tc.excludeTables,
 		"--batch-size=100000",
 		"--compress-format=" + compressionFormat,
 		"--compress-level=6",
 		"--parallel=3",
+	}
+	if tc.excludeTables != "" {
+		flags = append(flags, "--exclude-tables="+tc.excludeTables)
 	}
 	if tc.excludeDatabases != "" {
 		flags = append(flags, "--exclude-databases="+tc.excludeDatabases)
