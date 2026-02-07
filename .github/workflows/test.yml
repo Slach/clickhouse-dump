@@ -23,8 +23,9 @@ jobs:
     - name: Run tests with coverage
       run: |
         go test -v -failfast -parallel 4 -coverprofile=coverage.out -covermode=atomic -coverpkg=github.com/Slach/clickhouse-dump/... ./...
-        
+
     - name: Upload coverage to Coveralls
+      if: github.repository == 'Slach/clickhouse-dump'
       uses: coverallsapp/github-action@v2
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
