@@ -1,6 +1,6 @@
 module github.com/Slach/clickhouse-dump
 
-go 1.24.0
+go 1.25.0
 
 require (
 	cloud.google.com/go/storage v1.60.0
@@ -18,7 +18,7 @@ require (
 	github.com/testcontainers/testcontainers-go v0.40.0
 	github.com/urfave/cli/v3 v3.6.2
 	golang.org/x/crypto v0.48.0
-	google.golang.org/api v0.267.0
+	google.golang.org/api v0.268.0
 )
 
 require (
