@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -643,6 +644,14 @@ func allocateFtpPortRange() (int, int, bool) {
 	return startPort, endPort, true
 }
 
+func generateFTPPasswordHash(ctx context.Context, password string) (string, error) {
+	out, err := exec.CommandContext(ctx, "docker", "run", "--rm", "alpine:latest", "mkpasswd", "-m", "sha512", password).Output()
+	if err != nil {
+		return "", fmt.Errorf("failed to generate SHA-512 password hash: %w", err)
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
 func startFTPContainer(ctx context.Context, t *testing.T, containerName string) (testcontainers.Container, error) {
 	// Generate ports for PASV range based on test name hash to avoid conflicts in parallel tests
 	minPort, maxPort, ok := allocateFtpPortRange()
@@ -650,25 +659,55 @@ func startFTPContainer(ctx context.Context, t *testing.T, containerName string) 
 		t.Fatal("can't allocate FTP port range")
 	}
 
+	// Generate SHA-512 password hash for vsftpd secret
+	passwordHash, err := generateFTPPasswordHash(ctx, "testpass")
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate FTP password hash: %w", err)
+	}
+
+	// Write secret file (password hash)
+	secretPath := filepath.Join(os.TempDir(), fmt.Sprintf("vsftpd-secret-%s", sanitizeContainerName(containerName)))
+	if err := os.WriteFile(secretPath, []byte(passwordHash+"\n"), 0644); err != nil {
+		return nil, fmt.Errorf("failed to write vsftpd secret file: %w", err)
+	}
+
+	// Write chroot config
+	chrootPath := filepath.Join(os.TempDir(), fmt.Sprintf("vsftpd-chroot-%s", sanitizeContainerName(containerName)))
+	if err := os.WriteFile(chrootPath, []byte("chroot_local_user=YES\nallow_writeable_chroot=YES\n"), 0644); err != nil {
+		return nil, fmt.Errorf("failed to write vsftpd chroot config: %w", err)
+	}
+
 	exposedPorts := []string{
 		"21/tcp",
 	}
-	// Dynamically expose the ports
+	// Dynamically expose the PASV ports
 	for port := minPort; port <= maxPort; port++ {
 		exposedPorts = append(exposedPorts, fmt.Sprintf("%d:%d/tcp", port, port))
 	}
 
 	req := testcontainers.ContainerRequest{
 		Name:         sanitizeContainerName(containerName),
-		Image:        "fauria/vsftpd:latest",
+		Image:        "instantlinux/vsftpd:latest",
 		ExposedPorts: exposedPorts,
 		Env: map[string]string{
-			"FTP_USER":      "testuser",
-			"FTP_PASS":      "testpass",
-			"PASV_ENABLE":   "YES",
-			"PASV_ADDRESS":  "0.0.0.0", // Use 0.0.0.0 to allow connections from any IP
-			"PASV_MIN_PORT": strconv.Itoa(minPort),
-			"PASV_MAX_PORT": strconv.Itoa(maxPort),
+			"FTPUSER_NAME":            "testuser",
+			"FTPUSER_PASSWORD_SECRET": "testuser",
+			"PASV_ENABLE":             "YES",
+			"PASV_ADDRESS":            "0.0.0.0",
+			"PASV_MIN_PORT":           strconv.Itoa(minPort),
+			"PASV_MAX_PORT":           strconv.Itoa(maxPort),
+		},
+		Files: []testcontainers.ContainerFile{
+			{
+				HostFilePath:      secretPath,
+				ContainerFilePath: "/run/secrets/testuser",
+				FileMode:          0644,
+			},
+			{
+				HostFilePath:      chrootPath,
+				ContainerFilePath: "/etc/vsftpd.d/chroot.conf",
+				FileMode:          0644,
+			},
 		},
 		WaitingFor: wait.ForListeningPort("21/tcp").WithStartupTimeout(15 * time.Second),
 	}
