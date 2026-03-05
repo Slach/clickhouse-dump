@@ -223,6 +223,11 @@ func RunDumper(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return fmt.Errorf("failed to initialize dumper: %w", err)
 	}
+	defer func() {
+		if closeErr := dumper.Close(); closeErr != nil {
+			log.Printf("Warning: failed to close dumper storage connection: %v", closeErr)
+		}
+	}()
 	log.Println("Starting dump process...")
 	err = dumper.Dump()
 	if err == nil {

@@ -109,7 +109,7 @@ func NewFTPStorage(host, user, password string, debug bool) (*FTPStorage, error)
 	config := goftp.Config{
 		User:     user,
 		Password: password,
-		Timeout:  10 * time.Second,
+		Timeout:  60 * time.Second,
 	}
 
 	if debug {

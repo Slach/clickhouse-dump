@@ -21,8 +21,11 @@ jobs:
       run: go mod download
 
     - name: Run tests with coverage
+      env:
+        DEBUG: "1"
+        TESTCONTAINERS_RYUK_DISABLED: "true"
       run: |
-        go test -v -failfast -parallel 4 -coverprofile=coverage.out -covermode=atomic -coverpkg=github.com/Slach/clickhouse-dump/... ./...
+        go test -v -failfast -parallel 4 -timeout 30m -coverprofile=coverage.out -covermode=atomic -coverpkg=github.com/Slach/clickhouse-dump/... ./...
 
     - name: Upload coverage to Coveralls
       if: github.repository == 'Slach/clickhouse-dump'

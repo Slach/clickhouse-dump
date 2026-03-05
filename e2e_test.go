@@ -301,8 +301,12 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 	// Test 2: Restore
 	restoreArgs := append([]string{"clickhouse-dump", "restore"}, flags...)
 	restoreArgs = append(restoreArgs, backupName)
-	restoreErr := app.Run(ctx, restoreArgs)
 	t.Logf("restoreArgs=%#v", restoreArgs)
+	restoreErr := app.Run(ctx, restoreArgs)
+	// Log current databases after restore to aid debugging
+	if dbsOutput, dbsErr := executeTestQueryWithResult(ctx, t, clickhouseContainer, "SHOW DATABASES FORMAT TSVRaw"); dbsErr == nil {
+		t.Logf("databases after restore: %s", dbsOutput)
+	}
 	require.NoError(t, restoreErr, "fail to execute restore command %v", restoreArgs)
 
 	for _, table := range tc.expectedRestored {

@@ -273,6 +273,13 @@ func (d *Dumper) dumpData(dbName, tableName string) error {
 	return d.storage.Upload(filename, body, d.config.CompressFormat, d.config.CompressLevel, contentEncoding)
 }
 
+func (d *Dumper) Close() error {
+	if d.storage != nil {
+		return d.storage.Close()
+	}
+	return nil
+}
+
 func (d *Dumper) debugf(msg string, args ...interface{}) {
 	if d.config.Debug {
 		if len(args) > 0 {

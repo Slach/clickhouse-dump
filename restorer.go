@@ -85,6 +85,11 @@ func (r *Restorer) Restore() error {
 		return fmt.Errorf("failed to list files in storage with prefix %s: %w", backupPrefix, err)
 	}
 
+	log.Printf("Total files listed under backup prefix: %d", len(files))
+	for _, f := range files {
+		log.Printf("  listed: %s", f)
+	}
+
 	// Filter for database files
 	var dbFiles []string
 	dbSuffix := "database.sql"
@@ -94,6 +99,9 @@ func (r *Restorer) Restore() error {
 		}
 	}
 
+	if len(dbFiles) == 0 {
+		log.Printf("WARNING: no database SQL files found under prefix %s — databases will not be created before table restore", backupPrefix)
+	}
 	log.Printf("Found %d database files to restore. Parallelism: %d", len(dbFiles), r.config.Parallel)
 	if len(dbFiles) > 0 {
 		semDb := make(chan struct{}, r.config.Parallel)
