@@ -675,10 +675,10 @@ func startFTPContainer(ctx context.Context, t *testing.T, containerName string) 
 		return nil, fmt.Errorf("failed to write vsftpd secret file: %w", err)
 	}
 
-	// Write chroot config
-	chrootPath := filepath.Join(os.TempDir(), fmt.Sprintf("vsftpd-chroot-%s", sanitizeContainerName(containerName)))
-	if err := os.WriteFile(chrootPath, []byte("chroot_local_user=YES\nallow_writeable_chroot=YES\n"), 0644); err != nil {
-		return nil, fmt.Errorf("failed to write vsftpd chroot config: %w", err)
+	// Write chroot+max_per_ip+seccomp_sandbox config
+	fixesCfgPath := filepath.Join(os.TempDir(), fmt.Sprintf("vsftpd-fixes-%s", sanitizeContainerName(containerName)))
+	if err := os.WriteFile(fixesCfgPath, []byte("chroot_local_user=YES\nallow_writeable_chroot=YES\nseccomp_sandbox=NO\nmax_per_ip=0\n"), 0644); err != nil {
+		return nil, fmt.Errorf("failed to write vsftpd fixes config: %w", err)
 	}
 
 	exposedPorts := []string{
@@ -708,8 +708,8 @@ func startFTPContainer(ctx context.Context, t *testing.T, containerName string) 
 				FileMode:          0644,
 			},
 			{
-				HostFilePath:      chrootPath,
-				ContainerFilePath: "/etc/vsftpd.d/chroot.conf",
+				HostFilePath:      fixesCfgPath,
+				ContainerFilePath: "/etc/vsftpd.d/fixes.conf",
 				FileMode:          0644,
 			},
 		},
