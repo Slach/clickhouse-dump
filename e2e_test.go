@@ -211,7 +211,7 @@ func runMainTestScenario(ctx context.Context, t *testing.T, clickhouseContainer 
 				"test_db2.inventory",
 				"logs_2023.events",
 				"logs_2024.events",
-				"system_db.settings", // Verify this is NOT restored despite being in backup
+				"system_db.settings", // Verify excluded table patterns do not exclude similarly named databases.
 			},
 			expectedMissing: []string{
 				"test_db1.logs",

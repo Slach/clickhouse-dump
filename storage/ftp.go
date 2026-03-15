@@ -34,6 +34,7 @@ type FTPStorage struct {
 	debug          bool
 	config         *goftp.Config
 	dirCache       map[string]struct{}
+	clientMutex    sync.Mutex
 	dirCacheMutext sync.RWMutex // Mutex for directory operations
 }
 
@@ -81,7 +82,9 @@ func (f *FTPStorage) mkdirAllFTP(path string) error {
 		f.dirCacheMutext.RUnlock()
 
 		f.dirCacheMutext.Lock()
+		f.clientMutex.Lock()
 		_, err := f.client.Mkdir(currentPathToMake)
+		f.clientMutex.Unlock()
 		if err != nil {
 			f.debugf("Directory creation error (likely exists): %v", err)
 		} else {
@@ -177,6 +180,8 @@ func (f *FTPStorage) Upload(filename string, reader io.Reader, compressFormat st
 
 	// Store the file
 	f.debugf("Storing file: %s", remoteFilename)
+	f.clientMutex.Lock()
+	defer f.clientMutex.Unlock()
 	if err := f.client.Store(remoteFilename, finalReader); err != nil {
 		f.debugf("Failed to store file: %v", err)
 		return fmt.Errorf("failed to store file %s on ftp host %s: %w", remoteFilename, f.host, err)
@@ -198,6 +203,10 @@ func (f *FTPStorage) Download(filename string) (io.ReadCloser, error) {
 				log.Printf("can't close ftp pipe writer: %v", closeErr)
 			}
 		}()
+
+		f.clientMutex.Lock()
+		defer f.clientMutex.Unlock()
+
 		err := f.client.Retrieve(filename, pw)
 		if err != nil {
 			f.debugf("Failed to download file: %v", err)
@@ -221,7 +230,9 @@ func (f *FTPStorage) List(prefix string, recursive bool) ([]string, error) {
 
 	// Get listing
 	f.debugf("Reading directory: '%s'", prefix)
+	f.clientMutex.Lock()
 	entries, err := f.client.ReadDir(prefix)
+	f.clientMutex.Unlock()
 	if err != nil {
 		f.debugf("Error listing directory '%s': %v", prefix, err)
 		return nil, fmt.Errorf("error listing ftp directory '%s' on host %s: %w", prefix, f.host, err)
@@ -256,7 +267,9 @@ func (f *FTPStorage) List(prefix string, recursive bool) ([]string, error) {
 func (f *FTPStorage) Close() error {
 	if f.client != nil {
 		f.debugf("Closing FTP connection to %s", f.host)
+		f.clientMutex.Lock()
 		err := f.client.Close()
+		f.clientMutex.Unlock()
 		if err != nil {
 			f.debugf("Error closing FTP connection: %v", err)
 		} else {
