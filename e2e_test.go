@@ -17,6 +17,8 @@ import (
 
 	"github.com/Slach/clickhouse-dump/storage"
 
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/network"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -684,9 +686,14 @@ func startFTPContainer(ctx context.Context, t *testing.T, containerName string) 
 	exposedPorts := []string{
 		"21/tcp",
 	}
-	// Dynamically expose the PASV ports
+	// Build fixed port bindings for PASV range (host port == container port)
+	portBindings := network.PortMap{}
 	for port := minPort; port <= maxPort; port++ {
-		exposedPorts = append(exposedPorts, fmt.Sprintf("%d:%d/tcp", port, port))
+		p := network.MustParsePort(fmt.Sprintf("%d/tcp", port))
+		exposedPorts = append(exposedPorts, p.String())
+		portBindings[p] = []network.PortBinding{
+			{HostPort: strconv.Itoa(port)},
+		}
 	}
 
 	req := testcontainers.ContainerRequest{
@@ -700,6 +707,9 @@ func startFTPContainer(ctx context.Context, t *testing.T, containerName string) 
 			"PASV_ADDRESS":            "0.0.0.0",
 			"PASV_MIN_PORT":           strconv.Itoa(minPort),
 			"PASV_MAX_PORT":           strconv.Itoa(maxPort),
+		},
+		HostConfigModifier: func(hc *container.HostConfig) {
+			hc.PortBindings = portBindings
 		},
 		Files: []testcontainers.ContainerFile{
 			{
