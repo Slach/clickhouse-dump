@@ -12,7 +12,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.99.0
 	github.com/aws/smithy-go v1.25.0
 	github.com/klauspost/compress v1.18.5
-	github.com/moby/moby/api v1.54.1
+	github.com/moby/moby/api v1.54.2
 	github.com/pkg/sftp v1.13.10
 	github.com/secsy/goftp v0.0.0-20200609142545-aa2de14babf4
 	github.com/stretchr/testify v1.11.1
