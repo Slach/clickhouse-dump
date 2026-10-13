@@ -11,7 +11,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.22.13
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.99.0
 	github.com/aws/smithy-go v1.25.0
-	github.com/klauspost/compress v1.18.5
+	github.com/klauspost/compress v1.18.7
 	github.com/moby/moby/api v1.54.1
 	github.com/pkg/sftp v1.13.10
 	github.com/secsy/goftp v0.0.0-20200609142545-aa2de14babf4
@@ -83,11 +83,11 @@ require (
 	github.com/magiconair/properties v1.8.10 // indirect
 	github.com/mattn/go-ieproxy v0.0.12 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
-	github.com/moby/go-archive v0.2.0 // indirect
+	github.com/moby/go-archive v0.3.0 // indirect
 	github.com/moby/moby/client v0.4.0 // indirect
 	github.com/moby/patternmatcher v0.6.1 // indirect
-	github.com/moby/sys/sequential v0.6.0 // indirect
-	github.com/moby/sys/user v0.4.0 // indirect
+	github.com/moby/sys/sequential v0.7.0 // indirect
+	github.com/moby/sys/user v0.4.1 // indirect
 	github.com/moby/sys/userns v0.1.0 // indirect
 	github.com/moby/term v0.5.2 // indirect
 	github.com/morikuni/aec v1.0.0 // indirect
